@@ -825,6 +825,7 @@ function OpenWorldShogi() {
   const [netName, setNetName] = useState("");
   const [netMsg, setNetMsg] = useState("");
   const netRef = useRef({ role: null, myId: null, name: "", armyId: null });
+  const [netRoleState, setNetRoleState] = useState(null);
   function myClientId() {
     if (!netRef.current.myId) netRef.current.myId = "c" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
     return netRef.current.myId;
@@ -858,6 +859,7 @@ function OpenWorldShogi() {
     }
     if (iAmHost) {
       netRef.current.role = "host";
+      setNetRoleState("host");
       let w = newOpenWorld(null);
       const prev = await stGet(`${OW_KEY}/state`);
       if (prev && prev.armies) applyOpenWorldState(w, prev, null);
@@ -873,6 +875,7 @@ function OpenWorldShogi() {
       setStarted(true);
     } else {
       netRef.current.role = "guest";
+      setNetRoleState("guest");
       await stSet(`${OW_KEY}/joinRequests/${myId}`, { name: nm, ts: Date.now() });
       fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
       g.current = newOpenWorld(null);
@@ -904,6 +907,7 @@ function OpenWorldShogi() {
       }
     }
     netRef.current = { role: null, myId: netRef.current.myId, name: "", armyId: null };
+    setNetRoleState(null);
     setNetMsg("");
     setNetPhase(null);
   }
@@ -971,7 +975,7 @@ function OpenWorldShogi() {
       clearInterval(hbIv);
       clearInterval(pushIv);
     };
-  }, [netPhase]);
+  }, [netPhase, netRoleState]);
   useEffect(() => {
     if (netRef.current.role !== "guest" || netPhase === null) return;
     let cancelled = false;
@@ -998,6 +1002,7 @@ function OpenWorldShogi() {
             clearInterval(hbIv);
             clearInterval(pollIv);
             netRef.current.role = "host";
+            setNetRoleState("host");
             let w = newOpenWorld(null);
             const prev = await stGet(`${OW_KEY}/state`);
             if (prev && prev.armies) applyOpenWorldState(w, prev, null);
@@ -1037,7 +1042,7 @@ function OpenWorldShogi() {
       clearInterval(hbIv);
       clearInterval(pollIv);
     };
-  }, [netPhase]);
+  }, [netPhase, netRoleState]);
   function banner(text, sub, tone) {
     g.current.banner = { text, sub, tone, until: Date.now() + 2600 };
   }
