@@ -975,6 +975,7 @@ function OpenWorldShogi() {
   useEffect(() => {
     if (netRef.current.role !== "guest" || netPhase === null) return;
     let cancelled = false;
+    const joinedAt = Date.now();
     const hbIv = setInterval(() => {
       if (cancelled || !netRef.current.myId) return;
       stSet(`${OW_KEY}/players/${netRef.current.myId}/ts`, Date.now());
@@ -982,6 +983,40 @@ function OpenWorldShogi() {
     const pollIv = setInterval(async () => {
       if (cancelled) return;
       const myId = netRef.current.myId;
+      // ホストが応答しないまま一定時間経過したら、自分がホストに昇格を試みる
+      // (前のホストがタブを閉じてhostレコードが更新されなくなった場合の救済)
+      if (Date.now() - joinedAt > OW_HOST_TIMEOUT + 3000) {
+        const t0 = Date.now();
+        try {
+          const res = await fbDb.ref(`${OW_KEY}/host`).transaction((cur) => {
+            if (!cur || t0 - cur.ts > OW_HOST_TIMEOUT) return { id: myId, ts: t0 };
+            return;
+          });
+          const becameHost = !!(res && res.committed && res.snapshot.val() && res.snapshot.val().id === myId);
+          if (becameHost) {
+            cancelled = true;
+            clearInterval(hbIv);
+            clearInterval(pollIv);
+            netRef.current.role = "host";
+            let w = newOpenWorld(null);
+            const prev = await stGet(`${OW_KEY}/state`);
+            if (prev && prev.armies) applyOpenWorldState(w, prev, null);
+            const mine = spawnHumanArmy(w, netRef.current.name, myId);
+            w.playerId = mine ? mine.id : null;
+            w.focusId = w.playerId;
+            g.current = w;
+            await stSet(`${OW_KEY}/players/${myId}`, { name: netRef.current.name, armyId: w.playerId, ts: Date.now(), left: false });
+            await stSet(`${OW_KEY}/joinRequests/${myId}`, null);
+            fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
+            camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
+            netRef.current.armyId = w.playerId;
+            setNetPhase("playing");
+            setStarted(true);
+            bump();
+            return;
+          }
+        } catch (e) { console.error("guest self-promote failed", e); }
+      }
       const [me, state] = await Promise.all([stGet(`${OW_KEY}/players/${myId}`), stGet(`${OW_KEY}/state`)]);
       if (!state) return;
       if (me && me.armyId != null && !me.left) {
