@@ -1037,6 +1037,10 @@ function OpenWorldShogi() {
       } else {
         applyOpenWorldState(g.current, state, null);
         if (netPhase === "playing") g.current.myDefeated = true;
+        // まだ軍が割り当てられていない場合、joinRequestを定期的に再送する
+        if (netPhase !== "playing" && Date.now() - joinedAt > 5000) {
+          stSet(`${OW_KEY}/joinRequests/${myId}`, { name: netRef.current.name, ts: Date.now() });
+        }
       }
       bump();
     }, OW_STATE_POLL);
