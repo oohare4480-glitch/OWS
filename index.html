@@ -980,6 +980,7 @@ function OpenWorldShogi() {
     if (netRef.current.role !== "guest" || netPhase === null) return;
     let cancelled = false;
     const joinedAt = Date.now();
+    let promoteAttempted = false;
     const hbIv = setInterval(() => {
       if (cancelled || !netRef.current.myId) return;
       stSet(`${OW_KEY}/players/${netRef.current.myId}/ts`, Date.now());
@@ -989,7 +990,9 @@ function OpenWorldShogi() {
       const myId = netRef.current.myId;
       // ホストが応答しないまま一定時間経過したら、自分がホストに昇格を試みる
       // (前のホストがタブを閉じてhostレコードが更新されなくなった場合の救済)
-      if (Date.now() - joinedAt > OW_HOST_TIMEOUT + 3000) {
+      // 一度だけ試行(毎回transactionを叩くと端末に負荷がかかりフリーズの原因になるため)
+      if (!promoteAttempted && Date.now() - joinedAt > OW_HOST_TIMEOUT + 3000) {
+        promoteAttempted = true;
         const t0 = Date.now();
         try {
           const res = await fbDb.ref(`${OW_KEY}/host`).transaction((cur) => {
