@@ -1190,7 +1190,7 @@ function OpenWorldShogi() {
       if (a.alive && !kings.has(a.id)) handleDefeat(W2, a);
     }
     if (W2.over) return;
-    if (t - W2.lastSpawnCheck >= SPAWN_CHECK_INTERVAL) {
+    if (W2.mode !== "openworld" && t - W2.lastSpawnCheck >= SPAWN_CHECK_INTERVAL) {
       W2.lastSpawnCheck = t;
       const deficit = CAP - aliveCount(W2);
       const toSpawn = Math.min(Math.max(deficit, 0), 6);
@@ -1235,6 +1235,7 @@ function OpenWorldShogi() {
         }
       }
     }
+    if (W2.mode === "openworld") return;
     const aiDue = [];
     for (const a of W2.armies) {
       if (a.id === W2.playerId || a.human || !a.alive) continue;
