@@ -800,16 +800,16 @@ function serializeOpenWorld(W) {
 }
 function applyOpenWorldState(W, s, myArmyId) {
   const t = now();
-  W.cells = new Map(s.cells.map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
-  W.armies = s.armies.map((sa) => ({
+  W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
+  W.armies = (s.armies || []).map((sa) => ({
     id: sa.id,
     facing: sa.facing,
     alive: sa.alive,
-    hand: sa.hand,
-    target: sa.target,
+    hand: sa.hand || {},
+    target: sa.target || null,
     center: sa.center,
-    kills: sa.kills,
-    flankBias: sa.flankBias,
+    kills: sa.kills || 0,
+    flankBias: sa.flankBias || 0,
     human: sa.human,
     name: sa.name,
     lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)),
@@ -818,10 +818,10 @@ function applyOpenWorldState(W, s, myArmyId) {
     color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id)
   }));
   for (const a of W.armies) refreshZone(a);
-  W.chat = s.chat.map((m, i) => ({ ...m, id: m.id || "n" + i }));
-  W.marchAnchor = s.marchAnchor;
-  W.lastMarchTick = s.lastMarchTick;
-  W.netMarchRemain = Math.max(0, MARCH_INTERVAL - (t - s.marchAnchor) % MARCH_INTERVAL);
+  W.chat = (s.chat || []).map((m, i) => ({ ...m, id: m.id || "n" + i }));
+  W.marchAnchor = s.marchAnchor || t;
+  W.lastMarchTick = s.lastMarchTick || 0;
+  W.netMarchRemain = Math.max(0, MARCH_INTERVAL - (t - (s.marchAnchor || t)) % MARCH_INTERVAL);
   W.playerId = myArmyId;
 }
 function newOpenWorld(myArmyId) {
@@ -929,14 +929,18 @@ function OpenWorldShogi() {
       fbDb.ref(`${netRef.current.roomKey}/host`).onDisconnect().remove();
       let w = newOpenWorld(null);
       const prev = await stGet(`${netRef.current.roomKey}/state`);
-      // Only trust the previous snapshot if every army in it is human.
+      // Only trust the previous snapshot if it's both (a) recent -- a genuine
+      // live handoff from a host that was active moments ago, not ancient
+      // leftover data from a long-dead test session -- and (b) every army
+      // in it is human.
       // NOTE: an earlier fix here used .filter() to strip non-human armies,
       // but W.armies is indexed by army.id everywhere (W.armies[p.owner],
       // W.armies[W.playerId], ...). Filtering compacts the array and breaks
       // that id===index invariant, causing an out-of-bounds/undefined army
       // lookup mid-render -> uncaught exception -> blank/black screen.
       // Discarding the whole contaminated snapshot avoids that entirely.
-      if (prev && prev.armies && prev.armies.every((a) => a.human)) {
+      const prevFresh = prev && prev.ts && Date.now() - prev.ts < OW_HOST_TIMEOUT * 2;
+      if (prevFresh && prev.armies && prev.armies.every((a) => a.human)) {
         applyOpenWorldState(w, prev, null);
       }
       const mine = spawnHumanArmy(w, nm, myId);
@@ -1830,7 +1834,7 @@ function OpenWorldShogi() {
   const cdRemain = focusArmy ? Math.max(0, MOVE_COOLDOWN - (now() - focusArmy.lastAction)) / 1e3 : 0;
   const marchRemain = Math.max(0, MARCH_INTERVAL - (now() - W.marchAnchor) % MARCH_INTERVAL) / 1e3;
   const remaining = W.armies.filter((a) => a.alive && a.id !== W.playerId).length;
-  const hand = player ? player.hand : {};
+  const hand = player ? player.hand || {} : {};
   const leader = W.armies.reduce((b, a) => a.kills > (b ? b.kills : 0) ? a : b, null);
   let marchStatus = null, marching = false;
   if (isPlay && player && player.alive) {
