@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>オープンワールド将棋 v1.4</title>
+<title>オープンワールド将棋 v1.5</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #10140F; overscroll-behavior: none; }
   #root { height: 100%; }
@@ -889,13 +889,15 @@ function OpenWorldShogi() {
       fbDb.ref(`${netRef.current.roomKey}/host`).onDisconnect().remove();
       let w = newOpenWorld(null);
       const prev = await stGet(`${netRef.current.roomKey}/state`);
-      if (prev && prev.armies) applyOpenWorldState(w, prev, null);
-      // defensive cleanup: strip any non-human armies left over from older
-      // buggy builds (or any future regression) so AI can never appear here
-      if (w.armies.some((a) => !a.human)) {
-        const humanIds = new Set(w.armies.filter((a) => a.human).map((a) => a.id));
-        for (const [k, cell] of [...w.cells]) if (!humanIds.has(cell.owner)) w.cells.delete(k);
-        w.armies = w.armies.filter((a) => a.human);
+      // Only trust the previous snapshot if every army in it is human.
+      // NOTE: an earlier fix here used .filter() to strip non-human armies,
+      // but W.armies is indexed by army.id everywhere (W.armies[p.owner],
+      // W.armies[W.playerId], ...). Filtering compacts the array and breaks
+      // that id===index invariant, causing an out-of-bounds/undefined army
+      // lookup mid-render -> uncaught exception -> blank/black screen.
+      // Discarding the whole contaminated snapshot avoids that entirely.
+      if (prev && prev.armies && prev.armies.every((a) => a.human)) {
+        applyOpenWorldState(w, prev, null);
       }
       const mine = spawnHumanArmy(w, nm, myId);
       w.playerId = mine ? mine.id : null;
@@ -1665,7 +1667,7 @@ function OpenWorldShogi() {
       const x0 = Math.max(0, a.center[0] - zr), x1 = Math.min(MAP_W - 1, a.center[0] + zr);
       const y0 = Math.max(0, a.center[1] - zr), y1 = Math.min(MAP_H - 1, a.center[1] + zr);
       if (x1 < vx0 || x0 > vx1 || y1 < vy0 || y0 > vy1) continue;
-      const col = a.color;
+      const col = (W2.playerId != null && a.id === W2.playerId) ? PLAYER_COLOR : a.color;
       ctx.fillStyle = col.zone;
       ctx.fillRect(sx(x0), sy(y0), (x1 - x0 + 1) * S, (y1 - y0 + 1) * S);
       const isFocus = W2.mode === "watch" && a.id === W2.focusId;
@@ -1701,7 +1703,7 @@ function OpenWorldShogi() {
       const [x, y] = k.split(",").map(Number);
       if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
       const army = W2.armies[p.owner];
-      const col = army.color;
+      const col = (W2.playerId != null && army.id === W2.playerId) ? PLAYER_COLOR : army.color;
       const cx = sx(x + 0.5), cy = sy(y + 0.5);
       if (S < 5) {
         ctx.fillStyle = col.chip;
@@ -1798,7 +1800,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.4"), W.mode === "openworld" && netRef.current.roomIndex != null && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `\u90E8\u5C4B${netRef.current.roomIndex + 1}`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226(${netRef.current.role === "host" ? "\u30DB\u30B9\u30C8" : "\u30B2\u30B9\u30C8"})` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.armies.length : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.5"), W.mode === "openworld" && netRef.current.roomIndex != null && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `\u90E8\u5C4B${netRef.current.roomIndex + 1}`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226(${netRef.current.role === "host" ? "\u30DB\u30B9\u30C8" : "\u30B2\u30B9\u30C8"})` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.armies.length : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
