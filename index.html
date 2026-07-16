@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>オープンワールド将棋</title>
+<title>オープンワールド将棋 v1.1</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #10140F; overscroll-behavior: none; }
   #root { height: 100%; }
@@ -695,12 +695,25 @@ try {
 }
 const NET_POLL = 1500;
 const NET_PUSH = 900;
-const OW_KEY = "ows_openworld_v2";
-const OW_HOST_TIMEOUT = 8000;
+const OW_HOST_TIMEOUT = 12000;
 const OW_HEARTBEAT = 4000;
-const OW_STATE_PUSH = 900;
-const OW_STATE_POLL = 1200;
-const OW_PLAYER_STALE = 12000;
+const OW_STATE_PUSH = 700;
+const OW_STATE_POLL = 700;
+const OW_PLAYER_STALE = 15000;
+const OW_ROOM_COUNT = 8;
+const OW_ROOM_BASE = "owsOpenWorld";
+const owRoomKey = (i) => `${OW_ROOM_BASE}/room${i}`;
+async function pickOpenWorldRoom() {
+  const counts = await Promise.all(
+    Array.from({ length: OW_ROOM_COUNT }, (_, i) => stGet(`${owRoomKey(i)}/players`))
+  );
+  let best = 0, bestCount = Infinity;
+  counts.forEach((players, i) => {
+    const c = players ? Object.keys(players).length : 0;
+    if (c < bestCount) { bestCount = c; best = i; }
+  });
+  return { key: owRoomKey(best), index: best };
+}
 const hasNet = () => !!fbDb;
 async function stGet(key) {
   if (!fbDb) return null;
@@ -824,8 +837,7 @@ function OpenWorldShogi() {
   const [netPhase, setNetPhase] = useState(null);
   const [netName, setNetName] = useState("");
   const [netMsg, setNetMsg] = useState("");
-  const netRef = useRef({ role: null, myId: null, name: "", armyId: null });
-  const [netRoleState, setNetRoleState] = useState(null);
+  const netRef = useRef({ role: null, myId: null, name: "", armyId: null, roomKey: null, roomIndex: null });
   function myClientId() {
     if (!netRef.current.myId) netRef.current.myId = "c" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
     return netRef.current.myId;
@@ -833,7 +845,7 @@ function OpenWorldShogi() {
   const isNetGuest = () => g.current.mode === "openworld" && netRef.current.role === "guest";
   function netSend(item) {
     if (netRef.current.role !== "guest" || !netRef.current.myId) return;
-    fbDb && fbDb.ref(`${OW_KEY}/actions/${netRef.current.myId}`).push(item);
+    fbDb && fbDb.ref(`${netRef.current.roomKey}/actions/${netRef.current.myId}`).push(item);
   }
   const [, tick] = useState(0);
   async function joinOpenWorld() {
@@ -844,12 +856,16 @@ function OpenWorldShogi() {
     const nm = filterProfanity(netName.trim()).slice(0, NAME_MAX_LEN) || "\u540D\u7121\u3057";
     const myId = myClientId();
     netRef.current.name = nm;
-    setNetMsg("\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026");
+    setNetMsg("\u90E8\u5C4B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059\u2026");
     setNetPhase("connecting");
+    const room = await pickOpenWorldRoom();
+    netRef.current.roomKey = room.key;
+    netRef.current.roomIndex = room.index;
+    setNetMsg("\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026");
     const t0 = Date.now();
     let iAmHost = false;
     try {
-      const res = await fbDb.ref(`${OW_KEY}/host`).transaction((cur) => {
+      const res = await fbDb.ref(`${netRef.current.roomKey}/host`).transaction((cur) => {
         if (!cur || t0 - cur.ts > OW_HOST_TIMEOUT) return { id: myId, ts: t0 };
         return;
       });
@@ -859,25 +875,23 @@ function OpenWorldShogi() {
     }
     if (iAmHost) {
       netRef.current.role = "host";
-      setNetRoleState("host");
       let w = newOpenWorld(null);
-      const prev = await stGet(`${OW_KEY}/state`);
+      const prev = await stGet(`${netRef.current.roomKey}/state`);
       if (prev && prev.armies) applyOpenWorldState(w, prev, null);
       const mine = spawnHumanArmy(w, nm, myId);
       w.playerId = mine ? mine.id : null;
       w.focusId = w.playerId;
       g.current = w;
-      await stSet(`${OW_KEY}/players/${myId}`, { name: nm, armyId: w.playerId, ts: Date.now(), left: false });
-      fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
+      await stSet(`${netRef.current.roomKey}/players/${myId}`, { name: nm, armyId: w.playerId, ts: Date.now(), left: false });
+      fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
       camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
       netRef.current.armyId = w.playerId;
       setNetPhase("playing");
       setStarted(true);
     } else {
       netRef.current.role = "guest";
-      setNetRoleState("guest");
-      await stSet(`${OW_KEY}/joinRequests/${myId}`, { name: nm, ts: Date.now() });
-      fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
+      await stSet(`${netRef.current.roomKey}/joinRequests/${myId}`, { name: nm, ts: Date.now() });
+      fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
       g.current = newOpenWorld(null);
       camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
     }
@@ -889,25 +903,24 @@ function OpenWorldShogi() {
       w.playerId = mine ? mine.id : null;
       w.myDefeated = false;
       netRef.current.armyId = w.playerId;
-      stSet(`${OW_KEY}/players/${netRef.current.myId}`, { name: netRef.current.name, armyId: w.playerId, ts: Date.now(), left: false });
+      stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}`, { name: netRef.current.name, armyId: w.playerId, ts: Date.now(), left: false });
     } else if (netRef.current.role === "guest") {
       g.current.myDefeated = false;
       netRef.current.armyId = null;
-      stSet(`${OW_KEY}/joinRequests/${netRef.current.myId}`, { name: netRef.current.name, ts: Date.now() });
+      stSet(`${netRef.current.roomKey}/joinRequests/${netRef.current.myId}`, { name: netRef.current.name, ts: Date.now() });
     }
   }
   async function leaveOpenWorld() {
     const myId = netRef.current.myId;
     if (myId && fbDb) {
       try {
-        fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().cancel();
-        await stSet(`${OW_KEY}/players/${myId}`, null);
-        await stSet(`${OW_KEY}/joinRequests/${myId}`, null);
+        fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().cancel();
+        await stSet(`${netRef.current.roomKey}/players/${myId}`, null);
+        await stSet(`${netRef.current.roomKey}/joinRequests/${myId}`, null);
       } catch (e) {
       }
     }
-    netRef.current = { role: null, myId: netRef.current.myId, name: "", armyId: null };
-    setNetRoleState(null);
+    netRef.current = { role: null, myId: netRef.current.myId, name: "", armyId: null, roomKey: null, roomIndex: null };
     setNetMsg("");
     setNetPhase(null);
   }
@@ -916,32 +929,32 @@ function OpenWorldShogi() {
     let cancelled = false;
     const hbIv = setInterval(() => {
       if (cancelled) return;
-      stSet(`${OW_KEY}/host`, { id: netRef.current.myId, ts: Date.now() });
-      if (netRef.current.myId) stSet(`${OW_KEY}/players/${netRef.current.myId}/ts`, Date.now());
+      stSet(`${netRef.current.roomKey}/host`, { id: netRef.current.myId, ts: Date.now() });
+      if (netRef.current.myId) stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}/ts`, Date.now());
     }, OW_HEARTBEAT);
     const pushIv = setInterval(async () => {
       if (cancelled) return;
       const W2 = g.current;
       try {
-        const [reqs, players] = await Promise.all([stGet(`${OW_KEY}/joinRequests`), stGet(`${OW_KEY}/players`)]);
+        const [reqs, players] = await Promise.all([stGet(`${netRef.current.roomKey}/joinRequests`), stGet(`${netRef.current.roomKey}/players`)]);
         if (reqs) {
           for (const [cid, req] of Object.entries(reqs)) {
             if (players && players[cid] && players[cid].armyId != null && !players[cid].left) continue;
             const a = spawnHumanArmy(W2, req.name, cid);
             if (a) {
-              await stSet(`${OW_KEY}/players/${cid}`, { name: a.name, armyId: a.id, ts: Date.now(), left: false });
+              await stSet(`${netRef.current.roomKey}/players/${cid}`, { name: a.name, armyId: a.id, ts: Date.now(), left: false });
               pushChat(W2, a.name, a.color.chip, randLine("join", a.name));
             }
-            await stSet(`${OW_KEY}/joinRequests/${cid}`, null);
+            await stSet(`${netRef.current.roomKey}/joinRequests/${cid}`, null);
           }
         }
-        const acts = await stGet(`${OW_KEY}/actions`);
+        const acts = await stGet(`${netRef.current.roomKey}/actions`);
         if (acts) {
           for (const [cid, list] of Object.entries(acts)) {
             const p = players && players[cid];
             const army = p && p.armyId != null ? W2.armies.find((x) => x.id === p.armyId) : null;
             if (army) for (const act of Object.values(list)) applyGuestAction(W2, army, act);
-            await stSet(`${OW_KEY}/actions/${cid}`, null);
+            await stSet(`${netRef.current.roomKey}/actions/${cid}`, null);
           }
         }
         if (players) {
@@ -960,14 +973,14 @@ function OpenWorldShogi() {
                 }
                 handleDefeat(W2, army);
               }
-              await stSet(`${OW_KEY}/players/${cid}`, null);
+              await stSet(`${netRef.current.roomKey}/players/${cid}`, null);
             }
           }
         }
       } catch (e) {
         console.error("host tick failed", e);
       }
-      await stSet(`${OW_KEY}/state`, serializeOpenWorld(W2));
+      await stSet(`${netRef.current.roomKey}/state`, serializeOpenWorld(W2));
       bump();
     }, OW_STATE_PUSH);
     return () => {
@@ -975,57 +988,18 @@ function OpenWorldShogi() {
       clearInterval(hbIv);
       clearInterval(pushIv);
     };
-  }, [netPhase, netRoleState]);
+  }, [netPhase]);
   useEffect(() => {
     if (netRef.current.role !== "guest" || netPhase === null) return;
     let cancelled = false;
-    const joinedAt = Date.now();
-    let promoteAttempted = false;
     const hbIv = setInterval(() => {
       if (cancelled || !netRef.current.myId) return;
-      stSet(`${OW_KEY}/players/${netRef.current.myId}/ts`, Date.now());
+      stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}/ts`, Date.now());
     }, OW_HEARTBEAT);
     const pollIv = setInterval(async () => {
       if (cancelled) return;
       const myId = netRef.current.myId;
-      // ホストが応答しないまま一定時間経過したら、自分がホストに昇格を試みる
-      // (前のホストがタブを閉じてhostレコードが更新されなくなった場合の救済)
-      // 一度だけ試行(毎回transactionを叩くと端末に負荷がかかりフリーズの原因になるため)
-      if (!promoteAttempted && Date.now() - joinedAt > OW_HOST_TIMEOUT + 3000) {
-        promoteAttempted = true;
-        const t0 = Date.now();
-        try {
-          const res = await fbDb.ref(`${OW_KEY}/host`).transaction((cur) => {
-            if (!cur || t0 - cur.ts > OW_HOST_TIMEOUT) return { id: myId, ts: t0 };
-            return;
-          });
-          const becameHost = !!(res && res.committed && res.snapshot.val() && res.snapshot.val().id === myId);
-          if (becameHost) {
-            cancelled = true;
-            clearInterval(hbIv);
-            clearInterval(pollIv);
-            netRef.current.role = "host";
-            setNetRoleState("host");
-            let w = newOpenWorld(null);
-            const prev = await stGet(`${OW_KEY}/state`);
-            if (prev && prev.armies) applyOpenWorldState(w, prev, null);
-            const mine = spawnHumanArmy(w, netRef.current.name, myId);
-            w.playerId = mine ? mine.id : null;
-            w.focusId = w.playerId;
-            g.current = w;
-            await stSet(`${OW_KEY}/players/${myId}`, { name: netRef.current.name, armyId: w.playerId, ts: Date.now(), left: false });
-            await stSet(`${OW_KEY}/joinRequests/${myId}`, null);
-            fbDb.ref(`${OW_KEY}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
-            camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
-            netRef.current.armyId = w.playerId;
-            setNetPhase("playing");
-            setStarted(true);
-            bump();
-            return;
-          }
-        } catch (e) { console.error("guest self-promote failed", e); }
-      }
-      const [me, state] = await Promise.all([stGet(`${OW_KEY}/players/${myId}`), stGet(`${OW_KEY}/state`)]);
+      const [me, state] = await Promise.all([stGet(`${netRef.current.roomKey}/players/${myId}`), stGet(`${netRef.current.roomKey}/state`)]);
       if (!state) return;
       if (me && me.armyId != null && !me.left) {
         netRef.current.armyId = me.armyId;
@@ -1037,10 +1011,6 @@ function OpenWorldShogi() {
       } else {
         applyOpenWorldState(g.current, state, null);
         if (netPhase === "playing") g.current.myDefeated = true;
-        // まだ軍が割り当てられていない場合、joinRequestを定期的に再送する
-        if (netPhase !== "playing" && Date.now() - joinedAt > 5000) {
-          stSet(`${OW_KEY}/joinRequests/${myId}`, { name: netRef.current.name, ts: Date.now() });
-        }
       }
       bump();
     }, OW_STATE_POLL);
@@ -1049,7 +1019,7 @@ function OpenWorldShogi() {
       clearInterval(hbIv);
       clearInterval(pollIv);
     };
-  }, [netPhase, netRoleState]);
+  }, [netPhase]);
   function banner(text, sub, tone) {
     g.current.banner = { text, sub, tone, until: Date.now() + 2600 };
   }
@@ -1194,7 +1164,7 @@ function OpenWorldShogi() {
       if (a.alive && !kings.has(a.id)) handleDefeat(W2, a);
     }
     if (W2.over) return;
-    if (W2.mode !== "openworld" && t - W2.lastSpawnCheck >= SPAWN_CHECK_INTERVAL) {
+    if (t - W2.lastSpawnCheck >= SPAWN_CHECK_INTERVAL) {
       W2.lastSpawnCheck = t;
       const deficit = CAP - aliveCount(W2);
       const toSpawn = Math.min(Math.max(deficit, 0), 6);
@@ -1239,7 +1209,6 @@ function OpenWorldShogi() {
         }
       }
     }
-    if (W2.mode === "openworld") return;
     const aiDue = [];
     for (const a of W2.armies) {
       if (a.id === W2.playerId || a.human || !a.alive) continue;
@@ -1807,7 +1776,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226(${netRef.current.role === "host" ? "\u30DB\u30B9\u30C8" : "\u30B2\u30B9\u30C8"})` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.1"), W.mode === "openworld" && netRef.current.roomIndex != null && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `\u90E8\u5C4B${netRef.current.roomIndex + 1}`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226(${netRef.current.role === "host" ? "\u30DB\u30B9\u30C8" : "\u30B2\u30B9\u30C8"})` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
