@@ -785,6 +785,7 @@ function OpenWorldShogi() {
   const [netName, setNetName] = useState("");
   const [netMsg, setNetMsg] = useState("");
   const [codeInput, setCodeInput] = useState("");
+  const [newRoomCode, setNewRoomCode] = useState("");
   const [roomList, setRoomList] = useState([]);
   const [roomListMsg, setRoomListMsg] = useState("");
   const wsRef = useRef(null);
@@ -843,6 +844,8 @@ function OpenWorldShogi() {
       } else if (msg.type === "error") {
         const reasonMsg = msg.reason === "not_found" ? "その合言葉の部屋は見つかりませんでした。"
           : msg.reason === "server_full" ? "サーバー全体が満員です。しばらくしてから再度お試しください。"
+          : msg.reason === "code_taken" ? "その合言葉はすでに使われています。別のものを選んでください。"
+          : msg.reason === "invalid_code" ? "合言葉は英数字3〜10文字で入力してください。"
           : "接続できませんでした。";
         setNetMsg(reasonMsg);
         setNetPhase("nameEntry");
@@ -873,7 +876,7 @@ function OpenWorldShogi() {
       wsRef.current = null;
     }
     netRef.current = { armyId: null, name: "" };
-    setNetMsg(""); setNetPhase(null); setCodeInput(""); setRoomList([]); setRoomListMsg("");
+    setNetMsg(""); setNetPhase(null); setCodeInput(""); setNewRoomCode(""); setRoomList([]); setRoomListMsg("");
   }
   const [, tick] = useState(0);
 
@@ -1808,7 +1811,15 @@ function OpenWorldShogi() {
     }),
     /* @__PURE__ */ React.createElement("button", { onClick: () => codeInput.trim() && joinOpenWorld(codeInput.trim()), style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0 } }, "\u5165\u5BA4")
   ),
-  /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(null, true), style: { ...btnStyle(), width: "100%", fontSize: 13, padding: "9px", marginBottom: 14, boxSizing: "border-box", border: `1px dashed ${C.panelEdge}` } }, "\u2795 \u65B0\u3057\u3044\u90E8\u5C4B\u3092\u4F5C\u308B(\u53CB\u9054\u3068\u9057\u3076\u7528)"),
+  /* @__PURE__ */ /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+    /* @__PURE__ */ React.createElement("input", {
+      value: newRoomCode,
+      onChange: (e) => setNewRoomCode(e.target.value.toUpperCase().slice(0, 10)),
+      placeholder: "\u5408\u8A00\u8449\u3092\u81EA\u5206\u3067\u6C7A\u3081\u308B(\u4EFB\u610F\u3001\u82F1\u6570\u5B573\u301C10\u6587\u5B57)",
+      style: { flex: 1, fontSize: 13, padding: "9px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 1 }
+    }),
+    /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(newRoomCode.trim() || null, true), style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12 } }, "\u2795 \u4F5C\u308B")
+  ),
   /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: 8 } },
     /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, "\u73FE\u5728\u958B\u3044\u3066\u3044\u308B\u90E8\u5C4B"),
     /* @__PURE__ */ React.createElement("button", { onClick: fetchRoomList, style: { fontSize: 10.5, color: C.gold, background: "none", border: "none", textDecoration: "underline" } }, "\u2699 \u66F4\u65B0")
