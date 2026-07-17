@@ -81,7 +81,7 @@ const rotV = (dx, dy, f) => {
   return [dx, dy];
 };
 const K = (x, y) => x + "," + y;
-const now = () => performance.now();
+const now = () => Date.now();
 function zoneRadiusFor(army) {
   return ZONE_R_BASE + (army.kills || 0);
 }
@@ -778,7 +778,11 @@ function OpenWorldShogi() {
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
     const ws = new WebSocket(OWS_SERVER_URL);
     wsRef.current = ws;
-    ws.onopen = () => { ws.send(JSON.stringify({ type: "join", name: nm })); };
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "join", name: nm }));
+      const pingIv = setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ type: "ping" })); else clearInterval(pingIv); }, 5000);
+      ws._pingIv = pingIv;
+    };
     ws.onclose = () => { if (netPhase !== null) { setNetMsg("サーバーとの接続が切れました。"); setNetPhase(null); setStarted(false); } };
     ws.onerror = () => { setNetMsg("接続に失敗しました。"); };
     ws.onmessage = (ev) => {
