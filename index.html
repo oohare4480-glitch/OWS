@@ -811,7 +811,16 @@ function OpenWorldShogi() {
     netSend({ type: "respawn" });
   }
   function leaveOpenWorld() {
-    if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
+    if (wsRef.current) {
+      try {
+        wsRef.current.onmessage = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        if (wsRef.current._pingIv) clearInterval(wsRef.current._pingIv);
+        wsRef.current.close();
+      } catch {}
+      wsRef.current = null;
+    }
     netRef.current = { armyId: null, name: "" };
     setNetMsg(""); setNetPhase(null);
   }
@@ -1585,11 +1594,19 @@ function OpenWorldShogi() {
     if (player.target) {
       const msx = Math.sign(player.target[0] - player.center[0]);
       const msy = Math.sign(player.target[1] - player.center[1]);
-      const dirName = (msy < 0 ? "\u5317" : msy > 0 ? "\u5357" : "") + (msx < 0 ? "\u897F" : msx > 0 ? "\u6771" : "");
-      if (dirName) {
-        marchStatus = dirName;
+      if (msx || msy) {
+        // 目標方向ベクトルを軍の正面(facing)基準の相対方向へ変換して表示する
+        const front = F[player.facing], right = F[(player.facing + 1) % 4];
+        const fwdDot = msx * front[0] + msy * front[1];
+        const rightDot = msx * right[0] + msy * right[1];
+        let label = "";
+        label += fwdDot > 0 ? "\u524D" : fwdDot < 0 ? "\u5F8C" : "";
+        label += rightDot > 0 ? "\u53F3" : rightDot < 0 ? "\u5DE6" : "";
+        marchStatus = label || "\u524D";
         marching = true;
-      } else marchStatus = "\u505C\u6B62";
+      } else {
+        marchStatus = "\u505C\u6B62";
+      }
     } else {
       marchStatus = "\u505C\u6B62";
     }
@@ -1660,7 +1677,7 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), chatOpen && started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 13 } }, "\u659c\u5de6\u524d"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 16 } }, "\u524d"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 13 } }, "\u659c\u53f3\u524d"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 16 } }, "\u5de6"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 16 } }, "\u53f3"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 13 } }, "\u659c\u5de6\u5f8c"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 16 } }, "\u5f8c"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: { ...dpadBtnStyle(), fontSize: 13 } }, "\u659c\u53f3\u5f8c")), chatOpen && started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: {
     position: "absolute",
     top: 0,
     left: 0,
