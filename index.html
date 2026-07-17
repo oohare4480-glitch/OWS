@@ -1148,7 +1148,6 @@ function OpenWorldShogi() {
         if (v && v.t === "K") {
           player2.kills = (player2.kills || 0) + 1;
           const dead = W2.armies.find((x) => x.id === v.owner);
-          pushChat(W2, player2.name, player2.color.chip, randLine("kill", player2.name, dead ? dead.name : ""));
           handleDefeat(W2, dead);
         }
         W2.msg = v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002";
@@ -1175,7 +1174,6 @@ function OpenWorldShogi() {
       if (v && v.t === "K") {
         player2.kills = (player2.kills || 0) + 1;
         const dead = W2.armies.find((x) => x.id === v.owner);
-        pushChat(W2, player2.name, player2.color.chip, randLine("kill", player2.name, dead ? dead.name : ""));
         handleDefeat(W2, dead);
       }
       W2.msg = v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002";
@@ -1192,14 +1190,30 @@ function OpenWorldShogi() {
       W2.msg = "\u9663\u5F62\u3092\u56DE\u8EE2\u3057\u305F\u3002";
     }, { type: "rotate", dir });
   }
-  const DIR_LABEL = { up: "\u5317", down: "\u5357", left: "\u897F", right: "\u6771", upLeft: "\u5317\u897F", upRight: "\u5317\u6771", downLeft: "\u5357\u897F", downRight: "\u5357\u6771" };
-  const DIR_VECTOR = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0], upLeft: [-1, -1], upRight: [1, -1], downLeft: [-1, 1], downRight: [1, 1] };
-  function setMarchDirection(dir) {
+  // 進軍方向は「軍の正面(地図上の^マーク)」を基準にした相対方向。
+  // facing(0=上,1=右,2=下,3=左)を軸に前後左右を毎回その場で計算するので、
+  // 回転しても押した方向が食い違わない。
+  const REL_LABEL = { front: "\u524D", back: "\u5F8C", left: "\u5DE6", right: "\u53F3", frontLeft: "\u659C\u3081\u5DE6\u524D", frontRight: "\u659C\u3081\u53F3\u524D", backLeft: "\u659C\u3081\u5DE6\u5F8C", backRight: "\u659C\u3081\u53F3\u5F8C" };
+  function relVector(facing, rel) {
+    const front = F[facing], right = F[(facing + 1) % 4], back = F[(facing + 2) % 4], left = F[(facing + 3) % 4];
+    switch (rel) {
+      case "front": return front;
+      case "back": return back;
+      case "left": return left;
+      case "right": return right;
+      case "frontLeft": return [front[0] + left[0], front[1] + left[1]];
+      case "frontRight": return [front[0] + right[0], front[1] + right[1]];
+      case "backLeft": return [back[0] + left[0], back[1] + left[1]];
+      case "backRight": return [back[0] + right[0], back[1] + right[1]];
+      default: return [0, 0];
+    }
+  }
+  function setMarchDirection(rel) {
     const W2 = g.current;
     if (W2.playerId === null) return;
     const player2 = W2.armies[W2.playerId];
     if (!player2.alive) return;
-    const [vx, vy] = DIR_VECTOR[dir];
+    const [vx, vy] = relVector(player2.facing, rel);
     const cx = player2.center[0], cy = player2.center[1];
     let tx = cx, ty = cy;
     if (vx < 0) tx = 0;
@@ -1207,7 +1221,7 @@ function OpenWorldShogi() {
     if (vy < 0) ty = 0;
     else if (vy > 0) ty = MAP_H - 1;
     player2.target = [tx, ty];
-    W2.msg = `\u9032\u8ECD: ${DIR_LABEL[dir]}\u3078`;
+    W2.msg = `\u9032\u8ECD: ${REL_LABEL[rel]}\u3078`;
     if (isNetGuest()) netSend({ type: "target", tx, ty });
     bump();
   }
@@ -1520,14 +1534,19 @@ function OpenWorldShogi() {
     }
     if (W2.playerId !== null) {
       const spots = W2.sel ? W2.sel.moves : W2.dropSpots || [];
+      const spotOwner = W2.armies[W2.playerId];
+      const spotReady = spotOwner ? now() - spotOwner.lastAction >= MOVE_COOLDOWN : false;
+      const readyColor = "rgba(159,208,138,0.9)";   // 緑: 今すぐ指せる
+      const waitColor = "rgba(232,96,76,0.9)";      // 赤: クールダウン中
       for (const [x, y] of spots) {
         const occupied = W2.cells.has(K(x, y));
+        const col = spotReady ? readyColor : waitColor;
         if (occupied) {
-          ctx.strokeStyle = C.cap;
+          ctx.strokeStyle = col;
           ctx.lineWidth = 2.4;
           ctx.strokeRect(sx(x) + 2, sy(y) + 2, S - 4, S - 4);
         } else {
-          ctx.fillStyle = C.move;
+          ctx.fillStyle = col;
           ctx.beginPath();
           ctx.arc(sx(x + 0.5), sy(y + 0.5), S * 0.14, 0, 7);
           ctx.fill();
@@ -1575,7 +1594,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.5"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.5"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => { if (W.mode === "openworld") backToTitle(); else setConfirmExit(true); }, style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
@@ -1641,7 +1660,7 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("upLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("up"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("upRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("downLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("down"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("downRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), chatOpen && started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), chatOpen && started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: {
     position: "absolute",
     top: 0,
     left: 0,
