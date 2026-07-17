@@ -57,8 +57,6 @@
 <!-- Babel standalone: lets the browser transpile the JSX below on the fly -->
 <!-- Firebase compat SDK (only used for the optional "ネット対戦" feature; -->
 <!-- harmless if you never fill in FIREBASE_CONFIG below) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
 const { useRef, useState, useEffect, useCallback } = React;
@@ -716,150 +714,35 @@ const C = {
   cap: "rgba(232,96,76,0.9)",
   selGlow: "#FFD866"
 };
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAXIv-INwe3Gyw7q3D-kXEV30aCLAfQ2sc",
-  authDomain: "ows1-ebd46.firebaseapp.com",
-  databaseURL: "https://ows1-ebd46-default-rtdb.firebaseio.com",
-  projectId: "ows1-ebd46"
-};
-let fbDb = null;
-try {
-  const configured = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY" && FIREBASE_CONFIG.databaseURL && !FIREBASE_CONFIG.databaseURL.includes("YOUR_PROJECT");
-  if (configured && typeof window !== "undefined" && typeof window.firebase !== "undefined") {
-    if (!window.firebase.apps || !window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
-    fbDb = window.firebase.database();
-  }
-} catch (e) {
-  console.error("Firebase init failed", e);
-  fbDb = null;
-}
-const NET_POLL = 1500;
-const NET_PUSH = 900;
-const OW_HOST_TIMEOUT = 20000;
-const OW_HEARTBEAT = 4000;
-const OW_STATE_PUSH = 700;
-const OW_STATE_POLL = 700;
-const OW_PLAYER_STALE = 15000;
-const OW_ROOM_COUNT = 8;
-const OW_ROOM_BASE = "owsOpenWorld";
-const owRoomKey = (i) => `${OW_ROOM_BASE}/room${i}`;
-async function pickOpenWorldRoom() {
-  const counts = await Promise.all(
-    Array.from({ length: OW_ROOM_COUNT }, (_, i) => stGet(`${owRoomKey(i)}/players`))
-  );
-  let best = 0, bestCount = Infinity;
-  counts.forEach((players, i) => {
-    const c = players ? Object.keys(players).length : 0;
-    if (c < bestCount) { bestCount = c; best = i; }
-  });
-  return { key: owRoomKey(best), index: best };
-}
-const hasNet = () => !!fbDb;
-async function stGet(key) {
-  if (!fbDb) return null;
-  try {
-    const snap = await fbDb.ref(key).once("value");
-    return snap.exists() ? snap.val() : null;
-  } catch (e) {
-    console.error("stGet failed", key, e);
-    return null;
-  }
-}
-async function stSet(key, obj) {
-  if (!fbDb) return false;
-  try {
-    await fbDb.ref(key).set(obj);
-    return true;
-  } catch (e) {
-    console.error("stSet failed", key, e);
-    return false;
-  }
-}
-function serializeOpenWorld(W) {
-  const t = now();
-  return {
-    cells: [...W.cells].map(([k, p]) => [k, p.t, p.promoted ? 1 : 0, p.owner]),
-    armies: W.armies.map((a) => ({
-      id: a.id,
-      facing: a.facing,
-      alive: a.alive,
-      hand: a.hand,
-      center: a.center,
-      kills: a.kills,
-      target: a.target,
-      flankBias: a.flankBias,
-      human: !!a.human,
-      name: a.name,
-      cd: Math.max(0, MOVE_COOLDOWN - (t - a.lastAction))
-    })),
-    chat: W.chat.slice(-40),
-    marchAnchor: W.marchAnchor,
-    lastMarchTick: W.lastMarchTick,
-    ts: t
-  };
-}
+const OWS_SERVER_URL = "wss://ows-server-zibw.onrender.com";
 function applyOpenWorldState(W, s, myArmyId) {
   const t = now();
   W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
   W.armies = (s.armies || []).map((sa) => ({
-    id: sa.id,
-    facing: sa.facing,
-    alive: sa.alive,
-    hand: sa.hand || {},
-    target: sa.target || null,
-    center: sa.center,
-    kills: sa.kills || 0,
-    flankBias: sa.flankBias || 0,
-    human: sa.human,
-    name: sa.name,
-    lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)),
-    lastAction: t - (MOVE_COOLDOWN - (sa.cd || 0)),
-    zone: null,
-    color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id)
+    id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null,
+    center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name,
+    lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)), lastAction: t - (MOVE_COOLDOWN - (sa.cd || 0)),
+    zone: null, color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id),
   }));
   for (const a of W.armies) refreshZone(a);
   W.chat = (s.chat || []).map((m, i) => ({ ...m, id: m.id || "n" + i }));
   W.marchAnchor = s.marchAnchor || t;
   W.lastMarchTick = s.lastMarchTick || 0;
-  W.netMarchRemain = Math.max(0, MARCH_INTERVAL - (t - (s.marchAnchor || t)) % MARCH_INTERVAL);
+  W.cap = s.cap || CAP;
   W.playerId = myArmyId;
 }
 function newOpenWorld(myArmyId) {
   return {
-    mode: "openworld",
-    playerId: myArmyId,
-    cells: /* @__PURE__ */ new Map(),
-    armies: [],
-    focusId: myArmyId,
-    banner: null,
-    msg: "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9: \u738B\u3092\u5B88\u308C",
-    sel: null,
-    handSel: null,
-    dropSpots: null,
-    promo: null,
-    over: false,
-    myDefeated: false,
-    winner: null,
-    winnerName: "",
-    reason: "",
-    lastSpawnCheck: now(),
-    marchAnchor: now(),
-    lastMarchTick: 0,
-    chat: [],
-    netMarchRemain: MARCH_INTERVAL,
-    netStateAt: 0,
-    speckles: Array.from({ length: 1400 }, () => [Math.random() * MAP_W, Math.random() * MAP_H, Math.random() * 1.2 + 0.3])
+    mode: "openworld", playerId: myArmyId, cells: /* @__PURE__ */ new Map(), armies: [],
+    focusId: myArmyId, banner: null, msg: "オープンワールド: 王を守れ",
+    sel: null, handSel: null, dropSpots: null, promo: null,
+    over: false, myDefeated: false, winner: null, winnerName: "", reason: "",
+    lastSpawnCheck: now(), marchAnchor: now(), lastMarchTick: 0, chat: [], cap: CAP,
+    speckles: Array.from({ length: 1400 }, () => [Math.random() * MAP_W, Math.random() * MAP_H, Math.random() * 1.2 + 0.3]),
   };
 }
-function spawnHumanArmy(W, name, clientId) {
-  const a = spawnNewArmy(W);
-  if (!a) return null;
-  a.human = true;
-  a.name = filterProfanity(name || "").slice(0, NAME_MAX_LEN) || a.name;
-  a.clientId = clientId;
-  return a;
-}
 function OpenWorldShogi() {
+
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const g = useRef(null);
@@ -874,224 +757,62 @@ function OpenWorldShogi() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
-  const [netPhase, setNetPhase] = useState(null);
+  const [netPhase, setNetPhase] = useState(null); // null|'connecting'|'playing'
   const [netName, setNetName] = useState("");
   const [netMsg, setNetMsg] = useState("");
-  const [netRole, setNetRole] = useState(null);
-  const [roomList, setRoomList] = useState(null);
-  async function openRoomPicker() {
-    setNetPhase("roomPick");
-    setRoomList(null);
-    const counts = await Promise.all(
-      Array.from({ length: OW_ROOM_COUNT }, (_, i) => stGet(`${owRoomKey(i)}/players`))
-    );
-    setRoomList(counts.map((p, i) => ({ index: i, count: p ? Object.keys(p).length : 0 })));
-  }
-  const netRef = useRef({ role: null, myId: null, name: "", armyId: null, roomKey: null, roomIndex: null });
-  function myClientId() {
-    if (!netRef.current.myId) netRef.current.myId = "c" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    return netRef.current.myId;
-  }
-  const isNetGuest = () => g.current.mode === "openworld" && netRef.current.role === "guest";
+  const wsRef = useRef(null);
+  const netRef = useRef({ armyId: null, name: "" });
+  const hasNet = () => OWS_SERVER_URL && !OWS_SERVER_URL.includes("YOUR-SERVER-URL");
+  const isNetGuest = () => g.current.mode === "openworld";
   function netSend(item) {
-    if (netRef.current.role !== "guest" || !netRef.current.myId) return;
-    fbDb && fbDb.ref(`${netRef.current.roomKey}/actions/${netRef.current.myId}`).push(item);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(item));
   }
-  const [, tick] = useState(0);
-  async function joinOpenWorld(explicitRoomIndex) {
-    if (!hasNet()) {
-      setNetMsg("\u3053\u306E\u74B0\u5883\u3067\u306F\u30CD\u30C3\u30C8\u5BFE\u6226\u3092\u5229\u7528\u3067\u304D\u307E\u305B\u3093\u3002");
-      return;
-    }
-    const nm = filterProfanity(netName.trim()).slice(0, NAME_MAX_LEN) || "\u540D\u7121\u3057";
-    const myId = myClientId();
+  function joinOpenWorld() {
+    if (!hasNet()) { setNetMsg("サーバーが未設定です。"); return; }
+    const nm = filterProfanity(netName.trim()).slice(0, NAME_MAX_LEN) || "名無し";
     netRef.current.name = nm;
-    setNetMsg(explicitRoomIndex != null ? "\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026" : "\u90E8\u5C4B\u3092\u63A2\u3057\u3066\u3044\u307E\u3059\u2026");
+    setNetMsg("接続しています…");
     setNetPhase("connecting");
-    const room = explicitRoomIndex != null ? { key: owRoomKey(explicitRoomIndex), index: explicitRoomIndex } : await pickOpenWorldRoom();
-    netRef.current.roomKey = room.key;
-    netRef.current.roomIndex = room.index;
-    setNetMsg("\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026");
-    const t0 = Date.now();
-    let iAmHost = false;
-    try {
-      const res = await fbDb.ref(`${netRef.current.roomKey}/host`).transaction((cur) => {
-        if (!cur || t0 - cur.ts > OW_HOST_TIMEOUT) return { id: myId, ts: t0 };
-        return;
-      });
-      iAmHost = !!(res && res.committed && res.snapshot.val() && res.snapshot.val().id === myId);
-    } catch (e) {
-      console.error("host election failed", e);
-    }
-    if (iAmHost) {
-      netRef.current.role = "host";
-      setNetRole("host");
-      fbDb.ref(`${netRef.current.roomKey}/host`).onDisconnect().remove();
-      let w = newOpenWorld(null);
-      const prev = await stGet(`${netRef.current.roomKey}/state`);
-      // Only trust the previous snapshot if it's both (a) recent -- a genuine
-      // live handoff from a host that was active moments ago, not ancient
-      // leftover data from a long-dead test session -- and (b) every army
-      // in it is human.
-      // NOTE: an earlier fix here used .filter() to strip non-human armies,
-      // but W.armies is indexed by army.id everywhere (W.armies[p.owner],
-      // W.armies[W.playerId], ...). Filtering compacts the array and breaks
-      // that id===index invariant, causing an out-of-bounds/undefined army
-      // lookup mid-render -> uncaught exception -> blank/black screen.
-      // Discarding the whole contaminated snapshot avoids that entirely.
-      const prevFresh = prev && prev.ts && Date.now() - prev.ts < OW_HOST_TIMEOUT * 2;
-      if (prevFresh && prev.armies && prev.armies.every((a) => a.human)) {
-        applyOpenWorldState(w, prev, null);
+    g.current = newOpenWorld(null);
+    camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
+    const ws = new WebSocket(OWS_SERVER_URL);
+    wsRef.current = ws;
+    ws.onopen = () => { ws.send(JSON.stringify({ type: "join", name: nm })); };
+    ws.onclose = () => { if (netPhase !== null) { setNetMsg("サーバーとの接続が切れました。"); setNetPhase(null); setStarted(false); } };
+    ws.onerror = () => { setNetMsg("接続に失敗しました。"); };
+    ws.onmessage = (ev) => {
+      let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === "joined") {
+        netRef.current.armyId = msg.armyId;
+        g.current.playerId = msg.armyId;
+        g.current.myDefeated = false;
+        setNetPhase("playing");
+        setStarted(true);
+      } else if (msg.type === "full") {
+        setNetMsg("ワールドが満員です。しばらくしてから再度お試しください。");
+      } else if (msg.type === "state") {
+        applyOpenWorldState(g.current, msg, netRef.current.armyId);
+        if (netRef.current.armyId != null) {
+          const mine = g.current.armies.find((a) => a.id === netRef.current.armyId);
+          if (!mine || !mine.alive) g.current.myDefeated = true;
+        }
+        bump();
       }
-      const mine = spawnHumanArmy(w, nm, myId);
-      w.playerId = mine ? mine.id : null;
-      w.focusId = w.playerId;
-      g.current = w;
-      await stSet(`${netRef.current.roomKey}/players/${myId}`, { name: nm, armyId: w.playerId, ts: Date.now(), left: false });
-      fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
-      camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
-      netRef.current.armyId = w.playerId;
-      setNetPhase("playing");
-      setStarted(true);
-    } else {
-      netRef.current.role = "guest";
-      setNetRole("guest");
-      await stSet(`${netRef.current.roomKey}/joinRequests/${myId}`, { name: nm, ts: Date.now() });
-      fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().update({ left: true, ts: Date.now() });
-      g.current = newOpenWorld(null);
-      camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
-    }
+    };
   }
   function respawnMine() {
-    if (netRef.current.role === "host") {
-      const w = g.current;
-      const mine = spawnHumanArmy(w, netRef.current.name, netRef.current.myId);
-      w.playerId = mine ? mine.id : null;
-      w.myDefeated = false;
-      netRef.current.armyId = w.playerId;
-      stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}`, { name: netRef.current.name, armyId: w.playerId, ts: Date.now(), left: false });
-    } else if (netRef.current.role === "guest") {
-      g.current.myDefeated = false;
-      netRef.current.armyId = null;
-      stSet(`${netRef.current.roomKey}/joinRequests/${netRef.current.myId}`, { name: netRef.current.name, ts: Date.now() });
-    }
+    netRef.current.armyId = null;
+    g.current.myDefeated = false;
+    netSend({ type: "respawn" });
   }
-  async function leaveOpenWorld() {
-    const myId = netRef.current.myId;
-    if (myId && fbDb) {
-      try {
-        fbDb.ref(`${netRef.current.roomKey}/players/${myId}`).onDisconnect().cancel();
-        await stSet(`${netRef.current.roomKey}/players/${myId}`, null);
-        await stSet(`${netRef.current.roomKey}/joinRequests/${myId}`, null);
-      } catch (e) {
-      }
-    }
-    netRef.current = { role: null, myId: netRef.current.myId, name: "", armyId: null, roomKey: null, roomIndex: null };
-    setNetRole(null);
-    setNetMsg("");
-    setNetPhase(null);
+  function leaveOpenWorld() {
+    if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
+    netRef.current = { armyId: null, name: "" };
+    setNetMsg(""); setNetPhase(null);
   }
-  useEffect(() => {
-    if (netRef.current.role !== "host" || netPhase === null) return;
-    let cancelled = false;
-    const hbIv = setInterval(() => {
-      if (cancelled) return;
-      stSet(`${netRef.current.roomKey}/host`, { id: netRef.current.myId, ts: Date.now() });
-      if (netRef.current.myId) stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}/ts`, Date.now());
-    }, OW_HEARTBEAT);
-    const pushIv = setInterval(async () => {
-      if (cancelled) return;
-      const W2 = g.current;
-      try {
-        const [reqs, players] = await Promise.all([stGet(`${netRef.current.roomKey}/joinRequests`), stGet(`${netRef.current.roomKey}/players`)]);
-        if (reqs) {
-          for (const [cid, req] of Object.entries(reqs)) {
-            if (players && players[cid] && players[cid].armyId != null && !players[cid].left) continue;
-            const a = spawnHumanArmy(W2, req.name, cid);
-            if (a) {
-              await stSet(`${netRef.current.roomKey}/players/${cid}`, { name: a.name, armyId: a.id, ts: Date.now(), left: false });
-              pushChat(W2, a.name, a.color.chip, randLine("join", a.name));
-            }
-            await stSet(`${netRef.current.roomKey}/joinRequests/${cid}`, null);
-          }
-        }
-        const acts = await stGet(`${netRef.current.roomKey}/actions`);
-        if (acts) {
-          for (const [cid, list] of Object.entries(acts)) {
-            const p = players && players[cid];
-            const army = p && p.armyId != null ? W2.armies.find((x) => x.id === p.armyId) : null;
-            if (army) for (const act of Object.values(list)) applyGuestAction(W2, army, act);
-            await stSet(`${netRef.current.roomKey}/actions/${cid}`, null);
-          }
-        }
-        if (players) {
-          const tt = Date.now();
-          for (const [cid, p] of Object.entries(players)) {
-            if (cid === netRef.current.myId) continue;
-            const stale = tt - (p.ts || 0) > OW_PLAYER_STALE;
-            if (p.left || stale) {
-              const army = W2.armies.find((x) => x.id === p.armyId);
-              if (army && army.alive) {
-                for (const [k, cell] of W2.cells) {
-                  if (cell.owner === army.id && cell.t === "K") {
-                    W2.cells.delete(k);
-                    break;
-                  }
-                }
-                handleDefeat(W2, army);
-              }
-              await stSet(`${netRef.current.roomKey}/players/${cid}`, null);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("host tick failed", e);
-      }
-      await stSet(`${netRef.current.roomKey}/state`, serializeOpenWorld(W2));
-      bump();
-    }, OW_STATE_PUSH);
-    return () => {
-      cancelled = true;
-      clearInterval(hbIv);
-      clearInterval(pushIv);
-    };
-  }, [netPhase, netRole]);
-  useEffect(() => {
-    if (netRef.current.role !== "guest" || netPhase === null) return;
-    let cancelled = false;
-    const hbIv = setInterval(() => {
-      if (cancelled || !netRef.current.myId) return;
-      stSet(`${netRef.current.roomKey}/players/${netRef.current.myId}/ts`, Date.now());
-    }, OW_HEARTBEAT);
-    const pollIv = setInterval(async () => {
-      if (cancelled) return;
-      const myId = netRef.current.myId;
-      const [me, state] = await Promise.all([stGet(`${netRef.current.roomKey}/players/${myId}`), stGet(`${netRef.current.roomKey}/state`)]);
-      if (!state) return;
-      if (me && me.armyId != null && !me.left) {
-        const hasMyArmy = state.armies && state.armies.some((a) => a.id === me.armyId);
-        if (!hasMyArmy) {
-          bump();
-          return;
-        }
-        netRef.current.armyId = me.armyId;
-        applyOpenWorldState(g.current, state, netRef.current.armyId);
-        if (netPhase !== "playing") {
-          setNetPhase("playing");
-          setStarted(true);
-        }
-      } else {
-        applyOpenWorldState(g.current, state, null);
-        if (netPhase === "playing") g.current.myDefeated = true;
-      }
-      bump();
-    }, OW_STATE_POLL);
-    return () => {
-      cancelled = true;
-      clearInterval(hbIv);
-      clearInterval(pollIv);
-    };
-  }, [netPhase, netRole]);
+  const [, tick] = useState(0);
+
   function banner(text, sub, tone) {
     g.current.banner = { text, sub, tone, until: Date.now() + 2600 };
   }
@@ -1850,7 +1571,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.5"), W.mode === "openworld" && netRef.current.roomIndex != null && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `\u90E8\u5C4B${netRef.current.roomIndex + 1}`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226(${netRef.current.role === "host" ? "\u30DB\u30B9\u30C8" : "\u30B2\u30B9\u30C8"})` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.armies.length : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.5"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226` : isPlay ? "\u53C2\u6226" : "\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
@@ -1985,7 +1706,7 @@ function OpenWorldShogi() {
       placeholder: "\u3042\u306A\u305F\u306E\u540D\u524D(\u7A7A\u6B04\u53EF)",
       style: { width: "100%", fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 14, boxSizing: "border-box" }
     }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: openRoomPicker, style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box" } }, "\u{1F310} \u53C2\u52A0\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), marginTop: 18, padding: "8px 20px" } }, "\u623B\u308B")), !started && netPhase === "roomPick" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u90E8\u5C4B\u3092\u9078\u3076"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16, lineHeight: 1.7 } }, "\u540C\u3058\u90E8\u5C4B\u756A\u53F7\u3092\u9078\u3079\u3070\u3001\u5225\u306E\u7AEF\u672B\u3068\u540C\u3058\u30EF\u30FC\u30EB\u30C9\u306B\u5165\u308C\u308B\u3002"), !roomList && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.sub, marginBottom: 16 } }, "\u78BA\u8A8D\u4E2D\u2026"), roomList && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 } }, roomList.map((r) => /* @__PURE__ */ React.createElement("button", { key: r.index, onClick: () => joinOpenWorld(r.index), style: { ...btnStyle(), width: "100%", fontSize: 14, padding: "10px", boxSizing: "border-box", display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", null, `\u90E8\u5C4B${r.index + 1}`), /* @__PURE__ */ React.createElement("span", { style: { color: r.count > 0 ? "#9FD08A" : C.sub, fontSize: 12 } }, `${r.count}\u4EBA`)))), /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(), style: { ...btnStyle(), width: "100%", fontSize: 14, padding: "10px", fontWeight: 700, background: C.gold, color: "#1a1408", boxSizing: "border-box", marginBottom: 10 } }, "\u{1F3B2} \u7A7A\u3044\u3066\u308B\u90E8\u5C4B\u306B\u81EA\u52D5\u3067\u5165\u308B"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), padding: "8px 20px" } }, "\u623B\u308B")), !started && netPhase === "connecting" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, lineHeight: 1.8, marginBottom: 20 } }, netMsg || "\u30EF\u30FC\u30EB\u30C9\u306B\u53C2\u52A0\u3057\u3066\u3044\u307E\u3059"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, "\u30AD\u30E3\u30F3\u30BB\u30EB")), started && W.mode === "openworld" && W.myDefeated && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u30EF\u30FC\u30EB\u30C9\u306F\u7D9A\u3044\u3066\u3044\u308B\u3002\u3082\u3046\u4E00\u5EA6\u53C2\u6226\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, "\u518D\u53C2\u6226"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
+  ), /* @__PURE__ */ React.createElement("button", { onClick: joinOpenWorld, style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box" } }, "\u{1F310} \u53C2\u52A0\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), marginTop: 18, padding: "8px 20px" } }, "\u623B\u308B")), !started && netPhase === "connecting" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, lineHeight: 1.8, marginBottom: 20 } }, netMsg || "\u30EF\u30FC\u30EB\u30C9\u306B\u53C2\u52A0\u3057\u3066\u3044\u307E\u3059"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, "\u30AD\u30E3\u30F3\u30BB\u30EB")), started && W.mode === "openworld" && W.myDefeated && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u30EF\u30FC\u30EB\u30C9\u306F\u7D9A\u3044\u3066\u3044\u308B\u3002\u3082\u3046\u4E00\u5EA6\u53C2\u6226\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, "\u518D\u53C2\u6226"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
     leaveOpenWorld();
     backToTitle();
   } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))), showNamePrompt && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u8ECD\u306E\u540D\u524D\u3092\u6C7A\u3081\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, "\u6700\u5927", NAME_MAX_LEN, "\u6587\u5B57\u3002\u4E0D\u9069\u5207\u306A\u8A00\u8449\u306F\u81EA\u52D5\u7684\u306B\u4F0F\u5B57\u306B\u306A\u308A\u307E\u3059\u3002\u7A7A\u6B04\u306A\u3089\u30E9\u30F3\u30C0\u30E0\u306A\u540D\u524D\u306B\u306A\u308A\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement(
