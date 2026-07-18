@@ -343,6 +343,7 @@ function spawnNewArmy(W) {
     alive: true,
     hand: {},
     target: null,
+    marchRel: null,
     lastMove: t,
     lastAction: t,
     center,
@@ -418,12 +419,34 @@ function marchInBounds(pieces, dx, dy) {
   }
   return true;
 }
+function relVector(facing, rel) {
+  const front = F[facing], right = F[(facing + 1) % 4], back = F[(facing + 2) % 4], left = F[(facing + 3) % 4];
+  switch (rel) {
+    case "front": return front;
+    case "back": return back;
+    case "left": return left;
+    case "right": return right;
+    case "frontLeft": return [front[0] + left[0], front[1] + left[1]];
+    case "frontRight": return [front[0] + right[0], front[1] + right[1]];
+    case "backLeft": return [back[0] + left[0], back[1] + left[1]];
+    case "backRight": return [back[0] + right[0], back[1] + right[1]];
+    default: return [0, 0];
+  }
+}
 function marchDirFor(W, a, kings, myPieces) {
   let dest = null;
   if (a.id === W.playerId || a.human) {
-    dest = a.target;
-    if (dest && dest[0] === a.center[0] && dest[1] === a.center[1]) {
-      a.target = null;
+    // 相対方向(marchRel)を、そのarmy自身の"現在の"facingから毎tick再計算する。
+    // 絶対座標を1回だけ計算して覚えておく方式だと、進軍中に回転しても
+    // 古い方向のまま進んでしまうため、必ずここで現在のfacingを使う。
+    if (!a.marchRel) return null;
+    const [vx, vy] = relVector(a.facing, a.marchRel);
+    let tx = a.center[0], ty = a.center[1];
+    if (vx < 0) tx = 0; else if (vx > 0) tx = MAP_W - 1;
+    if (vy < 0) ty = 0; else if (vy > 0) ty = MAP_H - 1;
+    dest = [tx, ty];
+    if (dest[0] === a.center[0] && dest[1] === a.center[1]) {
+      a.marchRel = null;
       return null;
     }
   } else {
@@ -666,6 +689,7 @@ function newWorld(mode, playerName, netOpts) {
       alive: true,
       hand: {},
       target: null,
+      marchRel: null,
       lastMove: 0,
       lastAction: 0,
       center,
@@ -721,7 +745,7 @@ function applyOpenWorldState(W, s, myArmyId) {
   const prevCenter = prevMine ? prevMine.center : null;
   W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
   W.armies = (s.armies || []).map((sa) => ({
-    id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null,
+    id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null, marchRel: sa.marchRel || null,
     center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name,
     lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)), lastAction: t - (MOVE_COOLDOWN - (sa.cd || 0)),
     zone: null, color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id),
@@ -1276,26 +1300,22 @@ function OpenWorldShogi() {
     attemptPlayerAction(() => {
       player2.facing = (player2.facing + (dir > 0 ? 1 : 3)) % 4;
       W2.msg = "\u9663\u5F62\u3092\u56DE\u8EE2\u3057\u305F\u3002";
+      // \u9032\u8ECD\u4E2D(\u76F8\u5BFE\u65B9\u5411\u3092\u6307\u5B9A\u6E08\u307F)\u306B\u56DE\u8EE2\u3057\u305F\u5834\u5408\u3001\u65B0\u3057\u3044\u6B63\u9762\u3092\u57FA\u6E96\u306B
+      // \u76EE\u6A19\u5730\u70B9\u3092\u5373\u5EA7\u306B\u6349\u3080\u3061\u76F4\u3059(\u30CD\u30C3\u30C8\u5BFE\u6226\u4E2D\u306F\u30B5\u30FC\u30D0\u30FC\u304C\u540C\u69D8\u306E\u51E6\u7406\u3092\u884C\u3046)
+      if (!isNetGuest() && lastRelRef.current && player2.target) {
+        const [vx, vy] = relVector(player2.facing, lastRelRef.current);
+        const cx = player2.center[0], cy = player2.center[1];
+        let tx = cx, ty = cy;
+        if (vx < 0) tx = 0; else if (vx > 0) tx = MAP_W - 1;
+        if (vy < 0) ty = 0; else if (vy > 0) ty = MAP_H - 1;
+        player2.target = [tx, ty];
+      }
     }, { type: "rotate", dir });
   }
   // 進軍方向は「軍の正面(地図上の^マーク)」を基準にした相対方向。
   // facing(0=上,1=右,2=下,3=左)を軸に前後左右を毎回その場で計算するので、
-  // 回転しても押した方向が食い違わない。
+  // 回転しても押した方向が食い違わない(marchDirForが毎tick再計算するため)。
   const REL_LABEL = { front: "\u524D", back: "\u5F8C", left: "\u5DE6", right: "\u53F3", frontLeft: "\u659C\u3081\u5DE6\u524D", frontRight: "\u659C\u3081\u53F3\u524D", backLeft: "\u659C\u3081\u5DE6\u5F8C", backRight: "\u659C\u3081\u53F3\u5F8C" };
-  function relVector(facing, rel) {
-    const front = F[facing], right = F[(facing + 1) % 4], back = F[(facing + 2) % 4], left = F[(facing + 3) % 4];
-    switch (rel) {
-      case "front": return front;
-      case "back": return back;
-      case "left": return left;
-      case "right": return right;
-      case "frontLeft": return [front[0] + left[0], front[1] + left[1]];
-      case "frontRight": return [front[0] + right[0], front[1] + right[1]];
-      case "backLeft": return [back[0] + left[0], back[1] + left[1]];
-      case "backRight": return [back[0] + right[0], back[1] + right[1]];
-      default: return [0, 0];
-    }
-  }
   function setMarchDirection(rel) {
     const W2 = g.current;
     if (W2.playerId === null) return;
@@ -1303,27 +1323,18 @@ function OpenWorldShogi() {
     if (!player2.alive) return;
     lastRelRef.current = rel;
     W2.msg = `\u9032\u8ECD: ${REL_LABEL[rel]}\u3078`;
-    if (isNetGuest()) {
-      // \u30CD\u30C3\u30C8\u5BFE\u6226\u4E2D\u306F\u3001\u81EA\u5206\u306Efacing\u3067\u8A08\u7B97\u3057\u305F\u7D76\u5BFE\u5EA7\u6A19\u3092\u9001\u308B\u306E\u3067\u306F\u306A\u304F\u3001
-      // \u300C\u76F8\u5BFE\u65B9\u5411\u300D\u3092\u305D\u306E\u307E\u307E\u9001\u308A\u3001\u30B5\u30FC\u30D0\u30FC\u306E\u6B63\u3057\u3044facing\u3092\u57FA\u6E96\u306B\u8A08\u7B97\u3055\u305B\u308B\u3002
-      // \u3053\u308C\u3067\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u306Efacing\u304C\u4E00\u77AC\u3067\u3082\u30B5\u30FC\u30D0\u30FC\u3068\u305A\u308C\u3066\u3044\u305F\u5834\u5408\u306B\u9032\u8ECD\u65B9\u5411\u304C\u9003\u308C\u308B\u306E\u3092\u9632\u3050\u3002
-      netSend({ type: "targetRel", rel });
-    } else {
-      const [vx, vy] = relVector(player2.facing, rel);
-      const cx = player2.center[0], cy = player2.center[1];
-      let tx = cx, ty = cy;
-      if (vx < 0) tx = 0;
-      else if (vx > 0) tx = MAP_W - 1;
-      if (vy < 0) ty = 0;
-      else if (vy > 0) ty = MAP_H - 1;
-      player2.target = [tx, ty];
-    }
+    // AI\u5BFE\u6226\u30FB\u30CD\u30C3\u30C8\u5BFE\u6226\u3068\u3082\u306B\u3001\u7D76\u5BFE\u5EA7\u6A19\u3067\u306F\u306A\u304F\u300C\u76F8\u5BFE\u65B9\u5411\u306E\u610F\u56F3\u300D\u3060\u3051\u3092\u4FDD\u5B58\u3059\u308B\u3002
+    // \u5B9F\u969B\u306E\u76EE\u7684\u5730\u306F\u9032\u8ECD\u51E6\u7406(marchDirFor)\u304C\u6BCE tick\u3001\u305D\u306E\u6642\u70B9\u306Efacing\u304B\u3089\u8A08\u7B97\u3057\u76F4\u3059\u306E\u3067\u3001
+    // \u9032\u8ECD\u4E2D\u306B\u56DE\u8EE2\u3057\u3066\u3082\u6B21\u306E\u4E00\u6B69\u304B\u3089\u65B0\u3057\u3044\u6B63\u9762\u306B\u5373\u5EA7\u306B\u8FFD\u5F93\u3059\u308B\u3002
+    player2.marchRel = rel;
+    if (isNetGuest()) netSend({ type: "targetRel", rel });
     bump();
   }
   function stopMarch() {
     const W2 = g.current;
     if (W2.playerId === null) return;
     lastRelRef.current = null;
+    W2.armies[W2.playerId].marchRel = null;
     W2.armies[W2.playerId].target = null;
     W2.msg = "\u9032\u8ECD\u3092\u505C\u6B62\u3057\u305F\u3002";
     if (isNetGuest()) netSend({ type: "stopTarget" });
@@ -1678,7 +1689,7 @@ function OpenWorldShogi() {
   const leader = W.armies.reduce((b, a) => a.kills > (b ? b.kills : 0) ? a : b, null);
   let marchStatus = null, marching = false;
   if (isPlay && player && player.alive) {
-    if (player.target && lastRelRef.current) {
+    if (player.marchRel && lastRelRef.current) {
       // ボタンを押した時の方向をそのまま表示。座標から逆算しないので、
       // 押したボタンと表示が必ず一致する。
       marchStatus = REL_LABEL[lastRelRef.current] || "\u524D";
