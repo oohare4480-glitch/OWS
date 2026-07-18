@@ -1307,15 +1307,15 @@ function OpenWorldShogi() {
     attemptPlayerAction(() => {
       player2.facing = (player2.facing + (dir > 0 ? 1 : 3)) % 4;
       W2.msg = "\u9663\u5F62\u3092\u56DE\u8EE2\u3057\u305F\u3002";
-      // \u9032\u8ECD\u4E2D(\u76F8\u5BFE\u65B9\u5411\u3092\u6307\u5B9A\u6E08\u307F)\u306B\u56DE\u8EE2\u3057\u305F\u5834\u5408\u3001\u65B0\u3057\u3044\u6B63\u9762\u3092\u57FA\u6E96\u306B
-      // \u76EE\u6A19\u5730\u70B9\u3092\u5373\u5EA7\u306B\u6349\u3080\u3061\u76F4\u3059(\u30CD\u30C3\u30C8\u5BFE\u6226\u4E2D\u306F\u30B5\u30FC\u30D0\u30FC\u304C\u540C\u69D8\u306E\u51E6\u7406\u3092\u884C\u3046)
-      if (!isNetGuest() && lastRelRef.current && player2.target) {
-        const [vx, vy] = relVector(player2.facing, lastRelRef.current);
-        const cx = player2.center[0], cy = player2.center[1];
-        let tx = cx, ty = cy;
-        if (vx < 0) tx = 0; else if (vx > 0) tx = MAP_W - 1;
-        if (vy < 0) ty = 0; else if (vy > 0) ty = MAP_H - 1;
-        player2.target = [tx, ty];
+      // \u99D2\u306E\u5408\u6CD5\u624B(\u7DD1\u4E38\u30FB\u8D64\u4E38\u306E\u4F4D\u7F6E)\u306F\u6B63\u9762\u57FA\u6E96\u3067\u56DE\u8EE2\u3059\u308B\u306E\u3067\u3001\u56DE\u8EE2\u3059\u308B\u3068\u9078\u629E\u4E2D\u306E\u99D2\u306E
+      // \u884C\u3051\u308B\u30DE\u30B9\u304C\u5909\u308F\u308B\u3002\u9078\u629E\u3092\u6B8B\u3057\u305F\u307E\u307E(\u6D88\u3055\u305A)\u3001\u65B0\u3057\u3044facing\u3067\u5373\u5EA7\u306B\u518D\u8A08\u7B97\u3059\u308B\u3002
+      if (W2.sel) {
+        const zoneSet = player2.zone ? player2.zone.set : new Set();
+        W2.sel = { x: W2.sel.x, y: W2.sel.y, moves: legalMovesFrom(W2.cells, W2.sel.x, W2.sel.y, player2.facing, zoneSet) };
+      }
+      if (W2.dropSpots && W2.handSel) {
+        const zoneSet = player2.zone ? player2.zone.set : new Set();
+        W2.dropSpots = dropTargets(W2.cells, zoneSet);
       }
     }, { type: "rotate", dir });
   }
@@ -1364,6 +1364,22 @@ function OpenWorldShogi() {
   function recenterCamera() {
     camRef.current.manualMode = false;
     camRef.current.rot = 0;
+    bump();
+  }
+  function rotateCameraStep(dir) {
+    // \u30DC\u30BF\u30F3\u3067\u8996\u70B9\u3092\u4E00\u6B69\u305A\u3064\u56DE\u8EE2\u3055\u305B\u308B(\u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u30FB\u30DE\u30EB\u30C1\u30BF\u30C3\u30C1\u304C\u306A\u3044PC\u74B0\u5883\u7528)\u3002
+    camRef.current.rot = (camRef.current.rot || 0) + dir * (Math.PI / 8);
+    camRef.current.manualMode = true;
+    bump();
+  }
+  function orientCameraToFront() {
+    // \u81EA\u8ECD\u306E\u6B63\u9762(\u5730\u56F3\u4E0A\u306E^\u30DE\u30FC\u30AF)\u304C\u753B\u9762\u306E\u4E0A\u3092\u5411\u304F\u3088\u3046\u306B\u8996\u70B9\u3092\u5408\u308F\u305B\u308B\u3002
+    const W2 = g.current;
+    if (W2.playerId === null) return;
+    const player2 = W2.armies[W2.playerId];
+    if (!player2) return;
+    camRef.current.rot = -player2.facing * (Math.PI / 2);
+    camRef.current.manualMode = true;
     bump();
   }
   useEffect(() => {
@@ -1453,7 +1469,11 @@ function OpenWorldShogi() {
     function onWheel(e) {
       e.preventDefault();
       camRef.current.manualMode = true;
-      adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B9\u30EF\u30A4\u30D7: \u6A2A\u65B9\u5411(deltaX)\u3067\u8996\u70B9\u3092\u56DE\u8EE2\u3001\u7E26\u65B9\u5411(deltaY)\u3067\u30BA\u30FC\u30E0\u3002
+      // \u659C\u3081\u306E\u30B9\u30EF\u30A4\u30D7\u3067\u4E21\u65B9\u540C\u6642\u306B\u52D5\u304F\u306E\u3067\u3001\u81EA\u7136\u306B\u56DE\u8EE2\u3055\u305B\u306A\u304C\u3089\u30BA\u30FC\u30E0\u3067\u304D\u308B\u3002
+      if (e.deltaX) camRef.current.rot += e.deltaX * 0.0025;
+      if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+      bump();
     }
     cv.addEventListener("pointerdown", onPointerDown, { passive: true });
     cv.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -1768,7 +1788,11 @@ function OpenWorldShogi() {
     border: "1px solid #7d6236",
     fontWeight: 700,
     boxShadow: "0 2px 6px rgba(0,0,0,0.35)"
-  } }, "\u25CE ", isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B"), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
+  } }, "\u25CE ", isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 14, left: 14, zIndex: 20, display: "flex", gap: 6 } },
+    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u27F2"),
+    isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u2B06"),
+    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u27F3")
+  ), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
     position: "absolute",
     bottom: 14,
     zIndex: 20,
