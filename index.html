@@ -649,6 +649,7 @@ function applyAction(W, army, a) {
     return null;
   }
   const mover = W.cells.get(K(a.fx, a.fy));
+  if (!mover || mover.owner !== army.id) return null; // \u76E4\u9762\u304C\u5909\u308F\u3063\u3066\u3044\u3066\u3001\u3082\u3046\u305D\u306E\u99D2\u304C\u5B58\u5728\u3057\u306A\u3044(\u53D6\u3089\u308C\u305F\u7B49)\u5834\u5408\u306F\u4F55\u3082\u3057\u306A\u3044
   const victim = W.cells.get(K(a.tx, a.ty));
   W.cells.delete(K(a.fx, a.fy));
   if (victim) {
@@ -1247,6 +1248,12 @@ function OpenWorldShogi() {
     }
     if (W2.sel && W2.sel.moves.some(([x, y]) => x === wx && y === wy)) {
       const mover = W2.cells.get(K(W2.sel.x, W2.sel.y));
+      if (!mover || (W2.playerId != null && mover.owner !== W2.playerId)) {
+        // \u76E4\u9762\u304C\u66F4\u65B0\u3055\u308C\u3066\u3001\u9078\u629E\u4E2D\u3060\u3063\u305F\u99D2\u304C\u3059\u3067\u306B\u5B58\u5728\u3057\u306A\u3044(\u53D6\u3089\u308C\u305F\u7B49)\u53E4\u3044\u9078\u629E\u3092\u6301\u3063\u3066\u3044\u305F\u5834\u5408\u306E\u4FDD\u8B77\u3002
+        W2.sel = null;
+        bump();
+        return;
+      }
       const victim = W2.cells.get(k);
       const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(wx, wy, W2.playerId, W2.armies) || isInHostileZone(W2.sel.x, W2.sel.y, W2.playerId, W2.armies));
       if (canPr) {
