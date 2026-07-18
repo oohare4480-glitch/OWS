@@ -803,8 +803,6 @@ function OpenWorldShogi() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
   const [netPhase, setNetPhase] = useState(null); // null|'nameEntry'|'connecting'|'playing'
   const [netName, setNetName] = useState("");
@@ -929,7 +927,6 @@ function OpenWorldShogi() {
     }
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
     setConfirmExit(false);
-    setChatOpen(false);
     setStarted(true);
   }
   function confirmJoin() {
@@ -943,7 +940,6 @@ function OpenWorldShogi() {
     g.current = newWorld("play");
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, manualMode: false };
     setConfirmExit(false);
-    setChatOpen(false);
     setStarted(false);
   }
   function aliveCount(W2) {
@@ -1016,8 +1012,6 @@ function OpenWorldShogi() {
       army.target = [action.tx, action.ty];
     } else if (action.type === "stopTarget") {
       army.target = null;
-    } else if (action.type === "chat") {
-      pushChat(W2, army.name, army.color.chip, action.text);
     }
   }
   useEffect(() => {
@@ -1185,17 +1179,6 @@ function OpenWorldShogi() {
     player2.lastMove = now();
     player2.lastAction = player2.lastMove;
     if (isNetGuest() && netPayload) netSend(netPayload);
-    bump();
-  }
-  function sendChat() {
-    const W2 = g.current;
-    if (W2.playerId === null) return;
-    const player2 = W2.armies[W2.playerId];
-    const text = filterProfanity(chatInput.trim()).slice(0, 80);
-    if (!text) return;
-    pushChat(W2, player2.name, player2.color.chip, text);
-    if (isNetGuest()) netSend({ type: "chat", text });
-    setChatInput("");
     bump();
   }
   function handleTapAt(clientX, clientY) {
@@ -1756,7 +1739,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, started && /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen((o) => !o), style: { fontSize: 11, padding: "4px 9px", borderRadius: 8, background: chatOpen ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${chatOpen ? "#FFD866" : C.panelEdge}`, whiteSpace: "nowrap" } }, "\u{1F4AC} \u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.6"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "\u53C2\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "v1.6"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "\u53C2\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
@@ -1826,31 +1809,7 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), chatOpen && started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: 260,
-    maxWidth: "80%",
-    background: "rgba(14,17,12,0.95)",
-    borderRight: `1px solid ${C.panelEdge}`,
-    zIndex: 30,
-    display: "flex",
-    flexDirection: "column"
-  } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", padding: "8px 10px", borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 700, flex: 1 } }, "\u6226\u6CC1\u30C1\u30E3\u30C3\u30C8"), /* @__PURE__ */ React.createElement("button", { onClick: () => setChatOpen(false), style: { fontSize: 14, color: C.sub, background: "none", border: "none" } }, "\u2715")), /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { flex: 1, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5, touchAction: "pan-y" } }, W.chat.length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u307E\u3060\u767A\u8A00\u306A\u3057\u2026"), W.chat.map((m) => /* @__PURE__ */ React.createElement("div", { key: m.id, style: { fontSize: 11.5, lineHeight: 1.4 } }, /* @__PURE__ */ React.createElement("span", { style: { color: m.color, fontWeight: 700 } }, m.name, ": "), /* @__PURE__ */ React.createElement("span", { style: { color: C.text } }, m.text)))), isPlay && player && player.alive ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, padding: 8, borderTop: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: chatInput,
-      onChange: (e) => setChatInput(e.target.value),
-      onKeyDown: (e) => {
-        if (e.key === "Enter") sendChat();
-      },
-      maxLength: 80,
-      placeholder: "\u767A\u8A00...",
-      style: { flex: 1, fontSize: 16, padding: "6px 8px", borderRadius: 6, background: "#141810", color: C.text, border: `1px solid ${C.panelEdge}`, minWidth: 0 }
-    }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: sendChat, style: { ...btnStyle(), padding: "6px 10px", fontSize: 12 } }, "\u9001\u4FE1")) : /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 10px", borderTop: `1px solid ${C.panelEdge}`, fontSize: 10.5, color: C.sub, textAlign: "center" } }, isPlay ? "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u767A\u8A00\u3067\u304D\u307E\u305B\u3093" : "\u89B3\u6226\u4E2D\u306F\u95B2\u89A7\u306E\u307F(\u767A\u8A00\u4E0D\u53EF)"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", background: C.panel, borderTop: `1px solid ${C.panelEdge}` } }, isPlay ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), style: btnStyle() }, "\u27F2 \u5DE6\u56DE\u8EE2"), /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), style: btnStyle() }, "\u53F3\u56DE\u8EE2 \u27F3")) : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), false), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", background: C.panel, borderTop: `1px solid ${C.panelEdge}` } }, isPlay ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), style: btnStyle() }, "\u27F2 \u5DE6\u56DE\u8EE2"), /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), style: btnStyle() }, "\u53F3\u56DE\u8EE2 \u27F3")) : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), style: {
     fontSize: 11,
     padding: "6px 10px",
     borderRadius: 10,
