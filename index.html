@@ -197,12 +197,12 @@ function filterProfanity(text) {
   for (const w of BAD_WORDS) out = out.replace(new RegExp(w, "gi"), "*".repeat(w.length));
   return out;
 }
-const PLAYER_COLOR = { fill: "#EFDCAC", edge: "#7d6236", text: "#241a0e", prom: "#B3392B", zone: "rgba(233,208,150,0.13)", zoneEdge: "rgba(201,169,106,0.6)", chip: "#C9A96A" };
+const PLAYER_COLOR = { fill: "#DEC48A", edge: "#4a3417", text: "#241a0e", prom: "#B3392B", zone: "rgba(233,208,150,0.13)", zoneEdge: "rgba(201,169,106,0.6)", chip: "#C9A96A" };
 function makeColor(i) {
   const h = Math.round(i * 137.508 % 360);
   return {
     fill: `hsl(${h},34%,26%)`,
-    edge: `hsl(${h},35%,20%)`,
+    edge: `hsl(${h},55%,9%)`,
     text: `hsl(${h},28%,88%)`,
     prom: `hsl(${(h + 45) % 360},95%,72%)`,
     zone: `hsla(${h},60%,55%,0.14)`,
@@ -807,7 +807,7 @@ function OpenWorldShogi() {
   useEffect(() => {
     const img = new Image();
     img.onload = () => { woodImgRef.current = img; setWoodReady(true); };
-    img.src = "/board-wood.jpg";
+    img.src = "/board-wood.jpeg";
   }, []);
   const camRef = useRef({ x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, rot: 0, manualMode: false });
   const [, force] = useState(0);
@@ -1688,6 +1688,9 @@ function OpenWorldShogi() {
         [-w * 0.44, -h * 0.16]
       ];
       roundedPolyPath(ctx, pts, Math.max(1, S * 0.05));
+      ctx.shadowColor = "rgba(20,12,4,0.45)";
+      ctx.shadowBlur = S * 0.14;
+      ctx.shadowOffsetY = S * 0.05;
       if (woodImgRef.current) {
         ctx.save();
         ctx.clip();
@@ -1701,7 +1704,10 @@ function OpenWorldShogi() {
         ctx.fillStyle = col.fill;
         ctx.fill();
       }
-      ctx.lineWidth = selected ? 2.6 : 1.6;
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.lineWidth = selected ? 2.8 : 1.8;
       ctx.strokeStyle = selected ? C.selGlow : col.edge;
       ctx.stroke();
       if (S >= 11) {
