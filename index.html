@@ -20,6 +20,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Playfair+Display:wght@500;600;700&family=Yuji+Syuku&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #10140F; overscroll-behavior: none; }
   #root { height: 100%; }
@@ -27,6 +30,7 @@
     background: rgba(10,5,5,0.96); color: #FFB3A0; font-family: ui-monospace, monospace; font-size: 12px;
     padding: 16px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
   #boot-error .hint { color: #EAE4D0; font-family: system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; }
+  button, input, select, textarea { font-family: inherit; }
 </style>
 </head>
 <body>
@@ -201,9 +205,9 @@ function makeColor(i) {
     edge: `hsl(${h},40%,11%)`,
     text: `hsl(${h},28%,88%)`,
     prom: `hsl(${(h + 45) % 360},95%,72%)`,
-    zone: `hsla(${h},60%,55%,0.10)`,
-    zoneEdge: `hsla(${h},55%,58%,0.5)`,
-    chip: `hsl(${h},55%,64%)`
+    zone: `hsla(${h},60%,55%,0.14)`,
+    zoneEdge: `hsla(${h},55%,42%,0.65)`,
+    chip: `hsl(${h},60%,38%)`
   };
 }
 if (typeof document !== "undefined" && !window.__owsGuardInstalled) {
@@ -333,7 +337,7 @@ function spawnNewArmy(W) {
   const t = now();
   const flankBias = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5));
   const name = generateOneName(existingNames);
-  const reuse = W.armies.find((a2) => !a2.alive && !armyHasBoardPieces(W, a2.id));
+  const reuse = W.armies.find((a2) => !a2.alive && !armyHasBoardPieces(W, a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
   placeArmyCentered(W.cells, id, center, facing);
   const fresh = {
@@ -712,6 +716,7 @@ function newWorld(mode, playerName, netOpts) {
     dropSpots: null,
     promo: null,
     over: false,
+    myDefeated: false,
     winner: null,
     winnerName: "",
     reason: "",
@@ -722,18 +727,23 @@ function newWorld(mode, playerName, netOpts) {
     speckles: Array.from({ length: 1400 }, () => [Math.random() * MAP_W, Math.random() * MAP_H, Math.random() * 1.2 + 0.3])
   };
 }
-const SERIF = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const SERIF = '"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const ENFONT = '"Playfair Display","Georgia",serif';
+const KOMAFONT = '"Yuji Syuku","Shippori Mincho B1","Hiragino Mincho ProN",serif';
+const WOOD_GRAIN = "linear-gradient(rgba(10,5,2,0.34), rgba(10,5,2,0.34)), url('/wood-grain.jpg')";
 const C = {
   field: "#10140F",
-  panel: "#1B221A",
-  panelEdge: "#2A3327",
+  panel: WOOD_GRAIN,
+  panelEdge: "#B08C4F",
   text: "#EAE4D0",
-  sub: "#9AA38E",
-  gold: "#C9A96A",
+  sub: "#C9B896",
+  gold: "#E3C27E",
   danger: "#E8604C",
   move: "rgba(159,208,138,0.85)",
   cap: "rgba(232,96,76,0.9)",
-  selGlow: "#FFD866"
+  selGlow: "#FFD866",
+  board: "#EAD9A8",
+  boardEdge: "#8B6F3E"
 };
 const OWS_SERVER_URL = "wss://ows-server-zibw.onrender.com";
 function applyOpenWorldState(W, s, myArmyId) {
@@ -796,6 +806,7 @@ function OpenWorldShogi() {
   const bump = useCallback(() => force((n) => n + 1), []);
   const [started, setStarted] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [defeatAck, setDefeatAck] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
@@ -922,6 +933,7 @@ function OpenWorldShogi() {
     }
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
     setConfirmExit(false);
+    setDefeatAck(false);
     setStarted(true);
   }
   function confirmJoin() {
@@ -935,6 +947,7 @@ function OpenWorldShogi() {
     g.current = newWorld("play");
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, manualMode: false };
     setConfirmExit(false);
+    setDefeatAck(false);
     setStarted(false);
   }
   function aliveCount(W2) {
@@ -951,21 +964,23 @@ function OpenWorldShogi() {
       return;
     }
     if (W2.playerId !== null && army.id === W2.playerId) {
-      W2.over = true;
-      W2.winner = 1;
-      W2.reason = "\u81EA\u8ECD\u306E\u7389\u3092\u8A0E\u305F\u308C\u305F";
-      banner("\u6557\u5317", "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F\u2026\u4EE5\u5F8C\u3001\u99D2\u306F\u52D5\u304B\u305B\u306A\u3044", "bad");
+      if (!W2.myDefeated) {
+        W2.myDefeated = true;
+        const alive2 = W2.armies.filter((a) => a.alive);
+        if (alive2.length) W2.focusId = alive2[Math.floor(Math.random() * alive2.length)].id;
+        banner("\u6557\u5317", "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F\u2026\u3053\u306E\u307E\u307E\u89B3\u6226\u3059\u308B\u304B\u9078\u3079\u308B", "bad");
+      }
       return;
     }
     const left = aliveCount(W2);
     W2.msg = `${army.name} \u58CA\u6EC5(\u6B8B\u308A${left}\u8ECD)`;
-    if (W2.playerId !== null) {
+    if (W2.playerId !== null && !W2.myDefeated) {
       if (W2.armies.filter((a) => a.id !== W2.playerId && a.alive).length === 0) {
         W2.over = true;
         W2.winner = 0;
         W2.reason = "\u5168\u3066\u306E\u6575\u8ECD\u3092\u6483\u7834\u3057\u305F";
       }
-    } else if (left <= 1) {
+    } else if (W2.playerId === null && left <= 1) {
       const last = W2.armies.find((a) => a.alive);
       W2.over = true;
       W2.winner = 0;
@@ -1331,12 +1346,15 @@ function OpenWorldShogi() {
   const gestureRef = useRef({ pointers: /* @__PURE__ */ new Map(), dragStart: null, pinchStart: null, moved: false, tapCandidate: false });
   function adjustZoom(mult) {
     const cam = camRef.current;
-    cam.zoom = Math.max(0.15, Math.min(4, (cam.zoom || 1) * mult));
+    cam.zoom = Math.max(0.03, Math.min(4, (cam.zoom || 1) * mult));
     bump();
   }
   function recenterCamera() {
     camRef.current.manualMode = false;
-    camRef.current.rot = 0;
+    const W2 = g.current;
+    const focusOwner2 = W2.mode === "watch" ? W2.focusId : W2.playerId;
+    const focusArmy2 = focusOwner2 != null ? W2.armies[focusOwner2] : null;
+    camRef.current.rot = focusArmy2 ? -focusArmy2.facing * (Math.PI / 2) : 0;
     bump();
   }
   function rotateCameraStep(dir) {
@@ -1409,7 +1427,7 @@ function OpenWorldShogi() {
         const ps = gs.pinchStart;
         const { cx, cy, dist, ang } = centroidAndDist();
         cam.manualMode = true;
-        cam.zoom = Math.max(0.15, Math.min(4, ps.zoom * (dist / ps.dist)));
+        cam.zoom = Math.max(0.03, Math.min(4, ps.zoom * (dist / ps.dist)));
         let dAng = ang - ps.ang;
         while (dAng > Math.PI) dAng -= 2 * Math.PI;
         while (dAng < -Math.PI) dAng += 2 * Math.PI;
@@ -1557,13 +1575,19 @@ function OpenWorldShogi() {
     ctx.translate(Wd / 2, Hd / 2);
     ctx.rotate(cam.rot);
     ctx.translate(-Wd / 2, -Hd / 2);
-    ctx.fillStyle = "#151B13";
+    ctx.fillStyle = C.board;
     ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
-    ctx.strokeStyle = "rgba(201,169,106,0.35)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(74,52,26,0.35)";
+    ctx.lineWidth = 8;
     ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
+    ctx.strokeStyle = C.boardEdge;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
+    ctx.strokeStyle = "rgba(255,235,190,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx(0) + 4, sy(0) + 4, MAP_W * S - 8, MAP_H * S - 8);
     if (S >= 4) {
-      ctx.fillStyle = "rgba(126,146,96,0.10)";
+      ctx.fillStyle = "rgba(139,111,62,0.14)";
       for (const [x, y, r] of W2.speckles) {
         if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
         ctx.beginPath();
@@ -1574,7 +1598,7 @@ function OpenWorldShogi() {
     if (S >= 6) {
       const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W, Math.ceil(vx1));
       const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H, Math.ceil(vy1));
-      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.strokeStyle = "rgba(74,52,26,0.22)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = gx0; x <= gx1; x++) {
@@ -1641,13 +1665,14 @@ function OpenWorldShogi() {
       ctx.translate(cx, cy);
       ctx.rotate(army.facing * Math.PI / 2);
       const w = S * 0.86, h = S * 0.92;
-      ctx.beginPath();
-      ctx.moveTo(0, -h * 0.52);
-      ctx.lineTo(w * 0.44, -h * 0.16);
-      ctx.lineTo(w * 0.37, h * 0.48);
-      ctx.lineTo(-w * 0.37, h * 0.48);
-      ctx.lineTo(-w * 0.44, -h * 0.16);
-      ctx.closePath();
+      const pts = [
+        [0, -h * 0.52],
+        [w * 0.44, -h * 0.16],
+        [w * 0.37, h * 0.48],
+        [-w * 0.37, h * 0.48],
+        [-w * 0.44, -h * 0.16]
+      ];
+      roundedPolyPath(ctx, pts, Math.max(1, S * 0.05));
       ctx.fillStyle = col.fill;
       ctx.fill();
       ctx.lineWidth = selected ? 2.4 : 1.2;
@@ -1655,10 +1680,16 @@ function OpenWorldShogi() {
       ctx.stroke();
       if (S >= 11) {
         ctx.fillStyle = p.promoted ? col.prom : col.text;
-        ctx.font = `${Math.floor(S * 0.58)}px ${SERIF}`;
+        ctx.font = `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.07);
+        ctx.shadowColor = "rgba(0,0,0,0.45)";
+        ctx.shadowBlur = 1.5;
+        ctx.shadowOffsetY = S * 0.03;
+        ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.06);
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
       }
       ctx.restore();
       if (!army.alive && S >= 10) {
@@ -1710,7 +1741,7 @@ function OpenWorldShogi() {
   }
   const W = g.current;
   const player0 = W.playerId !== null ? W.armies[W.playerId] || null : null;
-  const isPlay = W.playerId !== null && player0 !== null;
+  const isPlay = W.playerId !== null && player0 !== null && !W.myDefeated;
   const player = player0;
   const focusArmy = isPlay ? player : W.armies[W.focusId] || null;
   const cdRemain = focusArmy ? Math.max(0, MOVE_COOLDOWN - (now() - focusArmy.lastAction)) / 1e3 : 0;
@@ -1729,17 +1760,17 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: "system-ui, sans-serif", userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: 1 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: C.sub, opacity: 0.7 } }, "\u3010OpenWorldShogi\u3011"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "\u53C2\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: ENFONT, fontSize: 9, letterSpacing: 1, color: C.sub, opacity: 0.7 } }, "\u3010OpenWorldShogi\u3011"), W.mode === "openworld" && false && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(159,208,138,0.14)", color: "#9FD08A", border: "1px solid #9FD08A55" } }, `部屋`), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "\u53C2\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, "\u8ECD"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), leader && leader.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: leader.id === W.playerId ? C.gold : leader.color.chip } }, "\u9996\u4F4D: ", leader.name, "(\u8A0E\u738B", leader.kills, ")"), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: t,
       onClick: () => selectHand(t),
       disabled: !player.alive,
-      style: { fontFamily: SERIF, fontSize: 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#2a3226", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
+      style: { fontFamily: KOMAFONT, fontSize: 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
     },
     KANJI[t],
     n > 1 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10 } }, "\xD7", n) : null
-  )), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), player.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", player.kills, "(\u57DF", 2 * zoneRadiusFor(player) + 1, "\xB2)"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6CE8\u76EE: ", focusArmy ? focusArmy.name : "-"), focusArmy && focusArmy.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", focusArmy.kills, "(\u57DF", 2 * zoneRadiusFor(focusArmy) + 1, "\xB2)"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")), started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id).map((a, i) => {
+  )), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), player.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", player.kills, "(\u57DF", 2 * zoneRadiusFor(player) + 1, "\xB2)"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6CE8\u76EE: ", focusArmy ? focusArmy.name : "-"), focusArmy && focusArmy.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", focusArmy.kills, "(\u57DF", 2 * zoneRadiusFor(focusArmy) + 1, "\xB2)"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")), started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id).map((a, i) => {
     const isSelf = isPlay && a.id === W.playerId;
     const isFocus = !isPlay && a.id === W.focusId;
     return /* @__PURE__ */ React.createElement(
@@ -1765,7 +1796,7 @@ function OpenWorldShogi() {
           }
           bump();
         },
-        style: { fontSize: 11, padding: "4px 9px", borderRadius: 12, background: isFocus || isSelf ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.05)", color: isSelf ? C.gold : a.color.chip, border: `1px solid ${isFocus || isSelf ? "#FFD866" : "#3a4536"}`, flexShrink: 0, fontWeight: isSelf ? 700 : 400 }
+        style: { fontSize: 11, padding: "4px 9px", borderRadius: 12, background: isFocus || isSelf ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.05)", color: isSelf ? C.gold : a.color.chip, border: `1px solid ${isFocus || isSelf ? "#FFD866" : "#8B6F3E"}`, flexShrink: 0, fontWeight: isSelf ? 700 : 400 }
       },
       i + 1,
       ". ",
@@ -1786,10 +1817,10 @@ function OpenWorldShogi() {
     border: "1px solid #7d6236",
     fontWeight: 700,
     boxShadow: "0 2px 6px rgba(0,0,0,0.35)"
-  } }, "\u25CE ", isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 14, left: 14, zIndex: 20, display: "flex", gap: 6 } },
-    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u27F2"),
-    isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u2B06"),
-    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, fontSize: 16 } }, "\u27F3")
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 14, style: { display: "inline-block", verticalAlign: "-2px", marginRight: 4 } }), isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 14, left: 14, zIndex: 20, display: "flex", gap: 6 } },
+    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 18 })),
+    isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 18 })),
+    /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 18 }))
   ), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
     position: "absolute",
     bottom: 14,
@@ -1798,8 +1829,13 @@ function OpenWorldShogi() {
     display: "grid",
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
-    gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2196"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2191"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2197"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2190"), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, "\u25A0"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2192"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2199"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2193"), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, "\u2198")), false), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", paddingBottom: "calc(8px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}` } }, isPlay ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), style: btnStyle() }, "\u27F2 \u5DE6\u56DE\u8EE2"), /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), style: btnStyle() }, "\u53F3\u56DE\u8EE2 \u27F3")) : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), style: {
+    gap: 4,
+    padding: 6,
+    borderRadius: 12,
+    background: WOOD_GRAIN,
+    border: "1px solid #B08C4F",
+    boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -2px 6px rgba(0,0,0,0.45), 0 3px 10px rgba(0,0,0,0.35)"
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))), false), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", paddingBottom: "calc(8px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)" } }, isPlay ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), style: { ...btnStyle(), display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 }), "\u5DE6\u56DE\u8EE2"), /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), style: { ...btnStyle(), display: "flex", alignItems: "center", gap: 5 } }, "\u53F3\u56DE\u8EE2", /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 }))) : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), style: {
     fontSize: 11,
     padding: "6px 10px",
     borderRadius: 10,
@@ -1818,13 +1854,13 @@ function OpenWorldShogi() {
     background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)",
     color: marching ? "#9FD08A" : C.sub,
     border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}`
-  } }, marching ? `\u25B6 ${marchStatus}` : "\u25A0 \u505C\u6B62")), !started && netPhase === null && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 27, fontWeight: 700, letterSpacing: 2, marginBottom: 6 } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.gold, letterSpacing: 3, marginBottom: 4 } }, "\u2015 200\u8ECD\u30D0\u30C8\u30EB\u30ED\u30EF\u30A4\u30E4\u30EB \u2015"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 18 } }, "\u6700\u5F8C\u306E\u4E00\u8ECD\u306B\u306A\u308B\u307E\u3067\u3001\u6226\u306F\u7D42\u308F\u3089\u306A\u3044"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "left", margin: "0 0 20px", borderTop: `1px solid ${C.panelEdge}` } }, [
+  } }, marching ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { name: "play", size: 11, style: { display: "inline-block", verticalAlign: "-2px", marginRight: 3 } }), marchStatus) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { name: "stop", size: 10, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), "\u505C\u6B62"))), !started && netPhase === null && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { background: WOOD_GRAIN, border: "1px solid #B08C4F", boxShadow: "inset 0 0 0 1px rgba(255,222,150,0.12), inset 0 2px 10px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.35)", borderRadius: 8, padding: "18px 14px 14px", marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: "clamp(17px, 6.5vw, 30px)", fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", marginBottom: 6, color: "#F0D48A", textShadow: "0 2px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,235,180,0.3), 0 3px 6px rgba(0,0,0,0.6)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: "#E3C27E", letterSpacing: 3 } }, "\u2015 200\u8ECD\u30D0\u30C8\u30EB\u30ED\u30EF\u30A4\u30E4\u30EB \u2015")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 18 } }, "\u6700\u5F8C\u306E\u4E00\u8ECD\u306B\u306A\u308B\u307E\u3067\u3001\u6226\u306F\u7D42\u308F\u3089\u306A\u3044"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "left", margin: "0 0 20px", borderTop: `1px solid ${C.panelEdge}` } }, [
     ["\u4E16\u754C", "480\xD7480\u306E\u5927\u5730\u306B\u3001\u4E8C\u3064\u540D\u3092\u6301\u3064\u6700\u5927200\u8ECD\u3002\u5168\u8ECD\u304C\u4E92\u3044\u306B\u6575\u3002"],
     ["\u53EF\u52D5\u57DF", "\u99D2\u304C\u52D5\u3051\u308B\u306E\u306F\u738B\u3092\u4E2D\u5FC3\u3068\u3057\u305F9\xD79\u3002\u6575\u738B\u3092\u8A0E\u3064\u305F\u3073\u7E26\u6A2A+2\u30DE\u30B9\u62E1\u5927\u3059\u308B\u3002"],
     ["\u9032\u8ECD", "\u5341\u5B57\u30DC\u30BF\u30F3\u3067\u65B9\u5411\u3092\u6307\u5B9A\u3002\u5168\u8ECD\u304C15\u79D2\u3054\u3068\u306B\u4E00\u6589\u524D\u9032\u3057\u3001\u6B62\u307E\u3063\u305F\u6575\u99D2\u306F\u8E0F\u307F\u6F70\u3057\u3066\u6355\u7372\u3002", "\u540C\u3058\u30DE\u30B9\u306B\u885D\u7A81\u3057\u305F\u3089\u3001\u751F\u304D\u6B8B\u308B\u306E\u306F\u4E00\u65B9\u3060\u3051\u3002\u738B\u3082\u4F8B\u5916\u306A\u3057\u3002"],
     ["\u6307\u3057\u624B", "\u79FB\u52D5\u30FB\u6253\u3061\u30FB\u56DE\u8EE2\u306F5\u79D2\u306B1\u56DE\u3002\u6575\u3082\u56DE\u8EE2\u3084\u5074\u9762\u3078\u306E\u56DE\u308A\u8FBC\u307F\u3092\u4ED5\u639B\u3051\u3066\u304F\u308B\u3002"],
     ["\u30CD\u30C3\u30C8\u5BFE\u6226", "\u540C\u3058\u4E16\u754C\u306B\u6700\u5927200\u8ECD\u3067\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u53C2\u52A0\u3002\u8AB0\u3082\u3044\u306A\u304F\u3066\u3082\u5373\u53C2\u6226\u3067\u304D\u3001\u5F8C\u304B\u3089\u8AB0\u3067\u3082\u5408\u6D41\u3067\u304D\u308B\u3002\u96E2\u8131\u3059\u308B\u3068\u7389\u306F\u6D88\u3048\u3001\u6B8B\u308A\u306E\u99D2\u306F\u305D\u306E\u5834\u306B\u6B8B\u9AB8\u3068\u3057\u3066\u6B8B\u308B\u3002\u7D041\u79D2\u9593\u9694\u3067\u901A\u4FE1\u3059\u308B\u305F\u3081\u3001\u6307\u3057\u624B\u306E\u53CD\u6620\u306B\u308F\u305A\u304B\u306A\u9045\u308C\u304C\u51FA\u308B\u3002"]
-  ].map(([label, body, warn]) => /* @__PURE__ */ React.createElement("div", { key: label, style: { display: "flex", gap: 12, padding: "10px 2px", borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 700, color: C.gold, width: 62, flexShrink: 0, letterSpacing: 1, whiteSpace: "nowrap" } }, label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, lineHeight: 1.75, color: C.text } }, body, warn && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: C.danger } }, warn)))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, "\u{1F916} AI\u5BFE\u6226"), /* @__PURE__ */ React.createElement("button", { onClick: () => begin("watch"), style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", fontWeight: 700 } }, "\u{1F441} AI\u89B3\u6226"), hasNet() && /* @__PURE__ */ React.createElement(
+  ].map(([label, body, warn]) => /* @__PURE__ */ React.createElement("div", { key: label, style: { display: "flex", gap: 12, padding: "10px 2px", borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 700, color: C.gold, width: 62, flexShrink: 0, letterSpacing: 1, whiteSpace: "nowrap" } }, label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, lineHeight: 1.75, color: C.text } }, body, warn && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: C.danger } }, warn)))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", background: C.gold, color: "#1a1408", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 7 } }, /* @__PURE__ */ React.createElement(Icon, { name: "piece", size: 16 }), "AI\u5BFE\u6226"), /* @__PURE__ */ React.createElement("button", { onClick: () => begin("watch"), style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 7 } }, /* @__PURE__ */ React.createElement(Icon, { name: "eye", size: 16 }), "AI\u89B3\u6226"), hasNet() && /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => {
@@ -1834,22 +1870,23 @@ function OpenWorldShogi() {
         setNetPhase("nameEntry");
         fetchRoomList();
       },
-      style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", fontWeight: 700, border: `1px solid ${C.gold}`, color: C.gold }
+      style: { ...btnStyle(), fontSize: 15, padding: "12px 22px", fontWeight: 700, border: `1px solid ${C.gold}`, color: C.gold, display: "inline-flex", alignItems: "center", gap: 7 }
     },
-    "\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226"
+    /* @__PURE__ */ React.createElement(Icon, { name: "globe", size: 16 }),
+    "\u30CD\u30C3\u30C8\u5BFE\u6226"
   )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, justifyContent: "center", marginTop: 14, fontSize: 11 } },
     /* @__PURE__ */ React.createElement("a", { href: "/terms.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, "\u5229\u7528\u898F\u7D04"),
     /* @__PURE__ */ React.createElement("a", { href: "/privacy.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, "\u30D7\u30E9\u30A4\u30D0\u30B7\u30FC\u30DD\u30EA\u30B7\u30FC")
-  ), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 10, fontSize: 11, color: C.sub } }, "Created by yoshi on 19 July 2026")), !started && netPhase === "nameEntry" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u{1F310} \u30CD\u30C3\u30C8\u5BFE\u6226"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16, lineHeight: 1.7 } }, "\u5171\u6709\u30EF\u30FC\u30EB\u30C9\u306B\u5373\u53C2\u52A0\u3059\u308B\u3002\u8AB0\u3082\u3044\u306A\u3051\u308C\u3070\u3042\u306A\u305F\u304C\u6700\u521D\u306E\u4E00\u4EBA\u306B\u306A\u308A\u3001\u5F8C\u304B\u3089\u8AB0\u3067\u3082\u5408\u6D41\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 10, fontSize: 11, fontFamily: ENFONT, letterSpacing: 1, color: C.sub } }, "Created by yoshi on 19 July 2026")), !started && netPhase === "nameEntry" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u30CD\u30C3\u30C8\u5BFE\u6226"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16, lineHeight: 1.7 } }, "\u5171\u6709\u30EF\u30FC\u30EB\u30C9\u306B\u5373\u53C2\u52A0\u3059\u308B\u3002\u8AB0\u3082\u3044\u306A\u3051\u308C\u3070\u3042\u306A\u305F\u304C\u6700\u521D\u306E\u4E00\u4EBA\u306B\u306A\u308A\u3001\u5F8C\u304B\u3089\u8AB0\u3067\u3082\u5408\u6D41\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement(
     "input",
     {
       value: netName,
       onChange: (e) => setNetName(e.target.value),
       maxLength: NAME_MAX_LEN,
       placeholder: "\u3042\u306A\u305F\u306E\u540D\u524D(\u7A7A\u6B04\u53EF)",
-      style: { width: "100%", fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 14, boxSizing: "border-box" }
+      style: { width: "100%", fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 14, boxSizing: "border-box" }
     }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(), style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box" } }, "\u{1F310} \u30AF\u30A4\u30C3\u30AF\u30DE\u30C3\u30C1\u3067\u53C2\u52A0"),
+  ), /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(), style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 } }, /* @__PURE__ */ React.createElement(Icon, { name: "globe", size: 16 }), "\u30AF\u30A4\u30C3\u30AF\u30DE\u30C3\u30C1\u3067\u53C2\u52A0"),
   /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, margin: "14px 0 10px", letterSpacing: 2 } }, "\u2015 \u307E\u305F\u306F \u2015"),
   /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
     /* @__PURE__ */ React.createElement("input", {
@@ -1861,7 +1898,7 @@ function OpenWorldShogi() {
       autoComplete: "off",
       spellCheck: false,
       placeholder: "\u5408\u8A00\u8449(5\u6587\u5B57)\u3067\u5165\u5BA4",
-      style: { flex: 1, fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px solid ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 2, textTransform: "uppercase" }
+      style: { flex: 1, fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 2, textTransform: "uppercase" }
     }),
     /* @__PURE__ */ React.createElement("button", { onClick: () => codeInput.trim() && joinOpenWorld(codeInput.trim()), style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0 } }, "\u5165\u5BA4")
   ),
@@ -1874,7 +1911,7 @@ function OpenWorldShogi() {
       autoComplete: "off",
       spellCheck: false,
       placeholder: "\u5408\u8A00\u8449\u3092\u81EA\u5206\u3067\u6C7A\u3081\u308B(\u5FC5\u9808\u3001\u82F1\u6570\u5B573\u301C10\u6587\u5B57)",
-      style: { flex: 1, fontSize: 13, padding: "9px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 1, textTransform: "uppercase" }
+      style: { flex: 1, fontSize: 13, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 1, textTransform: "uppercase" }
     }),
     /* @__PURE__ */ React.createElement("button", { onClick: () => newRoomCode.trim().length >= 3 && joinOpenWorld(newRoomCode.trim(), true), disabled: newRoomCode.trim().length < 3, style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12, opacity: newRoomCode.trim().length < 3 ? 0.5 : 1 } }, "\u2795 \u4F5C\u308B")
   ),
@@ -1893,14 +1930,14 @@ function OpenWorldShogi() {
   ), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), marginTop: 8, padding: "8px 20px" } }, "\u623B\u308B")), !started && netPhase === "connecting" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 20 } }, "\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, "\u30AD\u30E3\u30F3\u30BB\u30EB")), started && W.mode === "openworld" && W.myDefeated && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u30EF\u30FC\u30EB\u30C9\u306F\u7D9A\u3044\u3066\u3044\u308B\u3002\u3082\u3046\u4E00\u5EA6\u53C2\u6226\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, "\u518D\u53C2\u6226"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
     leaveOpenWorld();
     backToTitle();
-  } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))), showNamePrompt && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u8ECD\u306E\u540D\u524D\u3092\u6C7A\u3081\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, "\u6700\u5927", NAME_MAX_LEN, "\u6587\u5B57\u3002\u4E0D\u9069\u5207\u306A\u8A00\u8449\u306F\u81EA\u52D5\u7684\u306B\u4F0F\u5B57\u306B\u306A\u308A\u307E\u3059\u3002\u7A7A\u6B04\u306A\u3089\u30E9\u30F3\u30C0\u30E0\u306A\u540D\u524D\u306B\u306A\u308A\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement(
+  } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))), started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u3053\u306E\u307E\u307E\u4ED6\u8ECD\u306E\u6226\u3044\u3092\u89B3\u6226\u3059\u308B\u304B\u3001\u30BF\u30A4\u30C8\u30EB\u306B\u623B\u308B\u304B\u3092\u9078\u3079\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => setDefeatAck(true) }, "\u89B3\u6226\u3092\u7D9A\u3051\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: backToTitle }, "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B"))), showNamePrompt && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u8ECD\u306E\u540D\u524D\u3092\u6C7A\u3081\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, "\u6700\u5927", NAME_MAX_LEN, "\u6587\u5B57\u3002\u4E0D\u9069\u5207\u306A\u8A00\u8449\u306F\u81EA\u52D5\u7684\u306B\u4F0F\u5B57\u306B\u306A\u308A\u307E\u3059\u3002\u7A7A\u6B04\u306A\u3089\u30E9\u30F3\u30C0\u30E0\u306A\u540D\u524D\u306B\u306A\u308A\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement(
     "input",
     {
       value: nameInput,
       onChange: (e) => setNameInput(e.target.value),
       maxLength: NAME_MAX_LEN,
       placeholder: "\u4F8B: \u30AF\u30EA\u30E0\u30BE\u30F3\u30D5\u30A1\u30F3\u30B0",
-      style: { width: "100%", fontSize: 16, padding: "10px 12px", borderRadius: 8, background: "#141810", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 18, boxSizing: "border-box" }
+      style: { width: "100%", fontSize: 16, padding: "10px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 18, boxSizing: "border-box" }
     }
   ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, "\u53C2\u6226!"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
     setShowNamePrompt(false);
@@ -1910,8 +1947,54 @@ function OpenWorldShogi() {
     bump();
   }, style: { ...btnStyle(), fontSize: 15, padding: "10px 30px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))));
 }
+function roundedPolyPath(ctx, pts, r) {
+  const n = pts.length;
+  const mid0 = [(pts[0][0] + pts[n - 1][0]) / 2, (pts[0][1] + pts[n - 1][1]) / 2];
+  ctx.beginPath();
+  ctx.moveTo(mid0[0], mid0[1]);
+  for (let i = 0; i < n; i++) {
+    const cur = pts[i];
+    const next = pts[(i + 1) % n];
+    ctx.arcTo(cur[0], cur[1], next[0], next[1], r);
+  }
+  ctx.closePath();
+}
+function Icon({ name, size, rotate, style }) {
+  size = size || 18;
+  const wrapStyle = Object.assign({ display: "block", flexShrink: 0 }, rotate ? { transform: `rotate(${rotate}deg)` } : null, style || {});
+  const common = { width: size, height: size, viewBox: "0 0 24 24", style: wrapStyle };
+  if (name === "arrow") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M12 3 L20 19 H4 Z", fill: "currentColor" }));
+  }
+  if (name === "rotateCW") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
+  }
+  if (name === "rotateCCW") {
+    const s2 = Object.assign({}, common.style, { transform: `${common.style.transform || ""} scaleX(-1)`.trim() });
+    return /* @__PURE__ */ React.createElement("svg", { ...common, style: s2 }, /* @__PURE__ */ React.createElement("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
+  }
+  if (name === "stop") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("rect", { x: 6, y: 6, width: 12, height: 12, rx: 2, fill: "currentColor" }));
+  }
+  if (name === "play") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M7 4l13 8-13 8z", fill: "currentColor" }));
+  }
+  if (name === "target") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 8, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 3, fill: "currentColor" }));
+  }
+  if (name === "piece") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("polygon", { points: "12,1.6 19.04,8.8 17.92,21.6 6.08,21.6 4.96,8.8", fill: "currentColor" }));
+  }
+  if (name === "eye") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z", fill: "none", stroke: "currentColor", strokeWidth: 1.8 }), /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 3.2, fill: "currentColor" }));
+  }
+  if (name === "globe") {
+    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), /* @__PURE__ */ React.createElement("ellipse", { cx: 12, cy: 12, rx: 4, ry: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.4 }), /* @__PURE__ */ React.createElement("line", { x1: 3, y1: 12, x2: 21, y2: 12, stroke: "currentColor", strokeWidth: 1.4 }));
+  }
+  return null;
+}
 function btnStyle(danger) {
-  return { fontSize: 13, padding: "8px 12px", borderRadius: 8, background: danger ? "#33261f" : "#2a3226", color: danger ? "#E8A08C" : "#EAE4D0", border: "1px solid #3a4536", whiteSpace: "nowrap", flexShrink: 0 };
+  return { fontSize: 13, padding: "8px 12px", borderRadius: 8, background: danger ? "#3d2416" : "#3a2a15", color: danger ? "#F0B8A2" : "#EAE0C4", border: "1px solid #8B6F3E", whiteSpace: "nowrap", flexShrink: 0 };
 }
 function dpadBtnStyle(stop) {
   return {
@@ -1922,14 +2005,14 @@ function dpadBtnStyle(stop) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: stop ? "rgba(51,38,31,0.9)" : "rgba(42,50,38,0.88)",
-    color: stop ? "#E8A08C" : "#EAE4D0",
-    border: `1px solid ${stop ? "#4a352b" : "#3a4536"}`,
-    boxShadow: "0 2px 6px rgba(0,0,0,0.35)"
+    background: stop ? "rgba(74,45,31,0.92)" : "rgba(58,42,22,0.9)",
+    color: stop ? "#F0B8A2" : "#EAE0C4",
+    border: `1px solid ${stop ? "#A8583D" : "#8B6F3E"}`,
+    boxShadow: "0 2px 6px rgba(0,0,0,0.4)"
   };
 }
 function Overlay({ children }) {
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,13,9,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { background: "#1B221A", border: "1px solid #3a4536", borderRadius: 14, padding: "26px 24px", maxWidth: 420, width: "88%", maxHeight: "82vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,13,9,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { background: WOOD_GRAIN, border: `1px solid ${C.boardEdge}`, boxShadow: `inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 8px rgba(0,0,0,0.45), 0 0 0 4px rgba(139,111,62,0.14), 0 6px 18px rgba(0,0,0,0.4)`, borderRadius: 10, padding: "26px 24px", maxWidth: 420, width: "88%", maxHeight: "82vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
 }
 class OwsErrorBoundary extends React.Component {
   constructor(props) {
