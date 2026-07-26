@@ -801,14 +801,6 @@ function OpenWorldShogi() {
   const wrapRef = useRef(null);
   const g = useRef(null);
   if (!g.current) g.current = newWorld("play");
-  const woodImgRef = useRef(null);
-  const boardPatternRef = useRef(null);
-  const [woodReady, setWoodReady] = useState(false);
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => { woodImgRef.current = img; setWoodReady(true); };
-    img.src = "/board-wood.jpeg";
-  }, []);
   const camRef = useRef({ x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, rot: 0, manualMode: false });
   const [, force] = useState(0);
   const bump = useCallback(() => force((n) => n + 1), []);
@@ -1583,14 +1575,7 @@ function OpenWorldShogi() {
     ctx.translate(Wd / 2, Hd / 2);
     ctx.rotate(cam.rot);
     ctx.translate(-Wd / 2, -Hd / 2);
-    if (woodImgRef.current) {
-      if (!boardPatternRef.current) {
-        boardPatternRef.current = ctx.createPattern(woodImgRef.current, "repeat");
-      }
-      ctx.fillStyle = boardPatternRef.current;
-    } else {
-      ctx.fillStyle = C.board;
-    }
+    ctx.fillStyle = C.board;
     ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
     ctx.strokeStyle = "rgba(74,52,26,0.35)";
     ctx.lineWidth = 8;
@@ -1691,24 +1676,14 @@ function OpenWorldShogi() {
       ctx.shadowColor = "rgba(20,12,4,0.45)";
       ctx.shadowBlur = S * 0.14;
       ctx.shadowOffsetY = S * 0.05;
-      if (woodImgRef.current) {
-        ctx.save();
-        ctx.clip();
-        ctx.drawImage(woodImgRef.current, -w * 0.6, -h * 0.6, w * 1.2, h * 1.2);
-        ctx.globalCompositeOperation = "multiply";
-        ctx.fillStyle = col.fill;
-        ctx.fillRect(-w * 0.6, -h * 0.6, w * 1.2, h * 1.2);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.restore();
-      } else {
-        ctx.fillStyle = col.fill;
-        ctx.fill();
-      }
+      ctx.fillStyle = col.fill;
+      ctx.fill();
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
+      const canAct = now() - army.lastAction >= MOVE_COOLDOWN;
       ctx.lineWidth = selected ? 2.8 : 1.8;
-      ctx.strokeStyle = selected ? C.selGlow : col.edge;
+      ctx.strokeStyle = selected ? (canAct ? "#9FD08A" : C.danger) : col.edge;
       ctx.stroke();
       if (S >= 11) {
         ctx.fillStyle = p.promoted ? col.prom : col.text;
