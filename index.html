@@ -31,6 +31,7 @@
     padding: 16px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
   #boot-error .hint { color: #EAE4D0; font-family: system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; }
   button, input, select, textarea { font-family: inherit; }
+  @keyframes ows-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -1912,14 +1913,14 @@ function OpenWorldShogi() {
       autoCorrect: "off",
       autoComplete: "off",
       spellCheck: false,
-      placeholder: "\u5408\u8A00\u8449\u3092\u81EA\u5206\u3067\u6C7A\u3081\u308B(\u5FC5\u9808\u3001\u82F1\u6570\u5B573\u301C10\u6587\u5B57)",
-      style: { flex: "1 1 140px", minWidth: 0, fontSize: 13, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 1, textTransform: "uppercase" }
+      placeholder: "\u5408\u8A00\u8449\u3092\u6C7A\u3081\u308B(\u82F1\u6570\u5B573\u301C10\u6587\u5B57)",
+      style: { flex: "1 1 140px", minWidth: 0, fontSize: 12, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 0.5, textTransform: "uppercase" }
     }),
     /* @__PURE__ */ React.createElement("button", { onClick: () => newRoomCode.trim().length >= 3 && joinOpenWorld(newRoomCode.trim(), true), disabled: newRoomCode.trim().length < 3, style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12, opacity: newRoomCode.trim().length < 3 ? 0.5 : 1 } }, "\u2795 \u4F5C\u308B")
   ),
   /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: 8 } },
     /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, "\u73FE\u5728\u958B\u3044\u3066\u3044\u308B\u90E8\u5C4B"),
-    /* @__PURE__ */ React.createElement("button", { onClick: fetchRoomList, disabled: roomListLoading, style: { fontSize: 12, padding: "6px 12px", borderRadius: 8, color: C.gold, background: "rgba(201,169,106,0.12)", border: `1px solid ${C.gold}55`, opacity: roomListLoading ? 0.6 : 1, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 12 }), roomListLoading ? "\u2026" : "\u66F4\u65B0")
+    /* @__PURE__ */ React.createElement("button", { onClick: fetchRoomList, disabled: roomListLoading, style: { fontSize: 12, padding: "6px 12px", borderRadius: 8, color: C.gold, background: "rgba(201,169,106,0.12)", border: `1px solid ${C.gold}55`, opacity: roomListLoading ? 0.6 : 1, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 12, style: roomListLoading ? { animation: "ows-spin 0.7s linear infinite" } : null }), !roomListLoading && "\u66F4\u65B0")
   ),
   /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { maxHeight: 160, overflowY: "auto", border: `1px solid ${C.panelEdge}`, borderRadius: 8, marginBottom: 10 } },
     roomList.length === 0
