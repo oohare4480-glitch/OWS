@@ -202,7 +202,7 @@ function makeColor(i) {
   const h = Math.round(i * 137.508 % 360);
   return {
     fill: `hsl(${h},34%,26%)`,
-    edge: `hsl(${h},40%,11%)`,
+    edge: `hsl(${h},35%,20%)`,
     text: `hsl(${h},28%,88%)`,
     prom: `hsl(${(h + 45) % 360},95%,72%)`,
     zone: `hsla(${h},60%,55%,0.14)`,
@@ -1701,7 +1701,7 @@ function OpenWorldShogi() {
         ctx.fillStyle = col.fill;
         ctx.fill();
       }
-      ctx.lineWidth = selected ? 2.4 : 1.2;
+      ctx.lineWidth = selected ? 2.6 : 1.6;
       ctx.strokeStyle = selected ? C.selGlow : col.edge;
       ctx.stroke();
       if (S >= 11) {
@@ -1855,12 +1855,7 @@ function OpenWorldShogi() {
     display: "grid",
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
-    gap: 4,
-    padding: 6,
-    borderRadius: 12,
-    background: WOOD_GRAIN,
-    border: "1px solid #B08C4F",
-    boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -2px 6px rgba(0,0,0,0.45), 0 3px 10px rgba(0,0,0,0.35)"
+    gap: 4
   } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))), false), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", paddingBottom: "calc(8px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)" } }, isPlay ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), style: { ...btnStyle(), display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 }), "\u5DE6\u56DE\u8EE2"), /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), style: { ...btnStyle(), display: "flex", alignItems: "center", gap: 5 } }, "\u53F3\u56DE\u8EE2", /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 }))) : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub } }, "\u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), style: {
     fontSize: 11,
     padding: "6px 10px",
@@ -2031,10 +2026,11 @@ function dpadBtnStyle(stop) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: stop ? "rgba(74,45,31,0.92)" : "rgba(58,42,22,0.9)",
+    background: stop ? "rgba(74,45,31,0.62)" : "rgba(58,42,22,0.55)",
     color: stop ? "#F0B8A2" : "#EAE0C4",
-    border: `1px solid ${stop ? "#A8583D" : "#8B6F3E"}`,
-    boxShadow: "0 2px 6px rgba(0,0,0,0.4)"
+    border: `1px solid ${stop ? "rgba(168,88,61,0.7)" : "rgba(139,111,62,0.7)"}`,
+    backdropFilter: "blur(2px)",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.3)"
   };
 }
 function Overlay({ children }) {
