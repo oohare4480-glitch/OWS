@@ -932,7 +932,10 @@ function OpenWorldShogi() {
     if (mode === "watch") {
       w.focusId = w.armies[Math.floor(Math.random() * w.armies.length)].id;
     }
-    camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
+    const startFocus = mode === "watch" ? w.armies.find((a) => a.id === w.focusId) : w.armies[0];
+    const startX = startFocus ? startFocus.center[0] : MAP_W / 2;
+    const startY = startFocus ? startFocus.center[1] : MAP_H / 2;
+    camRef.current = { x: startX, y: startY, s: 20, zoom: 1, manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
     setStarted(true);
