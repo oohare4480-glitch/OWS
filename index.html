@@ -880,7 +880,7 @@ function OpenWorldShogi() {
           : msg.reason === "server_full" ? "サーバー全体が満員です。しばらくしてから再度お試しください。"
           : msg.reason === "code_taken" ? "その合言葉はすでに使われています。別のものを選んでください。"
           : msg.reason === "code_required" ? "部屋を作るには合言葉の入力が必要です。"
-          : msg.reason === "invalid_code" ? "合言葉は英数字3〜10文字で入力してください。"
+          : msg.reason === "invalid_code" ? "合言葉は英数字3〜5文字で入力してください。"
           : "接続できませんでした。";
         setNetMsg(reasonMsg);
         setNetPhase("nameEntry");
@@ -939,7 +939,11 @@ function OpenWorldShogi() {
     const startFocus = mode === "watch" ? w.armies.find((a) => a.id === w.focusId) : w.armies[0];
     const startX = startFocus ? startFocus.center[0] : MAP_W / 2;
     const startY = startFocus ? startFocus.center[1] : MAP_H / 2;
-    camRef.current = { x: startX, y: startY, s: 20, zoom: 1, manualMode: false };
+    const wrap0 = wrapRef.current;
+    const Wd0 = wrap0 ? wrap0.clientWidth : 800, Hd0 = wrap0 ? wrap0.clientHeight : 600;
+    const zr0 = (startFocus && startFocus.zone ? startFocus.zone.r : ZONE_R_BASE) + 3;
+    const s0 = Math.max(2, Math.min(30, Math.min(Wd0 / (zr0 * 2), Hd0 / (zr0 * 2))));
+    camRef.current = { x: startX, y: startY, s: s0, baseScale: s0, zoom: 1, manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
     setStarted(true);
@@ -1474,16 +1478,15 @@ function OpenWorldShogi() {
     }
     function onWheel(e) {
       e.preventDefault();
-      camRef.current.manualMode = true;
-      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B9\u30EF\u30A4\u30D7: \u6A2A\u65B9\u5411(deltaX)\u3067\u8996\u70B9\u3092\u56DE\u8EE2\u3001\u7E26\u65B9\u5411(deltaY)\u3067\u30BA\u30FC\u30E0\u3002
-      // \u30D4\u30F3\u30C1(ctrlKey\u4ED8\u304D\u306Ewheel)\u306F\u5E38\u306B\u30BA\u30FC\u30E0\u306E\u307F\u3002\u305D\u308C\u4EE5\u5916\u306F\u3001deltaX/deltaY\u306E\u3069\u3061\u3089\u304C\u652F\u914D\u7684\u304B\u3067\u5224\u5B9A\u3057\u3001
-      // \u7E26\u306B\u30B9\u30AF\u30ED\u30FC\u30EB\u3057\u3066\u30BA\u30FC\u30E0\u3057\u305F\u3044\u3060\u3051\u306E\u3068\u304D\u306B\u5FAE\u5C0F\u306AdeltaX\u30CE\u30A4\u30BA\u3067\u52A0\u56DE\u8EE2\u3057\u3066\u3057\u307E\u3046\u306E\u3092\u9632\u3050\u3002
+      const cam = camRef.current;
+      cam.manualMode = true;
+      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306F\u62E1\u5927\u7E2E\u5C0F\u3068\u5730\u56F3\u306E\u79FB\u52D5\u306E\u307F\u3002\u56DE\u8EE2\u306F\u4E00\u5207\u884C\u308F\u306A\u3044\u3002
       if (e.ctrlKey) {
         if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
       } else {
-        const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
-        if (adx > ady * 2 && adx > 6) camRef.current.rot += e.deltaX * 0.0025;
-        else if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+        const [wdx, wdy] = toWorldDelta(e.deltaX, e.deltaY, cam);
+        cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x - wdx));
+        cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y - wdy));
       }
       bump();
     }
@@ -1498,19 +1501,11 @@ function OpenWorldShogi() {
     function onGestureStart(e) {
       e.preventDefault();
       camRef.current.manualMode = true;
-      gestureStart = { rot0: camRef.current.rot || 0, zoom0: camRef.current.zoom || 1, rotEngaged: false };
+      gestureStart = { zoom0: camRef.current.zoom || 1 };
     }
     function onGestureChange(e) {
       e.preventDefault();
       if (!gestureStart) return;
-      // 回転はデッドゾーンを超えてから初めて反映する。ピンチでズームしたいだけの
-      // ときに、指のわずかなひねりで地図が少し回ってしまうのを防ぐ。
-      const DEAD_DEG = 8;
-      if (!gestureStart.rotEngaged && Math.abs(e.rotation) > DEAD_DEG) gestureStart.rotEngaged = true;
-      if (gestureStart.rotEngaged) {
-        const adj = e.rotation - Math.sign(e.rotation) * DEAD_DEG;
-        camRef.current.rot = gestureStart.rot0 - adj * Math.PI / 180;
-      }
       camRef.current.zoom = Math.max(0.03, Math.min(4, gestureStart.zoom0 * e.scale));
       bump();
     }
@@ -1910,20 +1905,21 @@ function OpenWorldShogi() {
       autoCorrect: "off",
       autoComplete: "off",
       spellCheck: false,
-      placeholder: "\u5408\u8A00\u8449(5\u6587\u5B57)\u3067\u5165\u5BA4",
+      placeholder: "\u5408\u8A00\u8449(3\u301C5\u6587\u5B57)\u3067\u5165\u5BA4",
       style: { flex: "1 1 140px", minWidth: 0, fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 2, textTransform: "uppercase" }
     }),
-    /* @__PURE__ */ React.createElement("button", { onClick: () => codeInput.trim() && joinOpenWorld(codeInput.trim()), style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0 } }, "\u5165\u5BA4")
+    /* @__PURE__ */ React.createElement("button", { onClick: () => codeInput.trim().length >= 3 && joinOpenWorld(codeInput.trim()), disabled: codeInput.trim().length < 3, style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0, opacity: codeInput.trim().length < 3 ? 0.5 : 1 } }, "\u5165\u5BA4")
   ),
   /* @__PURE__ */ /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } },
     /* @__PURE__ */ React.createElement("input", {
       value: newRoomCode,
-      onChange: (e) => setNewRoomCode(e.target.value.slice(0, 10)),
+      onChange: (e) => setNewRoomCode(e.target.value.slice(0, 5)),
+      maxLength: 5,
       autoCapitalize: "characters",
       autoCorrect: "off",
       autoComplete: "off",
       spellCheck: false,
-      placeholder: "\u5408\u8A00\u8449\u3092\u6C7A\u3081\u308B(\u82F1\u6570\u5B573\u301C10\u6587\u5B57)",
+      placeholder: "\u5408\u8A00\u8449\u3092\u6C7A\u3081\u308B(\u82F1\u6570\u5B573\u301C5\u6587\u5B57)",
       style: { flex: "1 1 140px", minWidth: 0, fontSize: 12, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 0.5, textTransform: "uppercase" }
     }),
     /* @__PURE__ */ React.createElement("button", { onClick: () => newRoomCode.trim().length >= 3 && joinOpenWorld(newRoomCode.trim(), true), disabled: newRoomCode.trim().length < 3, style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12, opacity: newRoomCode.trim().length < 3 ? 0.5 : 1 } }, "\u2795 \u4F5C\u308B")
@@ -2026,7 +2022,7 @@ function dpadBtnStyle(stop) {
   };
 }
 function Overlay({ children }) {
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,13,9,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { background: WOOD_GRAIN, border: `1px solid ${C.boardEdge}`, boxShadow: `inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 8px rgba(0,0,0,0.45), 0 0 0 4px rgba(139,111,62,0.14), 0 6px 18px rgba(0,0,0,0.4)`, borderRadius: 10, padding: "26px 24px", maxWidth: 420, width: "88%", maxHeight: "82vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "#0A0D09", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { background: WOOD_GRAIN, border: `1px solid ${C.boardEdge}`, boxShadow: `inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 8px rgba(0,0,0,0.45), 0 0 0 4px rgba(139,111,62,0.14), 0 6px 18px rgba(0,0,0,0.4)`, borderRadius: 10, padding: "26px 24px", maxWidth: 420, width: "88%", maxHeight: "82vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
 }
 class OwsErrorBoundary extends React.Component {
   constructor(props) {
