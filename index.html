@@ -1476,39 +1476,51 @@ function OpenWorldShogi() {
         gs.pinchStart = null;
       }
     }
-    // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B9\u30AF\u30ED\u30FC\u30EB\u3068\u7269\u7406\u30DE\u30A6\u30B9\u30DB\u30A4\u30FC\u30EB\u306F\u3069\u3061\u3089\u3082 wheel \u30A4\u30D9\u30F3\u30C8\u3060\u304C\u3001
-    // delta \u306E\u7C92\u5EA6\u3067\u533A\u5225\u3067\u304D\u308B\u3002\u30DB\u30A4\u30FC\u30EB\u306F\u5927\u304D\u306A\u6574\u6570\u5024\u3067 deltaX \u304C\u5E38\u306B0\u3002
-    function looksLikeMouseWheel(e) {
+    // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B9\u30AF\u30ED\u30FC\u30EB\u3068\u7269\u7406\u30DE\u30A6\u30B9\u30DB\u30A4\u30FC\u30EB\u306F\u3069\u3061\u3089\u3082 wheel \u30A4\u30D9\u30F3\u30C8\u3067\u6765\u308B\u3002
+    // \u5358\u4F53\u306E\u30A4\u30D9\u30F3\u30C8\u306E\u5927\u304D\u3055\u3067\u5224\u5225\u3059\u308B\u3068\u3001Windows\u7CBE\u5BC6\u30BF\u30C3\u30C1\u30D1\u30C3\u30C9\u304C\u659C\u3081\u30B9\u30AF\u30ED\u30FC\u30EB\u4E2D\u306B
+    // \u9001\u3063\u3066\u304F\u308B\u300C\u7E26\u6210\u5206\u3060\u3051\u306E\u30A4\u30D9\u30F3\u30C8(deltaX=0)\u300D\u3092\u30DE\u30A6\u30B9\u3068\u8AA4\u5224\u5B9A\u3057\u3066\u30BA\u30FC\u30E0\u306B\u98DB\u3076\u3002
+    // \u306A\u306E\u3067\u300C\u76F4\u8FD1\u306E\u30A4\u30D9\u30F3\u30C8\u5217(\u30B9\u30C8\u30EA\u30FC\u30E0)\u5168\u4F53\u300D\u3067\u30C7\u30D0\u30A4\u30B9\u3092\u5224\u5B9A\u3059\u308B\u3002
+    // \u30DE\u30A6\u30B9\u306E\u78BA\u5B9F\u306A\u5370: \u884C/\u30DA\u30FC\u30B8\u5358\u4F4D\u3001\u307E\u305F\u306F wheelDelta \u304C120\u306E\u500D\u6570\u3002
+    function mouseWheelSignature(e) {
       if (e.deltaMode !== 0) return true;
       if (e.deltaX !== 0) return false;
-      if (!Number.isInteger(e.deltaY)) return false;
-      if (Math.abs(e.deltaY) < 40) return false;
-      return true;
+      const wd = e.wheelDeltaY != null ? e.wheelDeltaY : e.wheelDelta;
+      if (wd != null && wd !== 0 && Math.abs(wd) % 120 === 0) return true;
+      return Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 100 && Math.abs(e.deltaY) % 100 === 0;
     }
-    let trackpadHintAt = 0;
+    // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u3067\u3057\u304B\u51FA\u306A\u3044\u5F62: \u6A2A\u6210\u5206\u3042\u308A / \u5C0F\u6570 / \u3054\u304F\u5C0F\u3055\u3044\u5024\u3002
+    function trackpadSignature(e) {
+      if (e.deltaMode !== 0) return false;
+      if (e.deltaX !== 0) return true;
+      if (!Number.isInteger(e.deltaY)) return true;
+      return Math.abs(e.deltaY) > 0 && Math.abs(e.deltaY) < 40;
+    }
+    let trackpadHintAt = -1e9;
+    const TRACKPAD_STREAM_MS = 1500;
     function onWheel(e) {
       e.preventDefault();
       const cam = camRef.current;
       cam.manualMode = true;
-      // (1) \u30D4\u30F3\u30C1: Chrome/Firefox \u306F ctrlKey \u4ED8\u304D wheel \u3067\u5165\u3063\u3066\u304F\u308B\u3002\u6307\u3092\u958B\u304F\u3068 deltaY<0 = \u62E1\u5927\u3002
+      // (1) \u30D4\u30F3\u30C1\u306F ctrlKey \u4ED8\u304D wheel \u3067\u5165\u308B\u3002\u6307\u3092\u958B\u304F\u3068 deltaY<0 = \u62E1\u5927\u3002
       if (e.ctrlKey) {
         adjustZoom(Math.exp(-e.deltaY * 0.01));
         return;
       }
-      const trackpadLike = !looksLikeMouseWheel(e);
-      const now = (performance && performance.now) ? performance.now() : Date.now();
-      if (trackpadLike) trackpadHintAt = now;
-      // \u76F4\u524D\u306B\u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u3089\u3057\u3044\u30A4\u30D9\u30F3\u30C8\u304C\u3042\u3063\u305F\u3089\u3001\u60C1\u6027\u3067\u6574\u6570\u5316\u3057\u305F\u672B\u5C3E\u3082\u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u6271\u3044\u306B\u3059\u308B\u3002
-      if (trackpadLike || now - trackpadHintAt < 400) {
-        // (2) \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C92\u672C\u6307\u30B9\u30AF\u30ED\u30FC\u30EB: \u5730\u56F3\u3092\u30D1\u30F3\u3002
-        const [wdx, wdy] = toWorldDelta(e.deltaX, e.deltaY, cam);
-        cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x + wdx));
-        cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y + wdy));
-        bump();
+      const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      if (trackpadSignature(e)) trackpadHintAt = now;
+      const inTrackpadStream = now - trackpadHintAt < TRACKPAD_STREAM_MS;
+      // (3) \u7269\u7406\u30DE\u30A6\u30B9\u30DB\u30A4\u30FC\u30EB: \u4E0A\u306B\u56DE\u3059(deltaY<0) = \u62E1\u5927\u3002
+      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E\u30B9\u30C8\u30EA\u30FC\u30E0\u4E2D\u306F\u3001\u5F62\u304C\u30DE\u30A6\u30B9\u3068\u540C\u3058\u3067\u3082\u7D76\u5BFE\u306B\u30BA\u30FC\u30E0\u3057\u306A\u3044\u3002
+      if (!inTrackpadStream && mouseWheelSignature(e)) {
+        if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
         return;
       }
-      // (3) \u7269\u7406\u30DE\u30A6\u30B9\u30DB\u30A4\u30FC\u30EB: \u5947\u306B\u56DE\u3059(deltaY<0) = \u62E1\u5927\u3002\u4E0A\u306B\u56DE\u3059\u3068\u30BA\u30FC\u30E0\u30A4\u30F3\u3002
-      if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+      // (2) \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C92\u672C\u6307\u30B9\u30AF\u30ED\u30FC\u30EB: \u5730\u56F3\u3092\u30D1\u30F3(\u7E26\u30FB\u6A2A\u30FB\u659C\u3081\u5168\u90E8)\u3002
+      if (!e.deltaX && !e.deltaY) return;
+      const [wdx, wdy] = toWorldDelta(e.deltaX, e.deltaY, cam);
+      cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x + wdx));
+      cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y + wdy));
+      bump();
     }
     cv.addEventListener("pointerdown", onPointerDown, { passive: true });
     cv.addEventListener("pointermove", onPointerMove, { passive: true });
