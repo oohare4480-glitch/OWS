@@ -870,6 +870,11 @@ function OpenWorldShogi() {
         netRef.current.roomCode = msg.code || null;
         g.current.playerId = msg.armyId;
         g.current.myDefeated = false;
+        const mineArmy = g.current.armies.find((a) => a.id === msg.armyId);
+        if (mineArmy) {
+          const s0 = initialCamScale(mineArmy);
+          camRef.current = { x: mineArmy.center[0], y: mineArmy.center[1], s: s0, baseScale: s0, zoom: 1, manualMode: false };
+        }
         setNetPhase("playing");
         setStarted(true);
       } else if (msg.type === "full") {
@@ -918,6 +923,12 @@ function OpenWorldShogi() {
   function banner(text, sub, tone) {
     g.current.banner = { text, sub, tone, until: Date.now() + 2600 };
   }
+  function initialCamScale(army) {
+    const wrap = wrapRef.current;
+    const Wd = wrap ? wrap.clientWidth : 800, Hd = wrap ? wrap.clientHeight : 600;
+    const zr = (army && army.zone ? army.zone.r : ZONE_R_BASE) + 3;
+    return Math.max(2, Math.min(30, Math.min(Wd / (zr * 2), Hd / (zr * 2))));
+  }
   function begin(mode, playerName, netOpts) {
     g.current = newWorld(mode, playerName, netOpts);
     const w = g.current;
@@ -939,7 +950,8 @@ function OpenWorldShogi() {
     const startFocus = mode === "watch" ? w.armies.find((a) => a.id === w.focusId) : w.armies[0];
     const startX = startFocus ? startFocus.center[0] : MAP_W / 2;
     const startY = startFocus ? startFocus.center[1] : MAP_H / 2;
-    camRef.current = { x: startX, y: startY, s: 20, zoom: 1, manualMode: false };
+    const s0 = initialCamScale(startFocus);
+    camRef.current = { x: startX, y: startY, s: s0, baseScale: s0, zoom: 1, manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
     setStarted(true);
@@ -1485,27 +1497,30 @@ function OpenWorldShogi() {
     let wheelModeTimer = null;
     function onWheel(e) {
       e.preventDefault();
-      camRef.current.manualMode = true;
+      const cam = camRef.current;
+      cam.manualMode = true;
       // \u30D4\u30F3\u30C1(ctrlKey\u4ED8\u304D\u306Ewheel)\u306F\u5E38\u306B\u30BA\u30FC\u30E0\u306E\u307F\u3002
       if (e.ctrlKey) {
         if (e.deltaY) adjustZoom(e.deltaY);
         bump();
         return;
       }
-      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B8\u30A7\u30B9\u30C1\u30E3\u30FC(\u30D4\u30F3\u30C1\u30C4\u30FC\u30E0\u3084\u56DE\u8EE2)\u306F\u3001
+      // \u30C8\u30E9\u30C3\u30AF\u30D1\u30C3\u30C9\u306E2\u672C\u6307\u30B8\u30A7\u30B9\u30C1\u30E3\u30FC(\u30D4\u30F3\u30C1\u30C4\u30FC\u30E0\u3084\u30B9\u30EF\u30A4\u30D7)\u306F\u3001
       // \u6307\u3092\u96E2\u3059\u307E\u3067\u4E00\u9023\u306Ewheel\u30A4\u30D9\u30F3\u30C8\u304C\u9023\u7D9A\u3067\u767A\u751F\u3059\u308B\u3002
-      // \u6700\u521D\u306B\u5224\u5B9A\u3057\u305F\u30E2\u30FC\u30C9(\u30BA\u30FC\u30E0/\u56DE\u8EE2)\u3092\u3001\u30A4\u30D9\u30F3\u30C8\u304C\u6B62\u307E\u308B\u307E\u3067\u56FA\u5B9A\u3059\u308B\u3053\u3068\u3067\u3001
-      // \u30D4\u30F3\u30C1\u4E2D\u306E\u4E00\u77AC\u306E\u65AA\u3081\u30CE\u30A4\u30BA\u3067\u56DE\u8EE2\u306B\u5316\u3051\u308B\u306E\u3092\u9632\u3050\u3002
+      // \u6700\u521D\u306B\u5224\u5B9A\u3057\u305F\u30E2\u30FC\u30C9(\u30BA\u30FC\u30E0/\u79FB\u52D5)\u3092\u3001\u30A4\u30D9\u30F3\u30C8\u304C\u6B62\u307E\u308B\u307E\u3067\u56FA\u5B9A\u3059\u308B\u3002
+      // \u30BF\u30C3\u30C1\u30D1\u30C3\u30C9\u306F\u62E1\u5927\u30FB\u7E2E\u5C0F\u3068\u5730\u56F3\u306E\u79FB\u52D5\u306E\u307F\u3002\u56DE\u8EE2\u306F\u4E00\u5207\u884C\u308F\u306A\u3044\u3002
       const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
       if (wheelMode == null) {
-        wheelMode = (ady > 1 || adx <= ady * 3 || adx <= 6) ? "zoom" : "rotate";
+        wheelMode = (ady >= adx) ? "zoom" : "pan";
       }
       clearTimeout(wheelModeTimer);
       wheelModeTimer = setTimeout(() => { wheelMode = null; }, 180);
       if (wheelMode === "zoom") {
         if (e.deltaY) adjustZoom(e.deltaY);
       } else {
-        camRef.current.rot += e.deltaX * 0.0025;
+        const [wdx, wdy] = toWorldDelta(e.deltaX, e.deltaY, cam);
+        cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x - wdx));
+        cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y - wdy));
       }
       bump();
     }
@@ -1520,19 +1535,11 @@ function OpenWorldShogi() {
     function onGestureStart(e) {
       e.preventDefault();
       camRef.current.manualMode = true;
-      gestureStart = { rot0: camRef.current.rot || 0, zoom0: camRef.current.zoom || 1, rotEngaged: false };
+      gestureStart = { zoom0: camRef.current.zoom || 1 };
     }
     function onGestureChange(e) {
       e.preventDefault();
       if (!gestureStart) return;
-      // 回転はデッドゾーンを超えてから初めて反映する。ピンチでズームしたいだけの
-      // ときに、指のわずかなひねりで地図が少し回ってしまうのを防ぐ。
-      const DEAD_DEG = 8;
-      if (!gestureStart.rotEngaged && Math.abs(e.rotation) > DEAD_DEG) gestureStart.rotEngaged = true;
-      if (gestureStart.rotEngaged) {
-        const adj = e.rotation - Math.sign(e.rotation) * DEAD_DEG;
-        camRef.current.rot = gestureStart.rot0 - adj * Math.PI / 180;
-      }
       camRef.current.zoom = Math.max(0.03, Math.min(4, gestureStart.zoom0 * e.scale));
       bump();
     }
