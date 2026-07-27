@@ -1036,11 +1036,13 @@ function OpenWorldShogi() {
       army.target = null;
     }
   }
+  const titleClearedRef = useRef(false);
   useEffect(() => {
     let raf;
     const loop = () => {
       const cv = canvasRef.current, wrap = wrapRef.current;
       if (cv && wrap && started) {
+        titleClearedRef.current = false;
         const W2 = g.current;
         try {
           if (started && !W2.over && !isNetGuest()) updateWorld(W2);
@@ -1052,6 +1054,12 @@ function OpenWorldShogi() {
         } catch (err) {
           console.error("draw error", err);
         }
+      } else if (cv && wrap && !titleClearedRef.current) {
+        // \u524D\u56DE\u306E\u5BFE\u5C40\u306E\u6B8B\u50CF\u304C\u30AA\u30FC\u30D0\u30FC\u30EC\u30A4\u8D8A\u3057\u306B\u900F\u3051\u3066\u898B\u3048\u308B\u306E\u3092\u9632\u3050\u305F\u3081\u3001\u4E00\u5EA6\u3060\u3051\u5358\u8272\u3067\u30AF\u30EA\u30A2\u3059\u308B
+        const ctx = cv.getContext("2d", { alpha: false, desynchronized: true });
+        ctx.fillStyle = "#10140F";
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        titleClearedRef.current = true;
       }
       raf = requestAnimationFrame(loop);
     };
@@ -1359,9 +1367,10 @@ function OpenWorldShogi() {
   const tapRef = useRef(null);
   tapRef.current = handleTapAt;
   const gestureRef = useRef({ pointers: /* @__PURE__ */ new Map(), dragStart: null, pinchStart: null, moved: false, tapCandidate: false });
-  function adjustZoom(mult) {
+  function adjustZoom(deltaY) {
     const cam = camRef.current;
-    cam.zoom = Math.max(0.03, Math.min(4, (cam.zoom || 1) * mult));
+    const factor = Math.exp(-deltaY * 0.0016);
+    cam.zoom = Math.max(0.03, Math.min(4, (cam.zoom || 1) * factor));
     bump();
   }
   function recenterCamera() {
@@ -1479,7 +1488,7 @@ function OpenWorldShogi() {
       camRef.current.manualMode = true;
       // \u30D4\u30F3\u30C1(ctrlKey\u4ED8\u304D\u306Ewheel)\u306F\u5E38\u306B\u30BA\u30FC\u30E0\u306E\u307F\u3002
       if (e.ctrlKey) {
-        if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+        if (e.deltaY) adjustZoom(e.deltaY);
         bump();
         return;
       }
@@ -1494,7 +1503,7 @@ function OpenWorldShogi() {
       clearTimeout(wheelModeTimer);
       wheelModeTimer = setTimeout(() => { wheelMode = null; }, 180);
       if (wheelMode === "zoom") {
-        if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+        if (e.deltaY) adjustZoom(e.deltaY);
       } else {
         camRef.current.rot += e.deltaX * 0.0025;
       }
