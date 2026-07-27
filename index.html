@@ -927,7 +927,7 @@ function OpenWorldShogi() {
     const wrap = wrapRef.current;
     const Wd = wrap ? wrap.clientWidth : 800, Hd = wrap ? wrap.clientHeight : 600;
     const zr = (army && army.zone ? army.zone.r : ZONE_R_BASE) + 3;
-    return Math.max(2, Math.min(30, Math.min(Wd / (zr * 2), Hd / (zr * 2))));
+    return Math.round(Math.max(2, Math.min(30, Math.min(Wd / (zr * 2), Hd / (zr * 2)))));
   }
   function begin(mode, playerName, netOpts) {
     g.current = newWorld(mode, playerName, netOpts);
