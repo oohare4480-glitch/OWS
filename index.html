@@ -1579,15 +1579,17 @@ function OpenWorldShogi() {
     bump();
   }
   function draw(cv, wrap, W2) {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(window.devicePixelRatio || 1, 2);
     const Wd = wrap.clientWidth, Hd = wrap.clientHeight;
-    if (cv.width !== Wd * dpr || cv.height !== Hd * dpr) {
-      cv.width = Wd * dpr;
-      cv.height = Hd * dpr;
+    if (Wd === 0 || Hd === 0) return;
+    if (cv.width !== Math.round(Wd * dpr) || cv.height !== Math.round(Hd * dpr)) {
+      cv.width = Math.round(Wd * dpr);
+      cv.height = Math.round(Hd * dpr);
       cv.style.width = Wd + "px";
       cv.style.height = Hd + "px";
     }
     const ctx = cv.getContext("2d", { alpha: false, desynchronized: true });
+    ctx.imageSmoothingEnabled = false;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const focusOwner = W2.mode === "watch" ? W2.focusId : W2.playerId;
     const focusArmyForCam = focusOwner != null ? W2.armies[focusOwner] : null;
