@@ -1068,7 +1068,7 @@ function OpenWorldShogi() {
         }
       } else if (cv && wrap && !titleClearedRef.current) {
         // \u524D\u56DE\u306E\u5BFE\u5C40\u306E\u6B8B\u50CF\u304C\u30AA\u30FC\u30D0\u30FC\u30EC\u30A4\u8D8A\u3057\u306B\u900F\u3051\u3066\u898B\u3048\u308B\u306E\u3092\u9632\u3050\u305F\u3081\u3001\u4E00\u5EA6\u3060\u3051\u5358\u8272\u3067\u30AF\u30EA\u30A2\u3059\u308B
-        const ctx = cv.getContext("2d", { alpha: false, desynchronized: true });
+        const ctx = cv.getContext("2d");
         ctx.fillStyle = "#10140F";
         ctx.fillRect(0, 0, cv.width, cv.height);
         titleClearedRef.current = true;
@@ -1579,7 +1579,7 @@ function OpenWorldShogi() {
     bump();
   }
   function draw(cv, wrap, W2) {
-    const dpr = Math.max(window.devicePixelRatio || 1, 2);
+    const dpr = window.devicePixelRatio || 1;
     const Wd = wrap.clientWidth, Hd = wrap.clientHeight;
     if (Wd === 0 || Hd === 0) return;
     if (cv.width !== Math.round(Wd * dpr) || cv.height !== Math.round(Hd * dpr)) {
@@ -1588,8 +1588,7 @@ function OpenWorldShogi() {
       cv.style.width = Wd + "px";
       cv.style.height = Hd + "px";
     }
-    const ctx = cv.getContext("2d", { alpha: false, desynchronized: true });
-    ctx.imageSmoothingEnabled = false;
+    const ctx = cv.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const focusOwner = W2.mode === "watch" ? W2.focusId : W2.playerId;
     const focusArmyForCam = focusOwner != null ? W2.armies[focusOwner] : null;
