@@ -1485,8 +1485,8 @@ function OpenWorldShogi() {
         if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
       } else {
         const [wdx, wdy] = toWorldDelta(e.deltaX, e.deltaY, cam);
-        cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x - wdx));
-        cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y - wdy));
+        cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x + wdx));
+        cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y + wdy));
       }
       bump();
     }
