@@ -32,6 +32,14 @@
   #boot-error .hint { color: #EAE4D0; font-family: system-ui, sans-serif; font-size: 13px; margin-bottom: 14px; }
   button, input, select, textarea { font-family: inherit; }
   @keyframes ows-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* Edge/Chrome が OS 標準の白いスクロールバーを描くのを防ぎ、木目テーマに合わせる */
+  .ows-scroll { scrollbar-width: thin; scrollbar-color: rgba(201,169,106,0.32) transparent; }
+  .ows-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .ows-scroll::-webkit-scrollbar-track { background: transparent; }
+  .ows-scroll::-webkit-scrollbar-thumb { background: rgba(201,169,106,0.32); border-radius: 3px; }
+  .ows-scroll::-webkit-scrollbar-thumb:hover { background: rgba(201,169,106,0.55); }
+  .ows-scroll::-webkit-scrollbar-corner { background: transparent; }
 </style>
 </head>
 <body>
