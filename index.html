@@ -923,8 +923,12 @@ function OpenWorldShogi() {
     const w = g.current;
     const t = now();
     for (const a of w.armies) {
-      a.lastMove = t;
-      a.lastAction = t;
+      // 全軍の初回クールダウンをバラけさせる。全員同じ時刻にすると開始5秒後に
+      // 一斉に「指せる状態」になり、毎フレーム大量のAI候補ソート＋全駒スキャンが
+      // 走って一瞬カクつく原因になる。
+      const stagger = Math.floor(Math.random() * MOVE_COOLDOWN);
+      a.lastMove = t - stagger;
+      a.lastAction = t - stagger;
     }
     w.lastSpawnCheck = t;
     w.marchAnchor = t;
@@ -1136,7 +1140,8 @@ function OpenWorldShogi() {
       if (a.id === W2.playerId || a.human || !a.alive) continue;
       if (t - a.lastMove >= MOVE_COOLDOWN) aiDue.push(a);
     }
-    aiDue.sort((x, y) => x.lastMove - y.lastMove);
+    // 候補が多いときだけ古い順に整列する(毎フレーム200件ソートするのを避ける)
+    if (aiDue.length > AI_PER_FRAME) aiDue.sort((x, y) => x.lastMove - y.lastMove);
     const dueThisFrame = aiDue.slice(0, AI_PER_FRAME);
     let piecesByOwner = null;
     if (dueThisFrame.length) {
@@ -1477,7 +1482,7 @@ function OpenWorldShogi() {
         if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
       } else {
         const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
-        if (adx > ady * 1.5) camRef.current.rot += e.deltaX * 0.0025;
+        if (adx > ady * 2 && adx > 6) camRef.current.rot += e.deltaX * 0.0025;
         else if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
       }
       bump();
@@ -1493,13 +1498,20 @@ function OpenWorldShogi() {
     function onGestureStart(e) {
       e.preventDefault();
       camRef.current.manualMode = true;
-      gestureStart = { rot0: camRef.current.rot || 0, zoom0: camRef.current.zoom || 1 };
+      gestureStart = { rot0: camRef.current.rot || 0, zoom0: camRef.current.zoom || 1, rotEngaged: false };
     }
     function onGestureChange(e) {
       e.preventDefault();
       if (!gestureStart) return;
-      camRef.current.rot = gestureStart.rot0 - e.rotation * Math.PI / 180;
-      camRef.current.zoom = Math.max(0.15, Math.min(4, gestureStart.zoom0 * e.scale));
+      // 回転はデッドゾーンを超えてから初めて反映する。ピンチでズームしたいだけの
+      // ときに、指のわずかなひねりで地図が少し回ってしまうのを防ぐ。
+      const DEAD_DEG = 8;
+      if (!gestureStart.rotEngaged && Math.abs(e.rotation) > DEAD_DEG) gestureStart.rotEngaged = true;
+      if (gestureStart.rotEngaged) {
+        const adj = e.rotation - Math.sign(e.rotation) * DEAD_DEG;
+        camRef.current.rot = gestureStart.rot0 - adj * Math.PI / 180;
+      }
+      camRef.current.zoom = Math.max(0.03, Math.min(4, gestureStart.zoom0 * e.scale));
       bump();
     }
     function onGestureEnd(e) {
@@ -1775,17 +1787,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "AI\u5BFE\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, (() => {
-    const alive = [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id);
-    const TAB_CAP = 40;
-    let list = alive.slice(0, TAB_CAP);
-    const selfId = isPlay ? W.playerId : W.focusId;
-    if (selfId != null && !list.some((a) => a.id === selfId)) {
-      const selfArmy = alive.find((a) => a.id === selfId);
-      if (selfArmy) list = [selfArmy, ...list.slice(0, TAB_CAP - 1)];
-    }
-    return list;
-  })().map((a, i) => {
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 6px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44` } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "AI\u5BFE\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), style: { fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, whiteSpace: "nowrap", flexShrink: 0 } }, "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078")), started && /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id).map((a, i) => {
     const isSelf = isPlay && a.id === W.playerId;
     const isFocus = !isPlay && a.id === W.focusId;
     return /* @__PURE__ */ React.createElement(
