@@ -346,7 +346,7 @@ function spawnNewArmy(W) {
   const t = now();
   const flankBias = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5));
   const name = generateOneName(existingNames);
-  const reuse = W.armies.find((a2) => !a2.alive && !armyHasBoardPieces(W, a2.id) && !(W.myDefeated && a2.id === W.playerId));
+  const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !armyHasBoardPieces(W, a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
   placeArmyCentered(W.cells, id, center, facing);
   const fresh = {
@@ -712,6 +712,49 @@ function newWorld(mode, playerName, netOpts) {
     });
   }
   for (const a of armies) refreshZone(a);
+  // ── 落ちている残骸(拾える駒) ─────────────────────────────
+  // 進軍中の移動時間に目的を持たせるため、地図上に中立の駒をばら撒く。
+  // 拾う=通常の駒取りと同じ扱いなので持ち駒に入る。王/玉は絶対に落ちていない。
+  if (mode !== "openworld") {
+    const NEUTRAL = armies.length;
+    armies.push({
+      id: NEUTRAL,
+      facing: 0,
+      alive: false,          // 行動しない・軍数に数えない・進軍しない
+      neutral: true,         // 再利用スロットにされないための目印
+      hand: {},
+      target: null,
+      marchRel: null,
+      lastMove: 0,
+      lastAction: 0,
+      center: [Math.floor(MAP_W / 2), Math.floor(MAP_H / 2)],
+      zone: null,
+      kills: 0,
+      name: "\u6B8B\u9AB8",
+      color: { fill: "#9A9384", edge: "#2b2721", text: "#1d1a15", prom: "#C08A3E", zone: "rgba(0,0,0,0)", zoneEdge: "rgba(0,0,0,0)", chip: "#9A9384" },
+      flankBias: 0
+    });
+    // 出現位置: どの軍の可動域にも重ならない空きマスを選ぶ
+    const LOOT = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
+    const target = Math.floor(MAP_W * MAP_H * 0.017); // 480x480 で 約3900枚(進軍1.5分に1枚拾える密度)
+    let placed = 0;
+    for (let attempt = 0; attempt < target * 14 && placed < target; attempt++) {
+      const x = 2 + Math.floor(Math.random() * (MAP_W - 4));
+      const y = 2 + Math.floor(Math.random() * (MAP_H - 4));
+      const k = K(x, y);
+      if (cells.has(k)) continue;
+      let tooClose = false;
+      for (const a of armies) {
+        if (!a.alive || !a.zone) continue;
+        const clear = a.zone.r + 3;
+        if (Math.abs(x - a.center[0]) <= clear && Math.abs(y - a.center[1]) <= clear) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      const t = LOOT[Math.floor(Math.random() * LOOT.length)];
+      cells.set(k, { t, promoted: false, owner: NEUTRAL });
+      placed++;
+    }
+  }
   return {
     mode,
     playerId: mode === "play" ? 0 : null,
@@ -1158,14 +1201,35 @@ function OpenWorldShogi() {
     const dueThisFrame = aiDue.slice(0, AI_PER_FRAME);
     let piecesByOwner = null;
     if (dueThisFrame.length) {
+      // 今フレームで実際に座標が必要な軍だけに絞る。
+      // 必要なのは「指す軍自身」と「可動域が届く範囲にいる近隣の軍」だけなので、
+      // 全200軍分の座標文字列を毎フレーム解析するのは完全な無駄になる
+      // (盤上7800枚 → 毎フレーム1万個以上の一時配列が生まれてGCを圧迫していた)。
+      const need = /* @__PURE__ */ new Set();
+      for (const a of dueThisFrame) {
+        need.add(a.id);
+        // 判定は buildThreat と同一だが、同フレーム中に他軍が敵玉を討って
+        // 可動域が広がる(+2マス)場合に取りこぼさないよう余裕を持たせる。
+        const zr = (a.zone ? a.zone.r : 0) + 2;
+        const MARGIN = 6;
+        for (const oa of W2.armies) {
+          if (oa.id === a.id || !oa.alive || !oa.zone) continue;
+          const reach = zr + oa.zone.r + MARGIN;
+          if (Math.abs(oa.center[0] - a.center[0]) > reach || Math.abs(oa.center[1] - a.center[1]) > reach) continue;
+          need.add(oa.id);
+        }
+      }
       piecesByOwner = /* @__PURE__ */ new Map();
       for (const [k, p] of W2.cells) {
+        if (!need.has(p.owner)) continue;
         let list = piecesByOwner.get(p.owner);
         if (!list) {
           list = [];
           piecesByOwner.set(p.owner, list);
         }
-        list.push(k.split(",").map(Number));
+        // "x,y" を split().map() せずに切り出す(一時配列を1個に減らす)
+        const ci = k.indexOf(",");
+        list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
       }
     }
     for (const a of dueThisFrame) {
@@ -1216,7 +1280,7 @@ function OpenWorldShogi() {
   }
   function handleTapAt(clientX, clientY) {
     const W2 = g.current;
-    if (!started || W2.over || W2.promo) return;
+    if (!started || W2.over) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const px = clientX - rect.left, py = clientY - rect.top;
     const cam = camRef.current;
@@ -1272,21 +1336,16 @@ function OpenWorldShogi() {
       }
       const victim = W2.cells.get(k);
       const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(wx, wy, W2.playerId, W2.armies) || isInHostileZone(W2.sel.x, W2.sel.y, W2.playerId, W2.armies));
-      if (canPr) {
-        W2.promo = { fx: W2.sel.x, fy: W2.sel.y, tx: wx, ty: wy };
-        bump();
-        return;
-      }
       const fx = W2.sel.x, fy = W2.sel.y;
       attemptPlayerAction(() => {
-        const v = applyAction(W2, player2, { kind: "move", fx, fy, tx: wx, ty: wy, promote: false });
+        const v = applyAction(W2, player2, { kind: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
         if (v && v.t === "K") {
           player2.kills = (player2.kills || 0) + 1;
           const dead = W2.armies.find((x) => x.id === v.owner);
           handleDefeat(W2, dead);
         }
-        W2.msg = v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002";
-      }, { type: "move", fx, fy, tx: wx, ty: wy, promote: false });
+        W2.msg = (v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002") + (canPr ? "\u6210\u3063\u305F\u3002" : "");
+      }, { type: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
       W2.sel = null;
       bump();
       return;
@@ -1300,20 +1359,6 @@ function OpenWorldShogi() {
     W2.sel = null;
     W2.handSel = null;
     W2.dropSpots = null;
-    bump();
-  }
-  function commitPromotion(promote) {
-    const W2 = g.current, player2 = W2.armies[W2.playerId], pr = W2.promo;
-    attemptPlayerAction(() => {
-      const v = applyAction(W2, player2, { kind: "move", fx: pr.fx, fy: pr.fy, tx: pr.tx, ty: pr.ty, promote });
-      if (v && v.t === "K") {
-        player2.kills = (player2.kills || 0) + 1;
-        const dead = W2.armies.find((x) => x.id === v.owner);
-        handleDefeat(W2, dead);
-      }
-      W2.msg = v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002";
-    }, { type: "move", fx: pr.fx, fy: pr.fy, tx: pr.tx, ty: pr.ty, promote });
-    W2.promo = null;
     bump();
   }
   function rotate(dir) {
@@ -1722,8 +1767,11 @@ function OpenWorldShogi() {
       }
     }
     for (const [k, p] of W2.cells) {
-      const [x, y] = k.split(",").map(Number);
-      if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
+      const ci = k.indexOf(",");
+      const x = +k.slice(0, ci);
+      if (x < vx0 || x > vx1) continue;
+      const y = +k.slice(ci + 1);
+      if (y < vy0 || y > vy1) continue;
       const army = W2.armies[p.owner];
       const col = (W2.playerId != null && army.id === W2.playerId) ? PLAYER_COLOR : army.color;
       const cx = sx(x + 0.5), cy = sy(y + 0.5);
@@ -2011,7 +2059,7 @@ function OpenWorldShogi() {
   ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, "\u53C2\u6226!"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
     setShowNamePrompt(false);
     setNameInput("");
-  } }, "\u623B\u308B"))), W.promo && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 14 } }, "\u6210\u308A\u307E\u3059\u304B?"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => commitPromotion(true) }, "\u6210\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => commitPromotion(false) }, "\u4E0D\u6210"))), confirmExit && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u30BF\u30A4\u30C8\u30EB\u306B\u623B\u308A\u307E\u3059\u304B?"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.sub, marginBottom: 18 } }, isPlay ? "\u9032\u884C\u4E2D\u306E\u5BFE\u5C40\u306F\u5931\u308F\u308C\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002" : "\u89B3\u6226\u3092\u7D42\u4E86\u3057\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(true), padding: "10px 26px" }, onClick: backToTitle }, "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => setConfirmExit(false) }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))), W.over && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? "\u52DD\u5229" : "\u6557\u5317" : "\u6C7A\u7740"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+  } }, "\u623B\u308B"))), confirmExit && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u30BF\u30A4\u30C8\u30EB\u306B\u623B\u308A\u307E\u3059\u304B?"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.sub, marginBottom: 18 } }, isPlay ? "\u9032\u884C\u4E2D\u306E\u5BFE\u5C40\u306F\u5931\u308F\u308C\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002" : "\u89B3\u6226\u3092\u7D42\u4E86\u3057\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(true), padding: "10px 26px" }, onClick: backToTitle }, "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => setConfirmExit(false) }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))), W.over && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? "\u52DD\u5229" : "\u6557\u5317" : "\u6C7A\u7740"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
     backToTitle();
     bump();
   }, style: { ...btnStyle(), fontSize: 15, padding: "10px 30px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))));
