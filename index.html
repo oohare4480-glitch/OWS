@@ -54,6 +54,11 @@
     if (!el) return;
     if (!el.dataset.inited) {
       el.dataset.inited = '1';
+      var close = document.createElement('button');
+      close.textContent = '\u2715 \u9589\u3058\u308B';
+      close.style.cssText = 'position:sticky;top:0;float:right;font-size:13px;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.1);color:#EAE4D0;border:1px solid #665;';
+      close.onclick = function () { el.style.display = 'none'; };
+      el.appendChild(close);
       var hint = document.createElement('div');
       hint.className = 'hint';
       hint.textContent = 'エラーが発生しました。この内容をスクリーンショットして送ってください:';
@@ -68,6 +73,10 @@
     el.appendChild(p);
   }
   window.addEventListener('error', function (e) {
+    // 別オリジン(CDN等)のスクリプトのエラーは、ブラウザが中身を伏せて
+    // 「Script error.」だけを渡してくる。原因も場所も分からず対処できないうえ、
+    // 実際にはゲームが正常に動いていることがほとんどなので、画面全体を覆わない。
+    if ((e.message === 'Script error.' || e.message === 'Script error') && !e.filename && !(e.error && e.error.stack)) return;
     var msg = 'JSエラー: ' + (e.message || (e.error && e.error.message) || '不明なエラー');
     if (e.filename) msg += '\n場所: ' + e.filename + ':' + e.lineno + ':' + e.colno;
     if (e.error && e.error.stack) msg += '\n' + e.error.stack.split('\n').slice(0, 4).join('\n');
@@ -81,8 +90,8 @@
 </script>
 
 <!-- React (UMD builds, no bundler needed) -->
-<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <!-- Babel standalone: lets the browser transpile the JSX below on the fly -->
 <!-- Firebase compat SDK (only used for the optional "ネット対戦" feature; -->
 <!-- harmless if you never fill in FIREBASE_CONFIG below) -->
@@ -96,6 +105,8 @@ const MOVE_COOLDOWN = 5e3;
 const MARCH_INTERVAL = 15e3;
 const AI_PER_FRAME = 4;
 const SPAWN_CHECK_INTERVAL = 8e3;
+const LOOT_RESPAWN_MS = 15e3;    // 残骸を補充する間隔
+const LOOT_RESPAWN_BATCH = 90;   // 1回に湧く上限(=最大 約360枚/分。まばらに増える)
 const SPAWN_CLEAR_MARGIN = 7;
 const CAP = 200;
 const NAME_MAX_LEN = 10;
@@ -669,6 +680,28 @@ function applyAction(W, army, a) {
   W.cells.set(K(a.tx, a.ty), mover);
   return victim;
 }
+const LOOT_KINDS = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
+// 空きマスにだけ残骸を置く。どの軍の可動域にも重ならない場所を選ぶので、
+// 目の前に湧いてタダで拾える、ということは起きない。玉/王は絶対に置かない。
+function scatterLoot(cells, armies, neutralId, count) {
+  let placed = 0;
+  for (let attempt = 0; attempt < count * 14 && placed < count; attempt++) {
+    const x = 2 + Math.floor(Math.random() * (MAP_W - 4));
+    const y = 2 + Math.floor(Math.random() * (MAP_H - 4));
+    const k = K(x, y);
+    if (cells.has(k)) continue;
+    let tooClose = false;
+    for (const a of armies) {
+      if (!a.alive || !a.zone) continue;
+      const clear = a.zone.r + 3;
+      if (Math.abs(x - a.center[0]) <= clear && Math.abs(y - a.center[1]) <= clear) { tooClose = true; break; }
+    }
+    if (tooClose) continue;
+    cells.set(k, { t: LOOT_KINDS[Math.floor(Math.random() * LOOT_KINDS.length)], promoted: false, owner: neutralId });
+    placed++;
+  }
+  return placed;
+}
 function newWorld(mode, playerName, netOpts) {
   const total = CAP;
   const cells = /* @__PURE__ */ new Map();
@@ -715,10 +748,12 @@ function newWorld(mode, playerName, netOpts) {
   // ── 落ちている残骸(拾える駒) ─────────────────────────────
   // 進軍中の移動時間に目的を持たせるため、地図上に中立の駒をばら撒く。
   // 拾う=通常の駒取りと同じ扱いなので持ち駒に入る。王/玉は絶対に落ちていない。
+  let neutralId = null;
+  let lootTarget = 0;
   if (mode !== "openworld") {
-    const NEUTRAL = armies.length;
+    neutralId = armies.length;
     armies.push({
-      id: NEUTRAL,
+      id: neutralId,
       facing: 0,
       alive: false,          // 行動しない・軍数に数えない・進軍しない
       neutral: true,         // 再利用スロットにされないための目印
@@ -734,32 +769,17 @@ function newWorld(mode, playerName, netOpts) {
       color: { fill: "#9A9384", edge: "#2b2721", text: "#1d1a15", prom: "#C08A3E", zone: "rgba(0,0,0,0)", zoneEdge: "rgba(0,0,0,0)", chip: "#9A9384" },
       flankBias: 0
     });
-    // 出現位置: どの軍の可動域にも重ならない空きマスを選ぶ
-    const LOOT = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
-    const target = Math.floor(MAP_W * MAP_H * 0.017); // 480x480 で 約3900枚(進軍1.5分に1枚拾える密度)
-    let placed = 0;
-    for (let attempt = 0; attempt < target * 14 && placed < target; attempt++) {
-      const x = 2 + Math.floor(Math.random() * (MAP_W - 4));
-      const y = 2 + Math.floor(Math.random() * (MAP_H - 4));
-      const k = K(x, y);
-      if (cells.has(k)) continue;
-      let tooClose = false;
-      for (const a of armies) {
-        if (!a.alive || !a.zone) continue;
-        const clear = a.zone.r + 3;
-        if (Math.abs(x - a.center[0]) <= clear && Math.abs(y - a.center[1]) <= clear) { tooClose = true; break; }
-      }
-      if (tooClose) continue;
-      const t = LOOT[Math.floor(Math.random() * LOOT.length)];
-      cells.set(k, { t, promoted: false, owner: NEUTRAL });
-      placed++;
-    }
+    lootTarget = Math.floor(MAP_W * MAP_H * 0.017); // 480x480 で 約3900枚(進軍1.5分に1枚拾える密度)
+    scatterLoot(cells, armies, neutralId, lootTarget);
   }
   return {
     mode,
     playerId: mode === "play" ? 0 : null,
     cells,
     armies,
+    neutralId,
+    lootTarget,
+    lastLootSpawn: 0,
     focusId: 0,
     banner: null,
     msg: mode === "play" ? "\u5341\u5B57\u30AD\u30FC\u3067\u9032\u8ECD\u3001\u99D2\u30BF\u30C3\u30D7\u3067\u500B\u5225\u79FB\u52D5" : "\u89B3\u6226\u30E2\u30FC\u30C9: \u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9",
@@ -1126,6 +1146,16 @@ function OpenWorldShogi() {
       if (a.alive && !kings.has(a.id)) handleDefeat(W2, a);
     }
     if (W2.over) return;
+    // ── 残骸の自動補充 ────────────────────────────────
+    // 拾い尽くされてマップが空にならないよう、一定間隔で空きマスに少しずつ湧かせる。
+    // 目標枚数に足りない分を補う方式なので、消費が速ければ多く、余っていれば湧かない。
+    if (W2.mode !== "openworld" && W2.neutralId != null && t - W2.lastLootSpawn >= LOOT_RESPAWN_MS) {
+      W2.lastLootSpawn = t;
+      let cur = 0;
+      for (const [, p] of W2.cells) if (p.owner === W2.neutralId) cur++;
+      const want = Math.min(LOOT_RESPAWN_BATCH, (W2.lootTarget || 0) - cur);
+      if (want > 0) scatterLoot(W2.cells, W2.armies, W2.neutralId, want);
+    }
     if (W2.mode !== "openworld" && t - W2.lastSpawnCheck >= SPAWN_CHECK_INTERVAL) {
       W2.lastSpawnCheck = t;
       const deficit = CAP - aliveCount(W2);
