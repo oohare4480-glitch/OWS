@@ -121,7 +121,19 @@ const rotV = (dx, dy, f) => {
   return [dx, dy];
 };
 const K = (x, y) => x + "," + y;
-const now = () => Date.now();
+// シミュレーション用の仮想時計。倍率を変えても、それまでに進んだ仮想時間は
+// そのまま引き継ぐ(rebase する)ので、時間が飛んだり巻き戻ったりしない。
+// now() を使っている処理(進軍間隔・一手クールダウン・残骸の補充など)は
+// すべて自動的に同じ倍率で動く。
+let owsTimeScale = 1;
+let owsVirtBase = Date.now();
+let owsRealBase = Date.now();
+const now = () => owsVirtBase + (Date.now() - owsRealBase) * owsTimeScale;
+function owsSetTimeScale(s) {
+  owsVirtBase = now();
+  owsRealBase = Date.now();
+  owsTimeScale = s;
+}
 function zoneRadiusFor(army) {
   return ZONE_R_BASE + (army.kills || 0);
 }
@@ -138,7 +150,7 @@ const PROMOTABLE = { P: 1, L: 1, N: 1, S: 1, B: 1, R: 1 };
 const VAL = { P: 1, L: 3, N: 3, S: 5, G: 6, B: 8, R: 10, K: 1e3 };
 const KANJI = { P: "\u6B69", L: "\u9999", N: "\u6842", S: "\u9280", G: "\u91D1", B: "\u89D2", R: "\u98DB" };
 const PKANJI = { P: "\u3068", L: "\u674F", N: "\u572D", S: "\u5168", B: "\u99AC", R: "\u7ADC" };
-const kanjiOf = (p, playerId) => p.t === "K" ? p.owner === playerId ? "\u7389" : "\u738B" : p.promoted ? PKANJI[p.t] : KANJI[p.t];
+const kanjiOf = (p, playerId) => p.t === "K" ? p.owner === playerId ? "\u7389" : "\u738B" : (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
 const NAME_POOLS = [
   { cjk: true, pre: ["\u30EC\u30C3\u30C9", "\u30D6\u30EB\u30FC", "\u30B4\u30FC\u30EB\u30C7\u30F3", "\u30B7\u30EB\u30D0\u30FC", "\u30D6\u30E9\u30C3\u30AF", "\u30AF\u30EA\u30E0\u30BE\u30F3", "\u30A2\u30BA\u30FC\u30EB", "\u30B7\u30E3\u30C9\u30A6", "\u30B5\u30F3\u30C0\u30FC", "\u30AA\u30FC\u30ED\u30E9"], suf: ["\u30A6\u30A3\u30F3\u30B0", "\u30D5\u30A1\u30F3\u30B0", "\u30D6\u30EC\u30FC\u30C9", "\u30AF\u30ED\u30FC", "\u30DB\u30FC\u30AF", "\u30A6\u30EB\u30D5", "\u30E9\u30A4\u30AA\u30F3", "\u30BF\u30A4\u30AC\u30FC", "\u30AC\u30FC\u30C9", "\u30D5\u30EA\u30FC\u30C8"] },
   { cjk: false, pre: ["Red", "Blue", "Golden", "Silver", "Black", "Crimson", "Azure", "Shadow", "Thunder", "Storm"], suf: ["Wing", "Fang", "Blade", "Claw", "Hawk", "Wolf", "Lion", "Tiger", "Guard", "Fleet"] },
@@ -275,6 +287,30 @@ function makeGrid(owner) {
   g[1][7] = { t: "R", promoted: false, owner };
   return g;
 }
+function armyFootprint(center, facing) {
+  const f = F[facing], r = RV[facing];
+  const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
+  const out = [];
+  const grid = makeGrid(0);
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 9; x++) {
+    if (!grid[y][x]) continue;
+    out.push(K(anchor[0] + r[0] * x + f[0] * y, anchor[1] + r[1] * x + f[1] * y));
+  }
+  return out;
+}
+// 展開予定地に「生きている軍の駒」が1枚でもあれば、そこには湧かせない。
+// 以前は cells.set() で無条件に上書きしていたため、他軍の駒をタダで
+// 消し飛ばしてしまうことがあった。落ちている残骸(中立・全滅した軍の駒)は
+// 踏み潰して展開してよい。
+function footprintBlocked(W, center, facing) {
+  for (const k of armyFootprint(center, facing)) {
+    const p = W.cells.get(k);
+    if (!p) continue;
+    const oa = W.armies[p.owner];
+    if (oa && oa.alive) return true;
+  }
+  return false;
+}
 function placeArmyCentered(cells, armyId, center, facing) {
   const f = F[facing], r = RV[facing];
   const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
@@ -285,6 +321,17 @@ function placeArmyCentered(cells, armyId, center, facing) {
     cells.set(K(anchor[0] + r[0] * x + f[0] * y, anchor[1] + r[1] * x + f[1] * y), p);
   }
 }
+// 軍を指定位置へ配置し直す(古い駒は盤から取り除く)。検証用の初期配置で使う。
+function relocateArmy(W, a, center, facing) {
+  const doomed = [];
+  for (const [k, p] of W.cells) if (p.owner === a.id) doomed.push(k);
+  for (const k of doomed) W.cells.delete(k);
+  a.facing = facing;
+  a.center = [center[0], center[1]];
+  placeArmyCentered(W.cells, a.id, a.center, facing);
+  a.zone = null;
+  refreshZone(a);
+}
 function buildKingIndex(cells) {
   const kings = /* @__PURE__ */ new Map();
   for (const [k, p] of cells) {
@@ -292,31 +339,63 @@ function buildKingIndex(cells) {
   }
   return kings;
 }
-function nearestLoot(W, a) {
-  const R = a.zone.r + 24;
-  const cx = a.center[0], cy = a.center[1];
-  let best = null, bd = Infinity;
+const LOOT_GRID = 16;
+// 進軍1回につき1度だけ作る「落ちている駒」の位置インデックス。
+// これが無いと、各軍が毎回盤面全体(約1万マス)を走査することになり、
+// 200軍 × 1万マス = 200万回/進軍 という桁で効いてしまう。
+function buildLootGrid(W) {
+  const gw = Math.ceil(MAP_W / LOOT_GRID);
+  const buckets = new Map();
   for (const [k, p] of W.cells) {
-    if (p.owner === a.id) continue;
     const oa = W.armies[p.owner];
     if (oa && oa.alive) continue;
-    const [x, y] = k.split(",").map(Number);
-    if (Math.abs(x - cx) > R || Math.abs(y - cy) > R) continue;
-    const d = Math.max(Math.abs(x - cx), Math.abs(y - cy));
-    if (d < bd) {
-      bd = d;
-      best = [x, y];
+    const ci = k.indexOf(",");
+    const x = +k.slice(0, ci), y = +k.slice(ci + 1);
+    const b = (y / LOOT_GRID | 0) * gw + (x / LOOT_GRID | 0);
+    let list = buckets.get(b);
+    if (!list) { list = []; buckets.set(b, list); }
+    list.push(x, y, p.owner);
+  }
+  return { gw, gh: Math.ceil(MAP_H / LOOT_GRID), buckets };
+}
+function nearestLoot(W, a, grid) {
+  if (!grid) return null;
+  const R = a.zone.r + 24;
+  const cx = a.center[0], cy = a.center[1];
+  const { gw, gh, buckets } = grid;
+  const gcx = cx / LOOT_GRID | 0, gcy = cy / LOOT_GRID | 0;
+  const maxRing = Math.ceil(R / LOOT_GRID);
+  let best = null, bd = Infinity;
+  // 中心の升から外側へ環状に広げ、見つかった距離を超える環まで来たら打ち切る。
+  for (let ring = 0; ring <= maxRing; ring++) {
+    if (best && (ring - 1) * LOOT_GRID > bd) break;
+    for (let gy = gcy - ring; gy <= gcy + ring; gy++) {
+      if (gy < 0 || gy >= gh) continue;
+      const edge = (gy === gcy - ring || gy === gcy + ring);
+      for (let gx = gcx - ring; gx <= gcx + ring; gx++) {
+        if (gx < 0 || gx >= gw) continue;
+        if (!edge && gx !== gcx - ring && gx !== gcx + ring) continue;
+        const list = buckets.get(gy * gw + gx);
+        if (!list) continue;
+        for (let i = 0; i < list.length; i += 3) {
+          if (list[i + 2] === a.id) continue;
+          const dx = list[i] - cx, dy = list[i + 1] - cy;
+          const ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+          if (ax > R || ay > R) continue;
+          const d = ax > ay ? ax : ay;
+          if (d < bd) { bd = d; best = [list[i], list[i + 1]]; }
+        }
+      }
     }
   }
   return best ? { pos: best, dist: bd } : null;
 }
 function zoneAt(center, r) {
   const [cx, cy] = center;
-  // 可動域を「マス目の集合」として実体化すると、討王が増えるほど面積が2乗で
-  // 膨らむ(討王78 → 165² = 27,225個の文字列)。範囲judgeは矩形の内外判定で
-  // 足りるので、集合は作らず has() を算術で答える軽量オブジェクトにする。
-  const x0 = Math.max(0, cx - r), x1 = Math.min(MAP_W - 1, cx + r);
-  const y0 = Math.max(0, cy - r), y1 = Math.min(MAP_H - 1, cy + r);
+  // 可動域は常に正方形。盤からはみ出さないことは refreshZone / 進軍側で
+  // 保証しているので、ここで盤に合わせて切り取ることはしない。
+  const x0 = cx - r, x1 = cx + r;
+  const y0 = cy - r, y1 = cy + r;
   const set = {
     x0, y0, x1, y1,
     get size() { return (x1 - x0 + 1) * (y1 - y0 + 1); },
@@ -332,28 +411,43 @@ function zoneAt(center, r) {
   };
   return { cx, cy, r, set };
 }
+const ZONE_R_MAX = Math.floor((Math.min(MAP_W, MAP_H) - 1) / 2);
+function zoneFits(cx, cy, r) {
+  return cx - r >= 0 && cy - r >= 0 && cx + r <= MAP_W - 1 && cy + r <= MAP_H - 1;
+}
 function refreshZone(a) {
-  const zr = zoneRadiusFor(a);
-  if (!a.zone || a.zone.cx !== a.center[0] || a.zone.cy !== a.center[1] || a.zone.r !== zr) {
-    a.zone = zoneAt(a.center, zr);
+  const zr = Math.min(zoneRadiusFor(a), ZONE_R_MAX);
+  // 討王で可動域が広がった結果、今の位置では盤からはみ出す場合は、
+  // 正方形を保ったまま盤の内側へ寄せる(可動域は広がるので駒は必ず内側に残る)。
+  const cx = Math.max(zr, Math.min(MAP_W - 1 - zr, a.center[0]));
+  const cy = Math.max(zr, Math.min(MAP_H - 1 - zr, a.center[1]));
+  if (cx !== a.center[0] || cy !== a.center[1]) a.center = [cx, cy];
+  if (!a.zone || a.zone.cx !== cx || a.zone.cy !== cy || a.zone.r !== zr) {
+    a.zone = zoneAt([cx, cy], zr);
   }
 }
-function findSpawnSpot(W) {
-  const margins = [SPAWN_CLEAR_MARGIN, 4, 2, 0];
-  for (const margin of margins) {
+function findSpawnSpot(W, facing) {
+  // 可動域そのものを避けると、討王が進むと可動域が盤を覆ってしまい湧けなくなる。
+  // かといって数マスしか空けないと、大軍の玉の隣に新兵が湧いて即座に討たれる。
+  // そこで可動域とは無関係な「玉からの絶対距離」で確保する。
+  const margins = [22, 16, 12];
+  const live = [];
+  for (const a of W.armies) if (a.alive && a.zone) live.push(a);
+  for (const clear of margins) {
     for (let attempt = 0; attempt < 150; attempt++) {
       const cx = 10 + Math.floor(Math.random() * (MAP_W - 20));
       const cy = 10 + Math.floor(Math.random() * (MAP_H - 20));
       let clash = false;
-      for (const a of W.armies) {
-        if (!a.alive || !a.zone) continue;
-        const clear = a.zone.r + margin;
+      for (const a of live) {
         if (Math.abs(cx - a.center[0]) <= clear && Math.abs(cy - a.center[1]) <= clear) {
           clash = true;
           break;
         }
       }
-      if (!clash) return [cx, cy];
+      if (clash) continue;
+      // 展開予定地に他軍(生存)の駒が乗っていたらそこには湧かせない
+      if (footprintBlocked(W, [cx, cy], facing)) continue;
+      return [cx, cy];
     }
   }
   return null;
@@ -363,14 +457,20 @@ function armyHasBoardPieces(W, id) {
   return false;
 }
 function spawnNewArmy(W) {
-  const center = findSpawnSpot(W);
-  if (!center) return null;
   const facing = Math.floor(Math.random() * 4);
+  const center = findSpawnSpot(W, facing);
+  if (!center) return null;
   const existingNames = new Set(W.armies.map((x) => x.name));
   const t = now();
   const flankBias = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5));
   const name = generateOneName(existingNames);
-  const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !armyHasBoardPieces(W, a2.id) && !(W.myDefeated && a2.id === W.playerId));
+  // 以前は候補の軍ごとに armyHasBoardPieces() で盤面全体(約1万マス)を
+  // 走査していた。死んだ軍が溜まるほど「候補数 × 1万」に膨らみ、
+  // 時間が経つほど重くなる主因だったので、盤上に駒を残している
+  // 所有者の一覧を1度だけ作って引くようにする。
+  const onBoard = /* @__PURE__ */ new Set();
+  for (const p of W.cells.values()) onBoard.add(p.owner);
+  const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !onBoard.has(a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
   placeArmyCentered(W.cells, id, center, facing);
   const fresh = {
@@ -395,7 +495,7 @@ function spawnNewArmy(W) {
   refreshZone(a);
   return a;
 }
-function legalMovesFrom(cells, x, y, facing, zoneSet) {
+function legalMovesFrom(cells, x, y, facing, zoneSet, maxSlide) {
   const p = cells.get(K(x, y));
   if (!p) return [];
   const { steps, slides } = pieceMoveVectors(p), out = [];
@@ -407,7 +507,7 @@ function legalMovesFrom(cells, x, y, facing, zoneSet) {
   }
   for (const [dx, dy] of slides) {
     const [rx, ry] = rotV(dx, dy, facing);
-    let nx = x + rx, ny = y + ry;
+    let nx = x + rx, ny = y + ry, n = 0;
     while (zoneSet.has(K(nx, ny))) {
       const q = cells.get(K(nx, ny));
       if (!q) out.push([nx, ny]);
@@ -415,6 +515,10 @@ function legalMovesFrom(cells, x, y, facing, zoneSet) {
         if (q.owner !== p.owner) out.push([nx, ny]);
         break;
       }
+      // maxSlide は AI の候補生成専用。可動域が巨大だと飛車1枚で
+      // 数百手の候補が出てしまうため、思考時だけ距離を打ち切る。
+      // プレイヤーの操作では指定しないので、従来どおり端まで滑れる。
+      if (maxSlide && ++n >= maxSlide) break;
       nx += rx;
       ny += ry;
     }
@@ -433,9 +537,17 @@ function dropTargets(cells, zoneSet, limit) {
   const { x0, y0, x1, y1 } = zoneSet;
   const w = x1 - x0 + 1, h = y1 - y0 + 1, area = w * h;
   const cap = limit || 600;
-  if (area <= cap * 2) {
+  if (area <= 1200) {
+    // 可動域が小さいうちは全部数え上げる(正確・十分に軽い)
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       if (!cells.has(K(x, y))) out.push([x, y]);
+    }
+    if (out.length > cap) {
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = out[i]; out[i] = out[j]; out[j] = t;
+      }
+      out.length = cap;
     }
     return out;
   }
@@ -452,14 +564,16 @@ function dropTargets(cells, zoneSet, limit) {
   }
   return out;
 }
+const AI_SLIDE_CAP = 12;      // 思考時に飛角香を滑らせて調べる最大距離
+const AI_DROP_SPOTS = 40;     // 思考時に検討する打ち場所の数
 function allActions(cells, armyId, facing, hand, zoneSet, ownPieces) {
   const acts = [];
   for (const [x, y] of ownPieces) {
-    for (const [tx, ty] of legalMovesFrom(cells, x, y, facing, zoneSet)) acts.push({ kind: "move", fx: x, fy: y, tx, ty });
+    for (const [tx, ty] of legalMovesFrom(cells, x, y, facing, zoneSet, AI_SLIDE_CAP)) acts.push({ kind: "move", fx: x, fy: y, tx, ty });
   }
   const keys = Object.keys(hand);
   if (keys.length) {
-    const dts = dropTargets(cells, zoneSet);
+    const dts = dropTargets(cells, zoneSet, AI_DROP_SPOTS);
     for (const t of keys) for (const [x, y] of dts) acts.push({ kind: "drop", type: t, tx: x, ty: y });
   }
   return acts;
@@ -492,7 +606,7 @@ function relVector(facing, rel) {
     default: return [0, 0];
   }
 }
-function marchDirFor(W, a, kings, myPieces) {
+function marchDirFor(W, a, kings, myPieces, lootGrid) {
   let dest = null;
   if (a.id === W.playerId || a.human) {
     // 相対方向(marchRel)を、そのarmy自身の"現在の"facingから毎tick再計算する。
@@ -520,7 +634,7 @@ function marchDirFor(W, a, kings, myPieces) {
         kp = okp;
       }
     }
-    const loot = nearestLoot(W, a);
+    const loot = nearestLoot(W, a, lootGrid);
     if (loot && (!kp || loot.dist < bd * 0.6)) {
       dest = loot.pos;
     } else if (kp) {
@@ -540,20 +654,29 @@ function marchDirFor(W, a, kings, myPieces) {
   if (sx && sy) attempts.push([sx, sy]);
   const order = Math.abs(dest[0] - a.center[0]) >= Math.abs(dest[1] - a.center[1]) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]];
   attempts.push(...order);
-  for (const [mx, my] of attempts) if ((mx || my) && marchInBounds(myPieces, mx, my)) return [mx, my];
+  const zr = Math.min(zoneRadiusFor(a), ZONE_R_MAX);
+  // 可動域が盤からはみ出す方向へは進まない(その方向で軍が止まる)
+  for (const [mx, my] of attempts) {
+    if (!(mx || my)) continue;
+    if (!marchInBounds(myPieces, mx, my)) continue;
+    if (!zoneFits(a.center[0] + mx, a.center[1] + my, zr)) continue;
+    return [mx, my];
+  }
   return null;
 }
 function resolveSimultaneousMarch(W, movers) {
   const ev = { collisions: [], trampledTotal: 0, kingsKilled: [] };
   const byId = new Map(movers.map((m) => [m.army.id, m]));
   const lifted = [];
-  for (const [k, p] of [...W.cells]) {
+  // [...W.cells] で盤面(約1万件)を丸ごと配列化していたが、進軍のたびに
+  // 全件コピーが走るので、対象だけ拾って後から消す方式にする。
+  for (const [k, p] of W.cells) {
     const m = byId.get(p.owner);
     if (!m) continue;
-    W.cells.delete(k);
-    const [x, y] = k.split(",").map(Number);
-    lifted.push({ m, x, y, p });
+    const ci = k.indexOf(",");
+    lifted.push({ m, x: +k.slice(0, ci), y: +k.slice(ci + 1), p, k });
   }
+  for (const it of lifted) W.cells.delete(it.k);
   const byDest = /* @__PURE__ */ new Map();
   for (const it of lifted) {
     const dk = K(it.x + it.m.dx, it.y + it.m.dy);
@@ -620,9 +743,13 @@ function buildThreat(W, army, piecesByOwner) {
     if (Math.abs(oa.center[0] - cx) > reach || Math.abs(oa.center[1] - cy) > reach) continue;
     const pieces = piecesByOwner.get(oa.id);
     if (!pieces) continue;
+    // 大軍は千枚単位の駒を持つので、全部から利きを計算すると脅威マップだけで
+    // 数万回のループになる。可動域に絡む駒を上限まで見れば判断には十分。
+    let seen = 0;
     for (const [x, y] of pieces) {
       if (Math.abs(x - cx) > zr || Math.abs(y - cy) > zr) continue;
-      for (const [tx, ty] of legalMovesFrom(W.cells, x, y, oa.facing, oa.zone.set)) set.add(K(tx, ty));
+      if (++seen > AI_THREAT_PIECES) break;
+      for (const [tx, ty] of legalMovesFrom(W.cells, x, y, oa.facing, oa.zone.set, AI_SLIDE_CAP)) set.add(K(tx, ty));
     }
   }
   return set;
@@ -649,10 +776,10 @@ function hasLocalBusiness(W, army, kings) {
   }
   return false;
 }
+const AI_PIECE_CAP = 80;      // 1回の思考で検討する自駒の数
+const AI_THREAT_PIECES = 60;  // 脅威マップ構築で1軍あたり見る駒の数
 function aiPickAction(W, army, kings, piecesByOwner) {
   if (!hasLocalBusiness(W, army, kings)) return null;
-  const acts = allActions(W.cells, army.id, army.facing, army.hand, army.zone.set, piecesByOwner.get(army.id) || []);
-  if (!acts.length) return null;
   let nearestKp = null, nearestDist = Infinity;
   for (const [oid, okp] of kings) {
     if (oid === army.id) continue;
@@ -664,6 +791,35 @@ function aiPickAction(W, army, kings, piecesByOwner) {
       nearestKp = okp;
     }
   }
+  // 討王を重ねた軍は盤上に千枚単位の駒を持つ。全部を毎回検討すると
+  // 思考が桁違いに重くなるうえ、実際に指せるのは1手だけなので割に合わない。
+  // 最寄りの敵玉に近い駒(=前線)から順に、上限まで絞って考える。
+  let mine = piecesByOwner.get(army.id) || [];
+  if (mine.length > AI_PIECE_CAP) {
+    if (nearestKp) {
+      // 距離でバケツ分けして近い順に上限まで取る(全体を並べ替えるより速い)
+      const kx = nearestKp[0], ky = nearestKp[1], BUCKET = 16;
+      const buckets = [];
+      for (const p of mine) {
+        const d = (Math.abs(p[0] - kx) + Math.abs(p[1] - ky)) / BUCKET | 0;
+        (buckets[d] || (buckets[d] = [])).push(p);
+      }
+      const picked = [];
+      for (let i = 0; i < buckets.length && picked.length < AI_PIECE_CAP; i++) {
+        const b = buckets[i];
+        if (!b) continue;
+        for (const p of b) {
+          picked.push(p);
+          if (picked.length >= AI_PIECE_CAP) break;
+        }
+      }
+      mine = picked;
+    } else {
+      mine = mine.slice(0, AI_PIECE_CAP);
+    }
+  }
+  const acts = allActions(W.cells, army.id, army.facing, army.hand, army.zone.set, mine);
+  if (!acts.length) return null;
   const threat = buildThreat(W, army, piecesByOwner);
   const myKing = kings.get(army.id);
   const inCheck = myKing ? threat.has(K(myKing[0], myKing[1])) : false;
@@ -736,15 +892,79 @@ function scatterLoot(cells, armies, neutralId, count) {
     if (cells.has(k)) continue;
     let tooClose = false;
     for (const a of armies) {
-      if (!a.alive || !a.zone) continue;
-      const clear = a.zone.r + 3;
-      if (Math.abs(x - a.center[0]) <= clear && Math.abs(y - a.center[1]) <= clear) { tooClose = true; break; }
+      if (!a.alive) continue;
+      // 可動域基準にすると、大物の巨大な可動域で置き場所が消えてしまうため固定距離で判定する
+      if (Math.abs(x - a.center[0]) <= 10 && Math.abs(y - a.center[1]) <= 10) { tooClose = true; break; }
     }
     if (tooClose) continue;
     cells.set(k, { t: LOOT_KINDS[Math.floor(Math.random() * LOOT_KINDS.length)], promoted: false, owner: neutralId });
     placed++;
   }
   return placed;
+}
+// スリザリオのように「参加した時点で世界がすでに進行中」に見えるよう、
+// 開始時から討王数にばらつきを持たせる。中位を厚く、大物はごく少数にする。
+const INIT_TIERS = [
+  [30, 1, 8],    // 小物
+  [24, 9, 22],   // 中位(ここを厚くする)
+  [5, 23, 38],   // 大物
+  [1, 39, 60]    // 最大は1軍だけ
+];
+function seedInitialProgress(W, skipId) {
+  const TYPES = ["P", "P", "P", "L", "N", "S", "G", "B", "R"];
+  const pool = W.armies.filter((a) => a.alive && a.id !== skipId);
+  const taken = [];   // すでに討王を割り当てた軍(大物を散らすために使う)
+  const assign = [];
+  for (let t = INIT_TIERS.length - 1; t >= 0; t--) {
+    const [count, lo, hi] = INIT_TIERS[t];
+    for (let n = 0; n < count; n++) {
+      const kills = lo + Math.floor(Math.random() * (hi - lo + 1));
+      const r = Math.min(4 + kills, ZONE_R_MAX);
+      // 可動域が盤に収まる位置にいる軍だけを候補にする(中央寄せしなくて済む)
+      let best = null, bestScore = -1;
+      for (const a of pool) {
+        if (a.__seeded) continue;
+        const cx = a.center[0], cy = a.center[1];
+        if (cx - r < 0 || cy - r < 0 || cx + r > MAP_W - 1 || cy + r > MAP_H - 1) continue;
+        // すでに置いた大物から最も遠い場所を選ぶ = 盤全体に散らばる
+        let near = Infinity;
+        for (const o of taken) {
+          const d = Math.abs(cx - o.center[0]) + Math.abs(cy - o.center[1]);
+          if (d < near) near = d;
+        }
+        const score = taken.length ? near : Math.random();
+        if (score > bestScore) { bestScore = score; best = a; }
+      }
+      if (!best) break;
+      best.__seeded = true;
+      taken.push(best);
+      assign.push([best, kills]);
+    }
+  }
+  for (const [a, kills] of assign) {
+    delete a.__seeded;
+    a.kills = kills;
+    refreshZone(a);
+    const r = a.zone.r;
+    const cx = a.center[0], cy = a.center[1];
+    const extra = Math.round(kills * 5);
+    let placed = 0;
+    for (let n = 0; n < extra * 12 && placed < extra; n++) {
+      const x = cx - r + Math.floor(Math.random() * (2 * r + 1));
+      const y = cy - r + Math.floor(Math.random() * (2 * r + 1));
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+      const k = K(x, y);
+      if (W.cells.has(k)) continue;
+      const t = TYPES[Math.floor(Math.random() * TYPES.length)];
+      W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
+      placed++;
+    }
+    const handTotal = Math.round(kills * 2);
+    for (let n = 0; n < handTotal; n++) {
+      const t = TYPES[Math.floor(Math.random() * TYPES.length)];
+      a.hand[t] = (a.hand[t] || 0) + 1;
+    }
+  }
 }
 function newWorld(mode, playerName, netOpts) {
   const total = CAP;
@@ -795,6 +1015,8 @@ function newWorld(mode, playerName, netOpts) {
   let neutralId = null;
   let lootTarget = 0;
   if (mode !== "openworld") {
+    // プレイヤー(id 0)は新規参加者なので討王0のまま
+    seedInitialProgress({ cells, armies }, mode === "play" ? 0 : -1);
     neutralId = armies.length;
     armies.push({
       id: neutralId,
@@ -927,6 +1149,36 @@ function OpenWorldShogi() {
   const [nameInput, setNameInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
   const [showArmyList, setShowArmyList] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const wakeRef = useRef(null);
+  // ネット対戦はサーバーが時間を持っているので、倍速は必ず等速に戻す。
+  useEffect(() => {
+    const s = (started && g.current.mode !== "openworld") ? speed : 1;
+    owsSetTimeScale(s);
+  }, [speed, started]);
+  // 放置中に画面が消えるとブラウザがJSを止めてしまうため、倍速中や観戦中は
+  // 画面が消えないようにしておく(対応ブラウザのみ・失敗しても無害)。
+  useEffect(() => {
+    let cancelled = false;
+    async function acquire() {
+      try {
+        if (!("wakeLock" in navigator)) return;
+        if (wakeRef.current) return;
+        const wl = await navigator.wakeLock.request("screen");
+        if (cancelled) { try { wl.release(); } catch {} return; }
+        wakeRef.current = wl;
+        wl.addEventListener("release", () => { wakeRef.current = null; });
+      } catch {}
+    }
+    function onVis() { if (document.visibilityState === "visible" && started) acquire(); }
+    if (started) acquire();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+      if (!started && wakeRef.current) { try { wakeRef.current.release(); } catch {} wakeRef.current = null; }
+    };
+  }, [started]);
   const [netPhase, setNetPhase] = useState(null); // null|'nameEntry'|'connecting'|'playing'
   const [netName, setNetName] = useState("");
   const [netMsg, setNetMsg] = useState("");
@@ -1070,6 +1322,46 @@ function OpenWorldShogi() {
     setNameInput("");
     begin("play", nm || void 0);
   }
+  // 観戦 ⇄ 参戦 の切り替え。盤面はそのまま、指揮権だけを付け外しする。
+  function switchToWatch() {
+    const W2 = g.current;
+    if (W2.mode === "openworld" || W2.playerId === null) return;
+    // 手放した軍はそのまま盤に残り、AIが指揮を引き継ぐ
+    W2.focusId = W2.playerId;
+    W2.playerId = null;
+    W2.mode = "watch";
+    W2.sel = null;
+    W2.handSel = null;
+    W2.dropSpots = null;
+    W2.myDefeated = false;
+    camRef.current.manualMode = false;
+    setConfirmExit(false);
+    setDefeatAck(false);
+    bump();
+  }
+  function switchToPlay() {
+    const W2 = g.current;
+    if (W2.mode === "openworld") return;
+    // 敗北しても playerId は残る(myDefeated が立つだけ)ので、
+    // 「playerId があるかどうか」で判定すると再参戦できない。
+    // 実際に指揮できる軍を持っているかどうかで見る。
+    const cur = W2.playerId !== null ? W2.armies[W2.playerId] : null;
+    if (cur && cur.alive && !W2.myDefeated) return; // すでに参戦中
+    const a = spawnNewArmy(W2);
+    if (!a) { W2.msg = "\u53C2\u6226\u3067\u304D\u308B\u5834\u6240\u304C\u3042\u308A\u307E\u305B\u3093"; bump(); return; }
+    a.name = filterProfanity((nameInput || "").trim()).slice(0, NAME_MAX_LEN) || a.name;
+    W2.playerId = a.id;
+    W2.focusId = a.id;
+    W2.mode = "play";
+    W2.sel = null;
+    W2.handSel = null;
+    W2.dropSpots = null;
+    W2.myDefeated = false;
+    camRef.current = { x: a.center[0], y: a.center[1], s: 20, zoom: 1, rot: 0, manualMode: false };
+    setConfirmExit(false);
+    setDefeatAck(false);
+    bump();
+  }
   function backToTitle() {
     if (wsRef.current || netRef.current.armyId != null || netPhase !== null) leaveOpenWorld();
     g.current = newWorld("play");
@@ -1185,9 +1477,13 @@ function OpenWorldShogi() {
   function updateWorld(W2) {
     const t = now();
     let kings = buildKingIndex(W2.cells);
+    // 死んだ軍の可動域は誰も参照しないので更新しない。
+    // armies は死んだ軍が積み上がって伸び続けるため、ここを毎tick全件回すと
+    // 経過時間に比例して重くなる。
     for (const a of W2.armies) {
+      if (!a.alive) continue;
       refreshZone(a);
-      if (a.alive && !kings.has(a.id)) handleDefeat(W2, a);
+      if (!kings.has(a.id)) handleDefeat(W2, a);
     }
     if (W2.over) return;
     // ── 残骸の自動補充 ────────────────────────────────
@@ -1223,11 +1519,14 @@ function OpenWorldShogi() {
         const byOwner = new Map(due.map((a) => [a.id, []]));
         for (const [k, p] of W2.cells) {
           const list = byOwner.get(p.owner);
-          if (list) list.push(k.split(",").map(Number));
+          if (!list) continue;
+          const ci = k.indexOf(",");
+          list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
         }
+        const lootGrid = buildLootGrid(W2);
         const movers = [];
         for (const a of due) {
-          const d = marchDirFor(W2, a, kings, byOwner.get(a.id) || []);
+          const d = marchDirFor(W2, a, kings, byOwner.get(a.id) || [], lootGrid);
           if (d) movers.push({ army: a, dx: d[0], dy: d[1] });
         }
         if (movers.length) {
@@ -1271,8 +1570,11 @@ function OpenWorldShogi() {
       if (t - a.lastMove >= MOVE_COOLDOWN) aiDue.push(a);
     }
     // 候補が多いときだけ古い順に整列する(毎フレーム200件ソートするのを避ける)
-    if (aiDue.length > AI_PER_FRAME) aiDue.sort((x, y) => x.lastMove - y.lastMove);
-    const dueThisFrame = aiDue.slice(0, AI_PER_FRAME);
+    // 倍速時は「指せる状態」の軍が一気に増えるので、1フレームで処理する数も
+    // 倍率に比例させる。ここを増やさないと時計だけ速く進んで軍が置いていかれる。
+    const aiBudget = Math.min(24, Math.round(AI_PER_FRAME * owsTimeScale));
+    if (aiDue.length > aiBudget) aiDue.sort((x, y) => x.lastMove - y.lastMove);
+    const dueThisFrame = aiDue.slice(0, aiBudget);
     let piecesByOwner = null;
     if (dueThisFrame.length) {
       // 今フレームで実際に座標が必要な軍だけに絞る。
@@ -1306,7 +1608,15 @@ function OpenWorldShogi() {
         list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
       }
     }
+    // 1フレームの思考時間に上限を設ける。超えた分は次のフレームに回す。
+    // これが無いと重い軍が重なったフレームでメインスレッドが長く塞がり、
+    // 倍率ボタンなどのタップが取りこぼされる。
+    const frameStart = Date.now();
+    const FRAME_BUDGET_MS = 8;
+    let processed = 0;
     for (const a of dueThisFrame) {
+      if (processed > 0 && Date.now() - frameStart > FRAME_BUDGET_MS) break;
+      processed++;
       try {
         a.lastMove = t;
         const rot = aiWantRotation(W2, a, kings);
@@ -1496,7 +1806,7 @@ function OpenWorldShogi() {
   const gestureRef = useRef({ pointers: /* @__PURE__ */ new Map(), dragStart: null, pinchStart: null, moved: false, tapCandidate: false });
   function adjustZoom(mult) {
     const cam = camRef.current;
-    cam.zoom = Math.max(0.03, Math.min(4, (cam.zoom || 1) * mult));
+    cam.zoom = Math.max(0.02, Math.min(40, (cam.zoom || 1) * mult));
     bump();
   }
   function recenterCamera() {
@@ -1577,7 +1887,7 @@ function OpenWorldShogi() {
         const ps = gs.pinchStart;
         const { cx, cy, dist, ang } = centroidAndDist();
         cam.manualMode = true;
-        cam.zoom = Math.max(0.03, Math.min(4, ps.zoom * (dist / ps.dist)));
+        cam.zoom = Math.max(0.02, Math.min(40, ps.zoom * (dist / ps.dist)));
         let dAng = ang - ps.ang;
         while (dAng > Math.PI) dAng -= 2 * Math.PI;
         while (dAng < -Math.PI) dAng += 2 * Math.PI;
@@ -1685,7 +1995,7 @@ function OpenWorldShogi() {
     function onGestureChange(e) {
       e.preventDefault();
       if (!gestureStart) return;
-      camRef.current.zoom = Math.max(0.03, Math.min(4, gestureStart.zoom0 * e.scale));
+      camRef.current.zoom = Math.max(0.02, Math.min(40, gestureStart.zoom0 * e.scale));
       bump();
     }
     function onGestureEnd(e) {
@@ -1750,7 +2060,11 @@ function OpenWorldShogi() {
       tX = cam.x;
       tY = cam.y;
     }
-    const zoomedTarget = tScale * cam.zoom;
+    // 基準倍率(tScale)は「可動域全体が画面に収まる」値なので、可動域が巨大な
+    // 軍を見ているときは基準そのものが極小になる。倍率を掛けるだけだと寄りきれない
+    // ため、最終的な拡大率を絶対値で頭打ちにして、どの軍を見ていても同じ所まで
+    // 寄れるようにする。
+    const zoomedTarget = Math.max(0.4, Math.min(60, tScale * cam.zoom));
     if (!cam.manualMode) {
       cam.x += (tX - cam.x) * 0.06;
       cam.y += (tY - cam.y) * 0.06;
@@ -2041,7 +2355,7 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), started && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), started && W.mode !== "openworld" && /* @__PURE__ */ React.createElement("button", { onClick: () => setSpeed((v) => v === 1 ? 4 : v === 4 ? 16 : 1), title: "\u65E9\u9001\u308A(\u653E\u7F6E\u7528)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: speed > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: speed > 1 ? "#9FD08A" : C.sub, border: `1px solid ${speed > 1 ? "#9FD08A66" : C.panelEdge}` } }, "\u00D7", speed), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
     width: 32,
     height: 30,
     padding: 0,
@@ -2152,7 +2466,20 @@ function OpenWorldShogi() {
   ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, "\u53C2\u6226!"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
     setShowNamePrompt(false);
     setNameInput("");
-  } }, "\u623B\u308B"))), confirmExit && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u30BF\u30A4\u30C8\u30EB\u306B\u623B\u308A\u307E\u3059\u304B?"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.sub, marginBottom: 18 } }, isPlay ? "\u9032\u884C\u4E2D\u306E\u5BFE\u5C40\u306F\u5931\u308F\u308C\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002" : "\u89B3\u6226\u3092\u7D42\u4E86\u3057\u307E\u3059\u3002\u623B\u3063\u305F\u5F8C\u3001\u5BFE\u6226/\u89B3\u6226\u3092\u9078\u3073\u76F4\u305B\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(true), padding: "10px 26px" }, onClick: backToTitle }, "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => setConfirmExit(false) }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))), W.over && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? "\u52DD\u5229" : "\u6557\u5317" : "\u6C7A\u7740"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+  } }, "\u623B\u308B"))), confirmExit && /* @__PURE__ */ React.createElement(Overlay, null,
+  /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 14 } }, "\u30E1\u30CB\u30E5\u30FC"),
+  /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 9 } },
+    W.mode !== "openworld" && isPlay && /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToWatch },
+      "\u25C9 \u89B3\u6226\u306B\u5207\u308A\u66FF\u3048\u308B",
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u81EA\u8ECD\u306F\u76E4\u4E0A\u306B\u6B8B\u308A\u3001AI\u304C\u6307\u63EE\u3092\u5F15\u304D\u7D99\u304E\u307E\u3059")),
+    W.mode !== "openworld" && !isPlay && /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToPlay },
+      "\u2694 \u53C2\u6226\u3059\u308B",
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u65B0\u3057\u3044\u8ECD\u3068\u3057\u3066\u3053\u306E\u6226\u5834\u306B\u52A0\u308F\u308A\u307E\u3059")),
+    /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(true), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: backToTitle },
+      "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B",
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u9032\u884C\u4E2D\u306E\u76E4\u9762\u306F\u5931\u308F\u308C\u307E\u3059")),
+    /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 18px", fontSize: 13 }, onClick: () => setConfirmExit(false) }, "\u30AD\u30E3\u30F3\u30BB\u30EB")
+  )), W.over && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? "\u52DD\u5229" : "\u6557\u5317" : "\u6C7A\u7740"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
     backToTitle();
     bump();
   }, style: { ...btnStyle(), fontSize: 15, padding: "10px 30px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))));
