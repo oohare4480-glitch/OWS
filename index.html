@@ -358,9 +358,10 @@ function buildLootGrid(W) {
   }
   return { gw, gh: Math.ceil(MAP_H / LOOT_GRID), buckets };
 }
-function nearestLoot(W, a, grid) {
+function nearestLoot(W, a, grid, minDist) {
   if (!grid) return null;
   const R = a.zone.r + 24;
+  const lo = minDist || 0;
   const cx = a.center[0], cy = a.center[1];
   const { gw, gh, buckets } = grid;
   const gcx = cx / LOOT_GRID | 0, gcy = cy / LOOT_GRID | 0;
@@ -383,6 +384,7 @@ function nearestLoot(W, a, grid) {
           const ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
           if (ax > R || ay > R) continue;
           const d = ax > ay ? ax : ay;
+          if (d < lo) continue;
           if (d < bd) { bd = d; best = [list[i], list[i + 1]]; }
         }
       }
@@ -644,7 +646,10 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
         kp = okp;
       }
     }
-    const loot = nearestLoot(W, a, lootGrid);
+    // 可動域の中の残骸は進軍しなくても駒を動かせば拾える。
+    // それを目的地にすると、討王が進んで自分の残骸だらけになった大軍が
+    // 距離0の残骸へ「向かおう」として進軍方向が(0,0)になり、動けなくなる。
+    const loot = nearestLoot(W, a, lootGrid, a.zone.r + 1);
     if (loot && (!kp || loot.dist < bd * 0.6)) {
       dest = loot.pos;
     } else if (kp) {
