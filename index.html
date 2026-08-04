@@ -412,6 +412,16 @@ function zoneAt(center, r) {
   return { cx, cy, r, set };
 }
 const ZONE_R_MAX = Math.floor((Math.min(MAP_W, MAP_H) - 1) / 2);
+// 「今この瞬間、自分で軍を指揮しているか」。
+// mode は敗北しても "play" のままなので、mode で判定すると
+// 敗北後に注目軍の切り替え・カメラ追従・枠の強調がすべて効かなくなる。
+function isCommanding(W) {
+  const pa = W.playerId !== null ? W.armies[W.playerId] : null;
+  return !!(pa && pa.alive && !W.myDefeated);
+}
+function focusOwnerOf(W) {
+  return isCommanding(W) ? W.playerId : W.focusId;
+}
 function zoneFits(cx, cy, r) {
   return cx - r >= 0 && cy - r >= 0 && cx + r <= MAP_W - 1 && cy + r <= MAP_H - 1;
 }
@@ -1149,6 +1159,8 @@ function OpenWorldShogi() {
   const [nameInput, setNameInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
   const [showArmyList, setShowArmyList] = useState(false);
+  const cdRef = useRef(null);
+  const marchRef = useRef(null);
   const [speed, setSpeed] = useState(1);
   const wakeRef = useRef(null);
   // ネット対戦はサーバーが時間を持っているので、倍速は必ず等速に戻す。
@@ -1464,6 +1476,28 @@ function OpenWorldShogi() {
         } catch (err) {
           console.error("draw error", err);
         }
+        // カウントダウンだけは毎フレーム直接書き換える。
+        // React の再描画は 200ms 間隔なので、そこに乗せると 0.1 秒刻みの表示が
+        // 2目盛りずつ飛ぶ(倍速時はさらに大きく飛ぶ)。
+        try {
+          if (cdRef.current || marchRef.current) {
+            const t2 = now();
+            // 表示している軍(注目軍)と同じものを見る必要がある。
+            // mode で判定すると、敗北後(mode は play のまま playerId は死んだ軍)や
+            // 観戦へ切り替えた直後に、画面と別の軍のカウントを出してしまう。
+            const pa = W2.playerId !== null ? W2.armies[W2.playerId] : null;
+            const fa = (pa && pa.alive && !W2.myDefeated) ? pa : (W2.armies[W2.focusId] || null);
+            if (cdRef.current) {
+              const cd = fa ? Math.max(0, MOVE_COOLDOWN - (t2 - fa.lastMove)) / 1e3 : 0;
+              cdRef.current.textContent = cd > 0 ? `${cd.toFixed(1)}s` : "OK";
+              cdRef.current.style.color = cd > 0 ? C.danger : "#8fce7a";
+            }
+            if (marchRef.current) {
+              const mr = Math.max(0, MARCH_INTERVAL - (t2 - W2.marchAnchor) % MARCH_INTERVAL) / 1e3;
+              marchRef.current.textContent = `${mr.toFixed(1)}s`;
+            }
+          }
+        } catch (err) {}
       }
       raf = requestAnimationFrame(loop);
     };
@@ -1674,7 +1708,7 @@ function OpenWorldShogi() {
     const wx = Math.floor(ux / cam.s + cam.x);
     const wy = Math.floor(uy / cam.s + cam.y);
     if (wx < 0 || wy < 0 || wx >= MAP_W || wy >= MAP_H) return;
-    if (W2.mode === "watch") {
+    if (!isCommanding(W2)) {
       for (const a of W2.armies) {
         if (!a.alive || !a.zone) continue;
         if (a.zone.set.has(K(wx, wy))) {
@@ -1812,7 +1846,7 @@ function OpenWorldShogi() {
   function recenterCamera() {
     camRef.current.manualMode = false;
     const W2 = g.current;
-    const focusOwner2 = W2.mode === "watch" ? W2.focusId : W2.playerId;
+    const focusOwner2 = focusOwnerOf(W2);
     const focusArmy2 = focusOwner2 != null ? W2.armies[focusOwner2] : null;
     camRef.current.rot = focusArmy2 ? -focusArmy2.facing * (Math.PI / 2) : 0;
     bump();
@@ -2043,7 +2077,7 @@ function OpenWorldShogi() {
     }
     const ctx = cv.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const focusOwner = W2.mode === "watch" ? W2.focusId : W2.playerId;
+    const focusOwner = focusOwnerOf(W2);
     const focusArmyForCam = focusOwner != null ? W2.armies[focusOwner] : null;
     const cam = camRef.current;
     if (cam.zoom == null) cam.zoom = 1;
@@ -2128,7 +2162,7 @@ function OpenWorldShogi() {
       const col = (W2.playerId != null && a.id === W2.playerId) ? PLAYER_COLOR : a.color;
       ctx.fillStyle = col.zone;
       ctx.fillRect(sx(x0), sy(y0), (x1 - x0 + 1) * S, (y1 - y0 + 1) * S);
-      const isFocus = W2.mode === "watch" && a.id === W2.focusId;
+      const isFocus = !isCommanding(W2) && a.id === W2.focusId;
       ctx.strokeStyle = isFocus ? "#FFD866" : col.zoneEdge;
       ctx.lineWidth = isFocus ? 3 : 2;
       // 枠線はパスの中心に描かれるため、そのままだと線幅の半分が盤の外へはみ出す。
@@ -2278,7 +2312,10 @@ function OpenWorldShogi() {
   const isPlay = W.playerId !== null && player0 !== null && !W.myDefeated;
   const player = player0;
   const focusArmy = isPlay ? player : W.armies[W.focusId] || null;
-  const cdRemain = focusArmy ? Math.max(0, MOVE_COOLDOWN - (now() - focusArmy.lastAction)) / 1e3 : 0;
+  // クールダウンの判定は lastMove で行われている(attemptPlayerAction / aiDue とも)。
+  // lastAction は「実際に指した時刻」なので、行動しなかったAI軍は更新されず、
+  // 表示が永久に OK のままになってしまう。判定と同じ lastMove を見る。
+  const cdRemain = focusArmy ? Math.max(0, MOVE_COOLDOWN - (now() - focusArmy.lastMove)) / 1e3 : 0;
   const marchRemain = Math.max(0, MARCH_INTERVAL - (now() - W.marchAnchor) % MARCH_INTERVAL) / 1e3;
   const remaining = W.armies.filter((a) => a.alive && a.id !== W.playerId).length;
   const hand = player ? player.hand || {} : {};
@@ -2303,7 +2340,11 @@ function OpenWorldShogi() {
         key: a.id,
         onClick: () => {
           const w = g.current;
-          if (w.mode === "watch") {
+          // mode で判定すると、敗北後(mode は play のまま)に注目軍を変えられない。
+          // 実際に指揮している軍を持っているかどうかで見る。
+          const pa = w.playerId !== null ? w.armies[w.playerId] : null;
+          const commanding = !!(pa && pa.alive && !w.myDefeated);
+          if (!commanding) {
             if (w.focusId === a.id) {
               w.focusId = null;
               w.msg = "\u9078\u629E\u89E3\u9664";
@@ -2338,7 +2379,15 @@ function OpenWorldShogi() {
     },
     KANJI[t],
     n > 1 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10 } }, "\xD7", n) : null
-  )), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), player.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", player.kills, "(\u57DF", 2 * zoneRadiusFor(player) + 1, "\xB2)"), ) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6CE8\u76EE: ", focusArmy ? focusArmy.name : "-"), focusArmy && focusArmy.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", focusArmy.kills, "(\u57DF", 2 * zoneRadiusFor(focusArmy) + 1, "\xB2)"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } })), /* @__PURE__ */ React.createElement("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } }, /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
+  )), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), player.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", player.kills, "(\u57DF", 2 * zoneRadiusFor(player) + 1, "\xB2)"), ) : /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 8, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0 } }, "\u6CE8\u76EE: ", focusArmy ? focusArmy.name : "-"), focusArmy && focusArmy.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold, flexShrink: 0 } }, "\u8A0E\u738B", focusArmy.kills, "(\u57DF", 2 * zoneRadiusFor(focusArmy) + 1, "\xB2)"),
+    // 注目している軍の持ち駒も見せる(観戦中は操作できないので表示のみ)
+    focusArmy && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 2 } }, "\u6301\u3061\u99D2"),
+    focusArmy && Object.keys(focusArmy.hand || {}).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553", flexShrink: 0 } }, "\u306A\u3057"),
+    focusArmy && Object.entries(focusArmy.hand || {}).map(([t, n]) => /* @__PURE__ */ React.createElement("span", {
+      key: t,
+      style: { fontFamily: KOMAFONT, fontSize: 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
+    }, KANJI[t], n > 1 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9 } }, "\xD7", n) : null)),
+    /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } })), /* @__PURE__ */ React.createElement("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } }, /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
     position: "absolute",
     bottom: 14,
     zIndex: 20,
@@ -2355,7 +2404,7 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), started && W.mode !== "openworld" && /* @__PURE__ */ React.createElement("button", { onClick: () => setSpeed((v) => v === 1 ? 4 : v === 4 ? 16 : 1), title: "\u65E9\u9001\u308A(\u653E\u7F6E\u7528)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: speed > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: speed > 1 ? "#9FD08A" : C.sub, border: `1px solid ${speed > 1 ? "#9FD08A66" : C.panelEdge}` } }, "\u00D7", speed), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: cdRemain > 0 ? C.danger : "#8fce7a" } }, "\u4E00\u624B: ", cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", marchRemain.toFixed(1), "s")), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), started && W.mode !== "openworld" && /* @__PURE__ */ React.createElement("button", { onClick: () => setSpeed((v) => v === 1 ? 4 : v === 4 ? 16 : 1), title: "\u65E9\u9001\u308A(\u653E\u7F6E\u7528)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: speed > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: speed > 1 ? "#9FD08A" : C.sub, border: `1px solid ${speed > 1 ? "#9FD08A66" : C.panelEdge}` } }, "\u00D7", speed), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u4E00\u624B: ", /* @__PURE__ */ React.createElement("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", /* @__PURE__ */ React.createElement("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
     width: 32,
     height: 30,
     padding: 0,
