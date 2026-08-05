@@ -458,7 +458,10 @@ function findSpawnSpot(W, facing) {
       const cy = 10 + Math.floor(Math.random() * (MAP_H - 20));
       let clash = false;
       for (const a of live) {
-        if (Math.abs(cx - a.center[0]) <= clear && Math.abs(cy - a.center[1]) <= clear) {
+        // 大軍は可動域が広く、22マス程度では玉のすぐ内側に湧かれてしまう。
+        // 討王が多い軍の周りだけ確保距離を広げる(該当数は少ないので湧き先は残る)。
+        const need = (a.kills || 0) >= 20 ? Math.max(clear, 42) : clear;
+        if (Math.abs(cx - a.center[0]) <= need && Math.abs(cy - a.center[1]) <= need) {
           clash = true;
           break;
         }
@@ -881,7 +884,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   const inCheck = myKing ? threat.has(K(myKing[0], myKing[1])) : false;
   // 玉の周り(3マス以内)にいる自駒の数と、規模に見合った必要数。
   // 討王が増えるほど守る面積が跳ね上がるので、近衛も厚くする。
-  const guardWant = Math.min(40, 8 + Math.floor((army.kills || 0) * 0.4));
+  const guardWant = Math.min(90, 12 + Math.floor((army.kills || 0) * 0.8));
   let guardCount = 0;
   if (myKing) {
     for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
@@ -1027,16 +1030,22 @@ function seedInitialProgress(W, skipId) {
     refreshZone(a);
     const r = a.zone.r;
     const cx = a.center[0], cy = a.center[1];
-    const extra = Math.round(kills * 5);
+    const extra = Math.round(kills * 12);
     // 可動域全体に均等にばら撒くと、大軍ほど玉の周りがスカスカになって
     // (討王100で玉の隣に0.09枚)踏み込まれた瞬間に討たれる。
-    // 6割は玉を囲む近衛として密に置き、残りを可動域へ散らす。
-    const guardN = Math.round(extra * 0.6);
-    const guardR = Math.max(6, Math.min(r, Math.ceil(Math.sqrt(guardN / 0.55) / 2)));
+    // 大半は玉を囲む近衛として密に置き、残りを可動域へ散らす。
+    const guardN = Math.round(extra * 0.75);
+    const guardR = Math.max(5, Math.min(r, Math.ceil(Math.sqrt(guardN / 0.62) / 2)));
     let placed = 0;
-    for (let n = 0; n < guardN * 20 && placed < guardN; n++) {
-      const x = cx - guardR + Math.floor(Math.random() * (2 * guardR + 1));
-      const y = cy - guardR + Math.floor(Math.random() * (2 * guardR + 1));
+    // 一様に置くと外周ほどマス数が多いぶん外側に散ってしまう。
+    // 玉に近いほど密になるよう、中心寄りに偏らせて置く。
+    const gOff = () => {
+      const m = Math.floor(Math.pow(Math.random(), 1.9) * (guardR + 1));
+      return Math.random() < 0.5 ? -m : m;
+    };
+    for (let n = 0; n < guardN * 25 && placed < guardN; n++) {
+      const x = cx + gOff();
+      const y = cy + gOff();
       if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
       const k = K(x, y);
       if (W.cells.has(k)) continue;
@@ -1054,7 +1063,7 @@ function seedInitialProgress(W, skipId) {
       W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
       placed++;
     }
-    const handTotal = Math.round(kills * 2);
+    const handTotal = Math.round(kills * 4);
     for (let n = 0; n < handTotal; n++) {
       const t = TYPES[Math.floor(Math.random() * TYPES.length)];
       a.hand[t] = (a.hand[t] || 0) + 1;
