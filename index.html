@@ -658,22 +658,30 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
       return null;
     }
   } else {
-    let kp = null, bd = Infinity;
+    // 格上に真っすぐ突っ込むと一方的に食われて、小さい軍が育つ前に消える。
+    // 自分より大きい相手ほど「遠い」とみなし、同格以下を優先して狙う。
+    let kp = null, bd = Infinity, bdReal = Infinity;
+    const myK = a.kills || 0;
     for (const [oid, okp] of kings) {
       if (oid === a.id) continue;
       const oa = W.armies[oid];
       if (!oa || !oa.alive) continue;
       const d = Math.max(Math.abs(okp[0] - a.center[0]), Math.abs(okp[1] - a.center[1]));
-      if (d < bd) {
-        bd = d;
+      const gap = Math.max(0, (oa.kills || 0) - myK);
+      const eff = d * (1 + Math.min(3, gap * 0.12));
+      if (eff < bd) {
+        bd = eff;
+        bdReal = d;
         kp = okp;
       }
     }
+    bd = bdReal;
     // 目的地を毎回決め直すと、残骸を拾った直後に別方向の残骸が最寄りになり、
     // 左右に振られて前に進まなくなる(右往左往)。一度決めた行き先は
     // 到達するかしばらく経つまで持ち続ける。
     const tnow = now();
-    if (a.aiDest && tnow < (a.aiDestHold || 0)) {
+    // 残骸を追う往復を防ぐための保持だが、敵玉が近いときは追尾を優先する
+    if (a.aiDest && tnow < (a.aiDestHold || 0) && !(kp && bd <= 30)) {
       const dd = Math.max(Math.abs(a.aiDest[0] - a.center[0]), Math.abs(a.aiDest[1] - a.center[1]));
       if (dd > 2) dest = a.aiDest;
       else a.aiDest = null;
@@ -686,7 +694,9 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
       const KING_SEEK_RANGE = 140;
       if (kp && bd <= KING_SEEK_RANGE) {
         dest = kp;
-        if (bd > 12) {
+        // 接近しているのに側面へ回り込むと、距離15前後で旋回して離れてしまう。
+        // 実測で決着まで800秒→275秒。回り込みは遠距離のときだけにする。
+        if (bd > 30) {
           const dx = kp[0] - a.center[0], dy = kp[1] - a.center[1];
           if (Math.abs(dx) >= Math.abs(dy)) dest = [kp[0], Math.max(0, Math.min(MAP_H - 1, kp[1] + a.flankBias))];
           else dest = [Math.max(0, Math.min(MAP_W - 1, kp[0] + a.flankBias)), kp[1]];
@@ -739,7 +749,22 @@ function resolveSimultaneousMarch(W, movers) {
   for (const [dk, list] of byDest) {
     let survivor = list[0];
     if (list.length > 1) {
-      survivor = list[Math.floor(Math.random() * list.length)];
+      // 衝突の勝敗を完全な運にすると、討王が増える確率が常に50%のまま。
+      // 一度でも負ければ全滅なので、誰も討王を重ねられず上位が生まれない。
+      // 軍の腕前と規模(討王数)を重みにして、強い軍ほど競り勝つようにする。
+      let total = 0;
+      const weights = list.map((it) => {
+        const ar = it.m.army;
+        const w = (0.35 + (ar.skill == null ? 0.6 : ar.skill)) * (1 + Math.min(2.5, (ar.kills || 0) * 0.05));
+        total += w;
+        return w;
+      });
+      let pick = Math.random() * total;
+      survivor = list[list.length - 1];
+      for (let i = 0; i < list.length; i++) {
+        pick -= weights[i];
+        if (pick <= 0) { survivor = list[i]; break; }
+      }
       for (const loser of list) {
         if (loser === survivor) continue;
         ev.collisions.push({ winner: survivor.m.army, loser: loser.m.army, piece: loser.p });
