@@ -646,21 +646,36 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
         kp = okp;
       }
     }
-    // 可動域の中の残骸は進軍しなくても駒を動かせば拾える。
-    // それを目的地にすると、討王が進んで自分の残骸だらけになった大軍が
-    // 距離0の残骸へ「向かおう」として進軍方向が(0,0)になり、動けなくなる。
-    const loot = nearestLoot(W, a, lootGrid, a.zone.r + 1);
-    if (loot && (!kp || loot.dist < bd * 0.6)) {
-      dest = loot.pos;
-    } else if (kp) {
-      dest = kp;
-      if (bd > 12) {
-        const dx = kp[0] - a.center[0], dy = kp[1] - a.center[1];
-        if (Math.abs(dx) >= Math.abs(dy)) dest = [kp[0], Math.max(0, Math.min(MAP_H - 1, kp[1] + a.flankBias))];
-        else dest = [Math.max(0, Math.min(MAP_W - 1, kp[0] + a.flankBias)), kp[1]];
+    // 目的地を毎回決め直すと、残骸を拾った直後に別方向の残骸が最寄りになり、
+    // 左右に振られて前に進まなくなる(右往左往)。一度決めた行き先は
+    // 到達するかしばらく経つまで持ち続ける。
+    const tnow = now();
+    if (a.aiDest && tnow < (a.aiDestHold || 0)) {
+      const dd = Math.max(Math.abs(a.aiDest[0] - a.center[0]), Math.abs(a.aiDest[1] - a.center[1]));
+      if (dd > 2) dest = a.aiDest;
+      else a.aiDest = null;
+    }
+    if (!dest) {
+      // 進軍で踏んだ駒は自動的に持ち駒になるので、残骸のために寄り道する必要はない。
+      // 敵へ向かう道中で勝手に拾える。残骸は撒いた量が多く、寄り道を許すと
+      // 常に敵玉より近くなって誰も戦わなくなるため、
+      // 「戦う相手が近くにいない」ときだけ残骸を目的地にする。
+      const KING_SEEK_RANGE = 140;
+      if (kp && bd <= KING_SEEK_RANGE) {
+        dest = kp;
+        if (bd > 12) {
+          const dx = kp[0] - a.center[0], dy = kp[1] - a.center[1];
+          if (Math.abs(dx) >= Math.abs(dy)) dest = [kp[0], Math.max(0, Math.min(MAP_H - 1, kp[1] + a.flankBias))];
+          else dest = [Math.max(0, Math.min(MAP_W - 1, kp[0] + a.flankBias)), kp[1]];
+        }
+      } else {
+        const loot = nearestLoot(W, a, lootGrid, a.zone.r + 1);
+        if (loot) dest = loot.pos;
+        else if (kp) dest = kp;
+        else return null;
       }
-    } else {
-      return null;
+      a.aiDest = dest;
+      a.aiDestHold = tnow + MARCH_INTERVAL * 6;
     }
   }
   if (!dest) return null;
