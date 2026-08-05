@@ -237,6 +237,15 @@ function filterProfanity(text) {
   return out;
 }
 const PLAYER_COLOR = { fill: "#DEC48A", edge: "#4a3417", text: "#241a0e", prom: "#B3392B", zone: "rgba(233,208,150,0.13)", zoneEdge: "rgba(201,169,106,0.6)", chip: "#C9A96A" };
+// 腕前の分布。大半は平凡で、一握りだけ飛び抜けて上手い。
+// これが無いと全員横並びで、誰も大きくなれない。
+function makeSkill() {
+  const u = Math.random();
+  if (u < 0.55) return 0.25 + Math.random() * 0.25;  // 平凡  0.25〜0.50
+  if (u < 0.85) return 0.50 + Math.random() * 0.20;  // 中堅  0.50〜0.70
+  if (u < 0.97) return 0.70 + Math.random() * 0.18;  // 手練  0.70〜0.88
+  return 0.88 + Math.random() * 0.12;                // 名手  0.88〜1.00
+}
 function makeColor(i) {
   const h = Math.round(i * 137.508 % 360);
   return {
@@ -510,6 +519,7 @@ function spawnNewArmy(W) {
     center,
     zone: null,
     kills: 0,
+    skill: makeSkill(),
     name,
     color: makeColor(id),
     flankBias
@@ -841,7 +851,8 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   let mine = piecesByOwner.get(army.id) || [];
   // 討王が増えるほど守る面積が跳ね上がる(討王100で討王0の539倍)のに、
   // 指せるのは同じ5秒に1手。せめて「考える駒の数」は規模に応じて増やす。
-  const cap = AI_PIECE_CAP + Math.min(120, army.kills || 0);
+  const skill0 = army.skill == null ? 0.6 : army.skill;
+  const cap = Math.round((AI_PIECE_CAP + Math.min(120, army.kills || 0)) * (0.45 + skill0 * 0.75));
   if (mine.length > cap) {
     // 近い順に取り出すヘルパ(全体を並べ替えるより速い)
     const takeNear = (list, kx, ky, n) => {
@@ -892,9 +903,14 @@ function aiPickAction(W, army, kings, piecesByOwner) {
       if (p && p.owner === army.id) guardCount++;
     }
   }
+  // 全軍が同じ強さだと誰も抜きん出ず、大きく育つ軍が生まれない。
+  // 軍ごとの腕前(skill)で判断のブレを変え、上手い軍が勝ち上がるようにする。
+  // skill 1.0 = ほぼ最善手、skill 0.2 = しばしば悪手を選ぶ。
+  const skill = army.skill == null ? 0.6 : army.skill;
+  const noise = (1 - skill) * 120;
   let best = null, bestScore = -Infinity;
   for (const a of acts) {
-    let s = Math.random() * 0.3;
+    let s = Math.random() * (0.3 + noise);
     if (a.kind === "move") {
       const destK = K(a.tx, a.ty);
       const victim = W.cells.get(destK);
@@ -1027,6 +1043,8 @@ function seedInitialProgress(W, skipId) {
   for (const [a, kills] of assign) {
     delete a.__seeded;
     a.kills = kills;
+    // 大きく育っている軍は「上手いから育った」ことにする(討王数と腕前を一致させる)
+    if (kills > 0) a.skill = Math.max(a.skill || 0, Math.min(0.98, 0.5 + kills * 0.012));
     refreshZone(a);
     const r = a.zone.r;
     const cx = a.center[0], cy = a.center[1];
@@ -1107,6 +1125,7 @@ function newWorld(mode, playerName, netOpts) {
       center,
       zone: null,
       kills: 0,
+      skill: makeSkill(),
       name: isPlayerSlot ? playerName ? playerName + "(\u3042\u306A\u305F)" : names[0] + "(\u3042\u306A\u305F)" : names[id],
       color: isPlayerSlot ? PLAYER_COLOR : makeColor(id),
       flankBias: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5))
