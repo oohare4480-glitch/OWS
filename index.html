@@ -1030,30 +1030,30 @@ function seedInitialProgress(W, skipId) {
     refreshZone(a);
     const r = a.zone.r;
     const cx = a.center[0], cy = a.center[1];
-    const extra = Math.round(kills * 12);
-    // 可動域全体に均等にばら撒くと、大軍ほど玉の周りがスカスカになって
-    // (討王100で玉の隣に0.09枚)踏み込まれた瞬間に討たれる。
-    // 大半は玉を囲む近衛として密に置き、残りを可動域へ散らす。
-    const guardN = Math.round(extra * 0.75);
-    const guardR = Math.max(5, Math.min(r, Math.ceil(Math.sqrt(guardN / 0.62) / 2)));
+    const extra = Math.round(kills * 30);
+    // 玉の周りを固めるだけでは、可動域が広い大軍は「城は硬いが周りは無人」になり、
+    // 敵が100マス以上を無抵抗で前進してきてしまう。
+    // 近衛は自然な厚みに留め、大半は可動域全体へ散らして常に抵抗を受けるようにする。
+    const guardN = Math.round(extra * 0.25);
+    // 進軍は1マスずつ踏み進むので、玉を守るのは「隙間なく積まれた層の厚さ」。
+    // ランダムに撒くと穴だらけになり、何枚置いても素通りされてしまう。
+    // 玉に近いリングから順に完全に埋めていく。
     let placed = 0;
-    // 一様に置くと外周ほどマス数が多いぶん外側に散ってしまう。
-    // 玉に近いほど密になるよう、中心寄りに偏らせて置く。
-    const gOff = () => {
-      const m = Math.floor(Math.pow(Math.random(), 1.9) * (guardR + 1));
-      return Math.random() < 0.5 ? -m : m;
-    };
-    for (let n = 0; n < guardN * 25 && placed < guardN; n++) {
-      const x = cx + gOff();
-      const y = cy + gOff();
-      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
-      const k = K(x, y);
-      if (W.cells.has(k)) continue;
-      const t = TYPES[Math.floor(Math.random() * TYPES.length)];
-      W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
-      placed++;
+    for (let d = 1; d <= r && placed < guardN; d++) {
+      for (let dx = -d; dx <= d && placed < guardN; dx++) {
+        for (let dy = -d; dy <= d && placed < guardN; dy++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+          const x = cx + dx, y = cy + dy;
+          if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+          const k = K(x, y);
+          if (W.cells.has(k)) continue;
+          const t = TYPES[Math.floor(Math.random() * TYPES.length)];
+          W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
+          placed++;
+        }
+      }
     }
-    for (let n = 0; n < extra * 12 && placed < extra; n++) {
+    for (let n = 0; n < extra * 30 && placed < extra; n++) {
       const x = cx - r + Math.floor(Math.random() * (2 * r + 1));
       const y = cy - r + Math.floor(Math.random() * (2 * r + 1));
       if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
@@ -1063,7 +1063,7 @@ function seedInitialProgress(W, skipId) {
       W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
       placed++;
     }
-    const handTotal = Math.round(kills * 4);
+    const handTotal = Math.round(kills * 6);
     for (let n = 0; n < handTotal; n++) {
       const t = TYPES[Math.floor(Math.random() * TYPES.length)];
       a.hand[t] = (a.hand[t] || 0) + 1;
