@@ -834,29 +834,45 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   // 討王を重ねた軍は盤上に千枚単位の駒を持つ。全部を毎回検討すると
   // 思考が桁違いに重くなるうえ、実際に指せるのは1手だけなので割に合わない。
   // 最寄りの敵玉に近い駒(=前線)から順に、上限まで絞って考える。
+  const myKing0 = kings.get(army.id);
   let mine = piecesByOwner.get(army.id) || [];
-  if (mine.length > AI_PIECE_CAP) {
-    if (nearestKp) {
-      // 距離でバケツ分けして近い順に上限まで取る(全体を並べ替えるより速い)
-      const kx = nearestKp[0], ky = nearestKp[1], BUCKET = 16;
-      const buckets = [];
-      for (const p of mine) {
+  // 討王が増えるほど守る面積が跳ね上がる(討王100で討王0の539倍)のに、
+  // 指せるのは同じ5秒に1手。せめて「考える駒の数」は規模に応じて増やす。
+  const cap = AI_PIECE_CAP + Math.min(120, army.kills || 0);
+  if (mine.length > cap) {
+    // 近い順に取り出すヘルパ(全体を並べ替えるより速い)
+    const takeNear = (list, kx, ky, n) => {
+      const BUCKET = 16, buckets = [];
+      for (const p of list) {
         const d = (Math.abs(p[0] - kx) + Math.abs(p[1] - ky)) / BUCKET | 0;
         (buckets[d] || (buckets[d] = [])).push(p);
       }
-      const picked = [];
-      for (let i = 0; i < buckets.length && picked.length < AI_PIECE_CAP; i++) {
+      const out = [];
+      for (let i = 0; i < buckets.length && out.length < n; i++) {
         const b = buckets[i];
         if (!b) continue;
-        for (const p of b) {
-          picked.push(p);
-          if (picked.length >= AI_PIECE_CAP) break;
-        }
+        for (const p of b) { out.push(p); if (out.length >= n) break; }
       }
-      mine = picked;
-    } else {
-      mine = mine.slice(0, AI_PIECE_CAP);
-    }
+      return out;
+    };
+    // 攻撃用(敵玉に近い駒)だけを選ぶと、自玉に迫る敵に永久に対応できない。
+    // 可動域が広いほど攻撃前線と自玉が離れるので、大軍ほど致命的になる。
+    // 半分は自玉の周りから取り、守りにも手が回るようにする。
+    const half = Math.floor(cap / 2);
+    const picked = [];
+    const seen = /* @__PURE__ */ new Set();
+    const push = (arr) => {
+      for (const p of arr) {
+        const k = p[0] * 4096 + p[1];
+        if (seen.has(k)) continue;
+        seen.add(k);
+        picked.push(p);
+      }
+    };
+    if (myKing0) push(takeNear(mine, myKing0[0], myKing0[1], half));
+    if (nearestKp) push(takeNear(mine, nearestKp[0], nearestKp[1], cap - picked.length));
+    if (picked.length < cap) push(mine.slice(0, cap - picked.length));
+    mine = picked;
   }
   const acts = allActions(W.cells, army.id, army.facing, army.hand, army.zone.set, mine);
   if (!acts.length) return null;
@@ -873,6 +889,12 @@ function aiPickAction(W, army, kings, piecesByOwner) {
       const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(a.tx, a.ty, army.id, W.armies) || isInHostileZone(a.fx, a.fy, army.id, W.armies));
       if (victim && victim.t === "K") return { ...a, promote: canPr };
       if (victim) s += VAL[victim.t] * 10 + (victim.promoted ? 20 : 0);
+      // 自玉のそばまで来た敵を取り除くのを最優先にする。
+      // これが無いと、玉が狙われても攻撃前線の駒を動かし続けて討たれる。
+      if (victim && myKing) {
+        const dk = Math.max(Math.abs(a.tx - myKing[0]), Math.abs(a.ty - myKing[1]));
+        if (dk <= 4) s += (inCheck ? 400 : 80) * (1 - dk / 5);
+      }
       if (canPr) s += 4;
       if (nearestKp) {
         const d0 = Math.abs(a.fx - nearestKp[0]) + Math.abs(a.fy - nearestKp[1]);
