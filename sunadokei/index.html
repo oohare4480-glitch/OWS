@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>すなどけい | いまなんじ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --yoru:#1B1533;        /* 夜 */
+    --shinya:#12102A;      /* 深夜 */
+    --suna:#F2B872;        /* 砂 */
+    --suna-fukai:#D9924A;  /* 砂(影) */
+    --garasu:#9FD8E8;      /* 硝子 */
+    --kinari:#F5EFE6;      /* 生成り */
+    --ware:#E8657C;        /* 割れ */
+    --usu:rgba(245,239,230,.55);
+    --kasumi:rgba(245,239,230,.14);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% 0%, #2A2150 0%, var(--yoru) 45%, var(--shinya) 100%);
+    color:var(--kinari);
+    font-family:"Zen Kaku Gothic New",system-ui,sans-serif;
+    min-height:100dvh;
+    display:flex;flex-direction:column;align-items:center;
+    padding:0 20px calc(28px + env(safe-area-inset-bottom));
+    overflow-x:hidden;
+  }
+  #dust{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5}
+  .wrap{position:relative;z-index:1;width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center}
+
+  /* ── 時計(表向きの顔) ───────────────── */
+  .clock{margin-top:clamp(26px,7vh,54px);text-align:center;line-height:1}
+  .clock .hm{
+    font-family:"Zen Maru Gothic",serif;font-weight:900;
+    font-size:clamp(58px,17vw,84px);letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;
+    background:linear-gradient(180deg,var(--kinari) 20%, #C9BEE0 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .clock .sec{font-family:"Zen Maru Gothic",serif;font-weight:500;font-size:20px;color:var(--garasu);letter-spacing:.12em;font-variant-numeric:tabular-nums}
+  .clock .date{margin-top:10px;font-size:12.5px;color:var(--usu);letter-spacing:.18em}
+
+  /* ── 砂時計(主役) ───────────────────── */
+  .stage{margin-top:clamp(18px,4vh,32px);position:relative;width:196px;height:246px;display:flex;align-items:center;justify-content:center}
+  .glow{position:absolute;width:230px;height:230px;border-radius:50%;
+    background:radial-gradient(circle,rgba(242,184,114,.30) 0%, rgba(242,184,114,0) 68%);
+    filter:blur(2px);transition:opacity .6s ease}
+  .stage.idle .glow{opacity:.55}
+  .stage.run  .glow{opacity:1;animation:breathe 4.2s ease-in-out infinite}
+  .stage.broken .glow{opacity:0}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+  svg.hg{position:relative;width:196px;height:246px;overflow:visible}
+  .flip{transition:transform .9s cubic-bezier(.62,.02,.3,1)}
+  .stage.flipping .flip{transform:rotate(180deg)}
+
+  /* ── 操作 ─────────────────────────── */
+  .remain{margin-top:16px;text-align:center;min-height:52px}
+  .remain .lbl{font-size:11px;letter-spacing:.2em;color:var(--usu)}
+  .remain .val{font-family:"Zen Maru Gothic",serif;font-weight:700;font-size:32px;font-variant-numeric:tabular-nums;letter-spacing:.03em;margin-top:2px}
+  .remain.danger .val{color:var(--ware)}
+
+  .picker{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center}
+  .chip{
+    font-family:"Zen Maru Gothic",serif;font-weight:500;font-size:12.5px;
+    padding:8px 13px;border-radius:999px;cursor:pointer;
+    background:rgba(245,239,230,.06);color:var(--kinari);
+    border:1px solid var(--kasumi);transition:.18s
+  }
+  .chip[aria-pressed="true"]{background:var(--suna);color:#2A1B08;border-color:var(--suna);font-weight:700}
+  .chip:disabled{opacity:.35;cursor:not-allowed}
+
+  .go{
+    margin-top:16px;width:100%;max-width:300px;
+    font-family:"Zen Maru Gothic",serif;font-weight:700;font-size:16px;letter-spacing:.06em;
+    padding:16px;border-radius:18px;border:none;cursor:pointer;
+    background:linear-gradient(180deg,var(--suna),var(--suna-fukai));
+    color:#2A1B08;box-shadow:0 8px 24px rgba(242,184,114,.22);transition:.18s
+  }
+  .go:active{transform:translateY(1px)}
+  .go.stop{background:transparent;color:var(--usu);border:1px solid var(--kasumi);box-shadow:none}
+  .note{margin-top:11px;font-size:11.5px;color:var(--usu);text-align:center;line-height:1.75;max-width:300px}
+
+  /* ── 結果 ─────────────────────────── */
+  .verdict{margin-top:14px;padding:14px 18px;border-radius:16px;text-align:center;max-width:320px;display:none;animation:rise .5s ease both}
+  .verdict.show{display:block}
+  .verdict.ok{background:rgba(159,216,232,.10);border:1px solid rgba(159,216,232,.35)}
+  .verdict.ng{background:rgba(232,101,124,.10);border:1px solid rgba(232,101,124,.38)}
+  .verdict h3{margin:0 0 5px;font-family:"Zen Maru Gothic",serif;font-size:16px;font-weight:700}
+  .verdict.ok h3{color:var(--garasu)} .verdict.ng h3{color:var(--ware)}
+  .verdict p{margin:0;font-size:12.5px;color:var(--usu);line-height:1.8}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* ── 棚 ───────────────────────────── */
+  .shelf{width:100%;margin-top:34px;padding-top:22px;border-top:1px solid var(--kasumi)}
+  .shelf h2{margin:0 0 3px;font-family:"Zen Maru Gothic",serif;font-size:13.5px;font-weight:700;letter-spacing:.1em}
+  .shelf .sub{margin:0 0 14px;font-size:11px;color:var(--usu);letter-spacing:.04em}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .card{background:rgba(245,239,230,.045);border:1px solid var(--kasumi);border-radius:15px;padding:12px 8px 10px;text-align:center;transition:.18s}
+  .card.cracked{opacity:.4}
+  .card svg{width:38px;height:48px;display:block;margin:0 auto 7px}
+  .card .nm{font-family:"Zen Maru Gothic",serif;font-size:11.5px;font-weight:500}
+  .card .st{font-size:9.5px;color:var(--usu);margin-top:3px;letter-spacing:.06em}
+  .card.cracked .st{color:var(--ware)}
+
+  .rank{margin-top:11px;display:flex;flex-direction:column;gap:1px}
+  .row{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid rgba(245,239,230,.06);font-size:12.5px}
+  .row .no{width:20px;font-family:"Zen Maru Gothic",serif;font-weight:700;color:var(--suna);font-size:13px}
+  .row .who{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .hrs{font-variant-numeric:tabular-nums;color:var(--usu);font-size:11.5px}
+  .row.me{background:rgba(242,184,114,.07);border-radius:9px;border-bottom-color:transparent}
+
+  footer{margin-top:28px;font-size:10.5px;color:rgba(245,239,230,.3);text-align:center;line-height:1.9}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="dust"></canvas>
+<div class="wrap">
+
+  <div class="clock">
+    <div class="hm" id="hm">--:--</div>
+    <div class="sec" id="sec">--</div>
+    <div class="date" id="date"></div>
+  </div>
+
+  <div class="stage idle" id="stage">
+    <div class="glow"></div>
+    <svg class="hg" viewBox="0 0 140 176" aria-hidden="true">
+      <defs>
+        <linearGradient id="gGlass" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#9FD8E8" stop-opacity=".55"/>
+          <stop offset="55%" stop-color="#9FD8E8" stop-opacity=".12"/>
+          <stop offset="100%" stop-color="#9FD8E8" stop-opacity=".38"/>
+        </linearGradient>
+        <linearGradient id="gSand" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#F7CE94"/><stop offset="100%" stop-color="#D9924A"/>
+        </linearGradient>
+        <clipPath id="clipTop"><path d="M22 16 L118 16 L74 86 L66 86 Z"/></clipPath>
+        <clipPath id="clipBot"><path d="M66 90 L74 90 L118 160 L22 160 Z"/></clipPath>
+      </defs>
+      <g class="flip" style="transform-origin:70px 88px">
+        <rect x="14" y="8" width="112" height="9" rx="4.5" fill="#6C5A93"/>
+        <rect x="14" y="159" width="112" height="9" rx="4.5" fill="#6C5A93"/>
+        <path d="M22 16 L118 16 L74 86 L66 86 Z" fill="url(#gGlass)" stroke="#9FD8E8" stroke-opacity=".5" stroke-width="1.6"/>
+        <path d="M66 90 L74 90 L118 160 L22 160 Z" fill="url(#gGlass)" stroke="#9FD8E8" stroke-opacity=".5" stroke-width="1.6"/>
+        <g clip-path="url(#clipTop)"><rect id="sandTop" x="18" y="16" width="104" height="70" fill="url(#gSand)"/></g>
+        <g clip-path="url(#clipBot)"><rect id="sandBot" x="18" y="160" width="104" height="0" fill="url(#gSand)"/></g>
+        <rect id="stream" x="68.6" y="84" width="2.8" height="0" fill="#F7CE94" opacity="0"/>
+        <path id="crack" d="M70 22 L60 62 L84 78 L62 104 L78 152" fill="none"
+              stroke="#E8657C" stroke-width="2.4" stroke-linecap="round"
+              stroke-dasharray="240" stroke-dashoffset="240" opacity="0"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="remain" id="remainBox">
+    <div class="lbl" id="remainLbl">すなの のこり</div>
+    <div class="val" id="remainVal">--:--</div>
+  </div>
+
+  <div class="picker" id="picker"></div>
+  <button class="go" id="go">すなどけいを ひっくり返す</button>
+  <p class="note" id="note">ひっくり返したら、このページを開いたままにしてください。<br>離れると すなどけいは割れます。<br>戻せるのは、ひっくり返してから10秒だけ。</p>
+
+  <div class="verdict" id="verdict"><h3 id="vTitle"></h3><p id="vBody"></p></div>
+
+  <section class="shelf">
+    <h2>すなどけい棚</h2>
+    <p class="sub">割れたものは、もう ひっくり返せません</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="shelf">
+    <h2>きょうの ながさ</h2>
+    <p class="sub">世界中で、いま我慢できた時間</p>
+    <div class="rank" id="rankList"></div>
+  </section>
+
+  <footer>
+    これは動作確認用の試作です。<br>
+    購入・課金・順位はすべて仮のもので、実際のお金は動きません。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ── すなどけいの種類 ───────────────── */
+  const GLASSES = [
+    { id:"kohaku", name:"こはく",   mins:1,    yen:0,     tone:["#F7CE94","#D9924A"] },
+    { id:"asagiri", name:"あさぎり", mins:60,   yen:1000,  tone:["#CFE9F2","#7FB6C9"] },
+    { id:"yuuyake", name:"ゆうやけ", mins:180,  yen:3000,  tone:["#FFC7A8","#E0766B"] },
+    { id:"tsukiyo", name:"つきよ",   mins:720,  yen:12000, tone:["#C9C4EE","#7E76C0"] },
+    { id:"reimei",  name:"れいめい", mins:1440, yen:24000, tone:["#F6E6B8","#C9A227"] }
+  ];
+  const owned = { kohaku:"ok", asagiri:"ok", yuuyake:"ok", tsukiyo:"ok", reimei:"ok" };
+
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2,"0");
+
+  /* ── 時計 ────────────────────────── */
+  const WD = ["日","月","火","水","木","金","土"];
+  function tickClock(){
+    const d = new Date();
+    $("hm").textContent = pad(d.getHours())+":"+pad(d.getMinutes());
+    $("sec").textContent = pad(d.getSeconds());
+    $("date").textContent = `${d.getMonth()+1}月${d.getDate()}日 ${WD[d.getDay()]}よう日`;
+  }
+  tickClock(); setInterval(tickClock,1000);
+
+  /* ── 状態 ────────────────────────── */
+  let picked = GLASSES[0];
+  let running = false;
+  let startedAt = 0;      // 実時間の開始時刻
+  let targetMs = 0;
+  let raf = 0;
+
+  /* ── 棚 ──────────────────────────── */
+  function hgMini(tone, cracked){
+    return `<svg viewBox="0 0 140 176">
+      <rect x="14" y="8" width="112" height="9" rx="4.5" fill="#6C5A93"/>
+      <rect x="14" y="159" width="112" height="9" rx="4.5" fill="#6C5A93"/>
+      <path d="M22 16 L118 16 L74 86 L66 86 Z" fill="${tone[0]}" fill-opacity=".5" stroke="${tone[0]}" stroke-opacity=".55" stroke-width="2"/>
+      <path d="M66 90 L74 90 L118 160 L22 160 Z" fill="${tone[1]}" fill-opacity=".5" stroke="${tone[0]}" stroke-opacity=".55" stroke-width="2"/>
+      ${cracked?'<path d="M70 22 L58 64 L86 80 L60 108 L80 152" fill="none" stroke="#E8657C" stroke-width="4" stroke-linecap="round"/>':''}
+    </svg>`;
+  }
+  function hhmm(mins){
+    if(mins < 60) return mins+"分";
+    if(mins % 60 === 0) return (mins/60)+"時間";
+    return Math.floor(mins/60)+"時間"+(mins%60)+"分";
+  }
+  function renderShelf(){
+    $("grid").innerHTML = GLASSES.map(g=>{
+      const broken = owned[g.id]==="cracked";
+      return `<div class="card ${broken?'cracked':''}">
+        ${hgMini(g.tone,broken)}
+        <div class="nm">${g.name}</div>
+        <div class="st">${broken?"割れました":hhmm(g.mins)}</div>
+      </div>`;
+    }).join("");
+  }
+  function renderPicker(){
+    $("picker").innerHTML = GLASSES.map(g=>{
+      const broken = owned[g.id]==="cracked";
+      return `<button class="chip" data-id="${g.id}" ${broken?"disabled":""}
+        aria-pressed="${picked.id===g.id}">${g.name}・${hhmm(g.mins)}</button>`;
+    }).join("");
+    $("picker").querySelectorAll(".chip").forEach(b=>{
+      b.onclick = ()=>{
+        if(running) return;
+        picked = GLASSES.find(g=>g.id===b.dataset.id);
+        renderPicker(); resetGlass();
+      };
+    });
+  }
+
+  /* ── 砂時計の描画 ──────────────────── */
+  const TOP_H = 70, BOT_H = 70;
+  function paint(p){ // p: 0=満タン 1=落ちきり
+    const t = Math.max(0,Math.min(1,p));
+    $("sandTop").setAttribute("y", 16 + TOP_H*t);
+    $("sandTop").setAttribute("height", TOP_H*(1-t));
+    $("sandBot").setAttribute("y", 160 - BOT_H*t);
+    $("sandBot").setAttribute("height", BOT_H*t);
+    const st = $("stream");
+    if(running && t>0 && t<1){ st.setAttribute("y",84); st.setAttribute("height",6); st.setAttribute("opacity",".95"); }
+    else st.setAttribute("opacity","0");
+    const g = document.querySelector("#gSand");
+    g.children[0].setAttribute("stop-color", picked.tone[0]);
+    g.children[1].setAttribute("stop-color", picked.tone[1]);
+  }
+  function resetGlass(){
+    paint(0);
+    $("crack").style.opacity = "0";
+    $("crack").style.strokeDashoffset = "240";
+    $("stage").className = "stage idle";
+    $("remainLbl").textContent = "すなの のこり";
+    $("remainVal").textContent = hhmm(picked.mins);
+    $("remainBox").classList.remove("danger");
+  }
+
+  /* ── 進行 ────────────────────────── */
+  function fmt(ms){
+    const s = Math.max(0,Math.ceil(ms/1000));
+    const h = Math.floor(s/3600), m = Math.floor(s%3600/60), ss = s%60;
+    return h>0 ? `${h}:${pad(m)}:${pad(ss)}` : `${pad(m)}:${pad(ss)}`;
+  }
+  function loop(){
+    if(!running) return;
+    const el = Date.now() - startedAt;
+    const left = targetMs - el;
+    if(left <= 0){ succeed(); return; }
+    paint(el/targetMs);
+    $("remainVal").textContent = fmt(left);
+    raf = requestAnimationFrame(loop);
+  }
+
+  const CANCEL_WINDOW = 10000;   // ひっくり返した直後だけ、割らずに戻せる猶予
+  let cancelTimer = 0;
+
+  function flip(){
+    if(running) return;
+    running = true; startedAt = Date.now(); targetMs = picked.mins*60000;
+    $("verdict").classList.remove("show");
+    $("stage").className = "stage flipping";
+    setTimeout(()=>{ if(running) $("stage").className = "stage run"; },900);
+    $("remainLbl").textContent = "のこり";
+    $("remainBox").classList.add("danger");
+    $("go").classList.add("stop");
+    $("go").disabled = false;
+    $("note").textContent = "いま、ここを離れると割れます。";
+    renderPicker();
+    tickCancel();
+    loop();
+  }
+
+  // 戻せるのは最初の10秒だけ。過ぎたら もう降りられない。
+  function tickCancel(){
+    clearTimeout(cancelTimer);
+    if(!running) return;
+    const left = CANCEL_WINDOW - (Date.now() - startedAt);
+    if(left > 0){
+      $("go").textContent = `そっと 置きなおす（${Math.ceil(left/1000)}）`;
+      cancelTimer = setTimeout(tickCancel, 200);
+    }else{
+      $("go").textContent = "もう 戻せません";
+      $("go").disabled = true;
+      $("note").textContent = "落ちきるまで、このページを開いたままにしてください。";
+    }
+  }
+  function canCancel(){ return running && (Date.now() - startedAt) < CANCEL_WINDOW; }
+
+  function stopLoop(){ running = false; cancelAnimationFrame(raf); clearTimeout(cancelTimer); }
+
+  function succeed(){
+    stopLoop(); paint(1);
+    $("stage").className = "stage idle";
+    show("ok","最後まで 落ちきりました", `${picked.name}は無事です。もう一度ひっくり返せます。`);
+    after();
+  }
+  function cancel(){
+    stopLoop();
+    show("ok","置きなおしました", "10秒以内だったので、割れていません。すなを戻しました。");
+    resetGlass(); after();
+  }
+  function breakIt(reason){
+    if(!running) return;
+    const el = Date.now() - startedAt;
+    stopLoop();
+    owned[picked.id] = "cracked";
+    $("stage").className = "stage broken";
+    const c = $("crack");
+    c.style.opacity = "1";
+    c.style.transition = "stroke-dashoffset .55s ease-out";
+    requestAnimationFrame(()=>{ c.style.strokeDashoffset = "0"; });
+    show("ng","割れました", `${fmt(el)} で ${reason}。${picked.name}は棚から取り出せなくなりました。`);
+    after();
+  }
+  function after(){
+    $("go").textContent = "すなどけいを ひっくり返す";
+    $("go").classList.remove("stop");
+    $("go").disabled = false;
+    $("note").textContent = "ひっくり返したら、このページを開いたままに。戻せるのは最初の10秒だけです。";
+    $("remainBox").classList.remove("danger");
+    const next = GLASSES.find(g=>owned[g.id]!=="cracked");
+    if(owned[picked.id]==="cracked" && next) picked = next;
+    renderPicker(); renderShelf();
+    if(owned[picked.id]!=="cracked" && !running) {
+      $("remainLbl").textContent = "すなの のこり";
+      $("remainVal").textContent = hhmm(picked.mins);
+    }
+  }
+  function show(kind,title,body){
+    const v = $("verdict");
+    v.className = "verdict show "+kind;
+    $("vTitle").textContent = title; $("vBody").textContent = body;
+  }
+
+  $("go").onclick = ()=>{
+    if(!running){ flip(); return; }
+    if(canCancel()) cancel();
+  };
+
+  /* ── 離脱の検知 ─────────────────────
+     ここが仕組みの核。iOSでは他アプリへ移動・画面ロック・タブ切替で
+     visibilitychange が hidden になる。pagehide は閉じられる直前。
+     本番ではこの瞬間に sendBeacon でサーバーへ送り、判定はサーバー時刻で行う。 */
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "hidden") breakIt("このページを離れました");
+  });
+  window.addEventListener("pagehide", ()=> breakIt("このページを離れました"));
+  window.addEventListener("blur", ()=>{
+    // 別ウィンドウへ移った場合の保険(タブ内の操作では発火しないよう少し待つ)
+    setTimeout(()=>{ if(document.hidden) breakIt("このページを離れました"); },150);
+  });
+
+  /* ── 順位(仮) ──────────────────── */
+  const RANK = [
+    ["ゆき","23:41"],["Mira","22:08"],["そら","19:52"],
+    ["Léo","17:30"],["あなた","—"],["Kai","14:06"],["なぎ","11:47"]
+  ];
+  $("rankList").innerHTML = RANK.map((r,i)=>
+    `<div class="row ${r[0]==="あなた"?"me":""}"><div class="no">${i+1}</div>
+     <div class="who">${r[0]}</div><div class="hrs">${r[1]}</div></div>`).join("");
+
+  /* ── 背景の砂 ───────────────────── */
+  const cv = $("dust"), cx = cv.getContext("2d");
+  let W,H,grains=[];
+  function sizeDust(){
+    W = cv.width = innerWidth; H = cv.height = innerHeight;
+    grains = Array.from({length:Math.min(70,Math.floor(W/9))},()=>({
+      x:Math.random()*W, y:Math.random()*H,
+      r:Math.random()*1.4+.4, v:Math.random()*.22+.05, a:Math.random()*.4+.12
+    }));
+  }
+  sizeDust(); addEventListener("resize",sizeDust);
+  (function dust(){
+    cx.clearRect(0,0,W,H);
+    for(const g of grains){
+      g.y += g.v; if(g.y>H){ g.y=-4; g.x=Math.random()*W; }
+      cx.beginPath(); cx.arc(g.x,g.y,g.r,0,7);
+      cx.fillStyle = `rgba(242,184,114,${g.a})`; cx.fill();
+    }
+    requestAnimationFrame(dust);
+  })();
+
+  renderPicker(); renderShelf(); resetGlass();
+})();
+</script>
+</body>
+</html>
