@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>いちにち時計</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --kami:#F1EFF7;      /* 紙 */
+    --shiro:#FFFFFF;
+    --sumi:#2A2438;      /* 墨(すみれ寄り) */
+    --usu:#7C7391;
+    --kasumi:#E2DDEE;
+    --hari:#6C5CE7;      /* 針 */
+    --yoru:#DAD4EC;      /* 夜の帯 */
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;padding:0 18px calc(40px + env(safe-area-inset-bottom));
+    background:var(--kami);color:var(--sumi);
+    font-family:"Zen Kaku Gothic New",system-ui,sans-serif;
+    min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+  }
+  .wrap{width:100%;max-width:440px}
+
+  header{text-align:center;padding:26px 0 6px}
+  header h1{
+    margin:0;font-family:"Kiwi Maru",serif;font-weight:500;
+    font-size:19px;letter-spacing:.14em
+  }
+  header p{margin:6px 0 0;font-size:11.5px;color:var(--usu);letter-spacing:.06em}
+
+  /* ── 文字盤 ───────────────────────── */
+  .dialbox{position:relative;width:100%;aspect-ratio:1;margin-top:6px}
+  svg.dial{width:100%;height:100%;display:block;overflow:visible}
+  .seg{cursor:pointer;transition:opacity .15s}
+  .seg:hover{opacity:.82}
+  .segLabel{font-family:"Kiwi Maru",serif;font-size:11px;fill:#3A3350;pointer-events:none}
+  .hourTxt{font-size:9.5px;fill:var(--usu);font-weight:500}
+  .hourTxt.major{font-size:12px;fill:var(--sumi);font-weight:700}
+
+  .center{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;text-align:center
+  }
+  .center .now{font-size:10.5px;color:var(--usu);letter-spacing:.2em}
+  .center .act{
+    font-family:"Kiwi Maru",serif;font-size:clamp(19px,6.4vw,25px);
+    margin:3px 0 2px;max-width:44%;line-height:1.3
+  }
+  .center .clk{font-size:12.5px;color:var(--usu);font-variant-numeric:tabular-nums;letter-spacing:.06em}
+  .center .left{
+    margin-top:7px;font-size:10.5px;color:var(--hari);
+    background:rgba(108,92,231,.09);padding:4px 10px;border-radius:99px
+  }
+
+  /* ── 一覧 ─────────────────────────── */
+  section{margin-top:26px}
+  h2{margin:0 0 3px;font-family:"Kiwi Maru",serif;font-size:14px;font-weight:500;letter-spacing:.08em}
+  .sub{margin:0 0 12px;font-size:11px;color:var(--usu)}
+
+  .item{
+    display:flex;align-items:center;gap:11px;background:var(--shiro);
+    border-radius:15px;padding:11px 13px;margin-bottom:8px;
+    box-shadow:0 1px 3px rgba(42,36,56,.05)
+  }
+  .item.on{outline:2px solid var(--hari);outline-offset:-2px}
+  .dot{width:13px;height:13px;border-radius:4px;flex-shrink:0}
+  .item .nm{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .tm{font-size:11.5px;color:var(--usu);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .item .dur{font-size:10.5px;color:var(--usu);white-space:nowrap;min-width:44px;text-align:right}
+  .x{border:none;background:none;color:var(--usu);font-size:17px;cursor:pointer;padding:2px 4px;line-height:1}
+
+  /* ── 追加 ─────────────────────────── */
+  .form{background:var(--shiro);border-radius:17px;padding:14px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:9px}
+  .row:last-child{margin-bottom:0}
+  input[type=text],input[type=time]{
+    font-family:inherit;font-size:14px;padding:10px 12px;border-radius:11px;
+    border:1px solid var(--kasumi);background:#FBFAFE;color:var(--sumi);
+    outline:none;min-width:0;flex:1
+  }
+  input:focus{border-color:var(--hari)}
+  .tilde{color:var(--usu);font-size:12px;flex-shrink:0}
+  .swatches{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .sw{width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer;padding:0}
+  .sw[aria-pressed="true"]{border-color:var(--sumi)}
+  .add{
+    width:100%;font-family:"Kiwi Maru",serif;font-size:14px;padding:13px;
+    border-radius:13px;border:none;background:var(--hari);color:#fff;cursor:pointer
+  }
+  .add:disabled{opacity:.4;cursor:not-allowed}
+  .warn{margin:9px 0 0;font-size:11px;color:#C2410C;min-height:14px}
+
+  .tools{display:flex;gap:8px;margin-top:12px}
+  .tool{
+    flex:1;font-size:12px;padding:11px;border-radius:12px;cursor:pointer;
+    background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit
+  }
+  footer{margin-top:30px;text-align:center;font-size:10.5px;color:#A69FB8;line-height:1.9}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>いちにち時計</h1>
+    <p>ひとまわりで24時間。針がいまを指します</p>
+  </header>
+
+  <div class="dialbox">
+    <svg class="dial" id="dial" viewBox="0 0 400 400"></svg>
+    <div class="center">
+      <div class="now">いま</div>
+      <div class="act" id="actNow">—</div>
+      <div class="clk" id="clkNow">--:--</div>
+      <div class="left" id="leftNow" style="display:none"></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>よてい</h2>
+    <p class="sub" id="totalTxt"></p>
+    <div id="list"></div>
+  </section>
+
+  <section>
+    <h2>あたらしく 足す</h2>
+    <p class="sub">日をまたぐ時間(23:00〜6:00 など)も入れられます</p>
+    <div class="form">
+      <div class="row">
+        <input type="text" id="fName" maxlength="8" placeholder="なまえ(例: 勉強)">
+      </div>
+      <div class="row">
+        <input type="time" id="fFrom" value="09:00">
+        <span class="tilde">〜</span>
+        <input type="time" id="fTo" value="12:00">
+      </div>
+      <div class="row"><div class="swatches" id="swatches"></div></div>
+      <button class="add" id="addBtn">足す</button>
+      <p class="warn" id="warn"></p>
+    </div>
+    <div class="tools">
+      <button class="tool" id="resetBtn">見本にもどす</button>
+      <button class="tool" id="clearBtn">ぜんぶ消す</button>
+    </div>
+  </section>
+
+  <footer>
+    予定はこの端末に保存されます。<br>
+    ほかの人には見えません。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const COLORS = ["#A5B4FC","#F9A8D4","#86EFAC","#FDBA74","#FDE047","#7DD3FC","#C4B5FD","#FCA5A5"];
+  const SAMPLE = [
+    { name:"睡眠",   from:1380, to:360,  color:"#A5B4FC" },  // 23:00-6:00
+    { name:"朝じたく", from:360,  to:480,  color:"#7DD3FC" },
+    { name:"仕事",   from:510,  to:1050, color:"#F9A8D4" },
+    { name:"夕はん",  from:1080, to:1140, color:"#FDBA74" },
+    { name:"じゆう",  from:1140, to:1320, color:"#FDE047" },
+    { name:"おふろ",  from:1320, to:1380, color:"#C4B5FD" }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2,"0");
+  const toHM = m => pad(Math.floor(m/60)%24)+":"+pad(m%60);
+  const fromHM = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+
+  /* ── 保存(使えない環境でも落ちないように) ── */
+  const store = {
+    load(){
+      try{ const v = localStorage.getItem("ichinichi"); return v ? JSON.parse(v) : null; }
+      catch(e){ return null; }
+    },
+    save(v){ try{ localStorage.setItem("ichinichi", JSON.stringify(v)); }catch(e){} }
+  };
+
+  let items = store.load() || SAMPLE.slice();
+  let pickedColor = COLORS[0];
+  let selected = -1;
+
+  /* ── 円の計算 ─────────────────────── */
+  const CX = 200, CY = 200, R_OUT = 158, R_IN = 92, R_HOUR = 178;
+  const toXY = (r, mins) => {
+    const a = (mins/1440)*Math.PI*2 - Math.PI/2;   // 0:00 を真上に
+    return [CX + r*Math.cos(a), CY + r*Math.sin(a)];
+  };
+  function arcPath(from, to){
+    // 日をまたぐ場合は呼び出し側で分割済み
+    const span = to - from;
+    const big = span > 720 ? 1 : 0;
+    const [x1,y1] = toXY(R_OUT, from), [x2,y2] = toXY(R_OUT, to);
+    const [x3,y3] = toXY(R_IN,  to),   [x4,y4] = toXY(R_IN,  from);
+    return `M${x1} ${y1} A${R_OUT} ${R_OUT} 0 ${big} 1 ${x2} ${y2}
+            L${x3} ${y3} A${R_IN} ${R_IN} 0 ${big} 0 ${x4} ${y4} Z`;
+  }
+  // 日またぎを 0時で切って、描ける区間の配列にする
+  function pieces(it){
+    return it.from <= it.to
+      ? [[it.from, it.to]]
+      : [[it.from, 1440],[0, it.to]];
+  }
+  const durOf = it => it.from <= it.to ? it.to - it.from : (1440 - it.from) + it.to;
+  const contains = (it, m) => it.from <= it.to
+    ? (m >= it.from && m < it.to)
+    : (m >= it.from || m < it.to);
+
+  /* ── 描画 ─────────────────────────── */
+  function drawDial(){
+    const nowM = curMin();
+    let s = "";
+
+    // 夜の帯(18時〜6時)をうっすら敷く
+    s += `<circle cx="${CX}" cy="${CY}" r="${(R_OUT+R_IN)/2}" fill="none"
+           stroke="var(--yoru)" stroke-width="${R_OUT-R_IN}" opacity=".45"/>`;
+    s += `<path d="${arcPath(360,1080)}" fill="#FFFFFF" opacity=".75"/>`;
+
+    // 予定
+    items.forEach((it, i) => {
+      pieces(it).forEach(([a,b]) => {
+        if(b - a < 1) return;
+        s += `<path class="seg" data-i="${i}" d="${arcPath(a,b)}" fill="${it.color}"
+               stroke="var(--kami)" stroke-width="2"
+               opacity="${selected===i?1:.92}"/>`;
+      });
+      // 名前は一番長い区間の真ん中に置く
+      const seg = pieces(it).sort((p,q)=>(q[1]-q[0])-(p[1]-p[0]))[0];
+      if(seg[1]-seg[0] >= 45){
+        const [tx,ty] = toXY((R_OUT+R_IN)/2, (seg[0]+seg[1])/2);
+        s += `<text class="segLabel" x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle">${esc(it.name)}</text>`;
+      }
+    });
+
+    // 目盛りと数字
+    for(let h=0; h<24; h++){
+      const m = h*60, major = h%6===0;
+      const [ax,ay] = toXY(R_OUT+3, m), [bx,by] = toXY(R_OUT+(major?11:7), m);
+      s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"
+             stroke="${major?'var(--sumi)':'var(--kasumi)'}" stroke-width="${major?2:1.4}" stroke-linecap="round"/>`;
+      const [tx,ty] = toXY(R_HOUR, m);
+      s += `<text class="hourTxt ${major?'major':''}" x="${tx}" y="${ty}"
+             text-anchor="middle" dominant-baseline="middle">${h}</text>`;
+    }
+
+    // 針(1日で一周)
+    const [hx,hy] = toXY(R_OUT-6, nowM);
+    s += `<line x1="${CX}" y1="${CY}" x2="${hx}" y2="${hy}" stroke="var(--hari)"
+           stroke-width="2.6" stroke-linecap="round"/>`;
+    s += `<circle cx="${hx}" cy="${hy}" r="5" fill="var(--hari)"/>`;
+    s += `<circle cx="${CX}" cy="${CY}" r="4.5" fill="var(--hari)"/>`;
+
+    $("dial").innerHTML = s;
+    $("dial").querySelectorAll(".seg").forEach(el=>{
+      el.onclick = ()=>{ selected = selected===+el.dataset.i ? -1 : +el.dataset.i; render(); };
+    });
+  }
+  const esc = s => String(s).replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+  function curMin(){
+    const d = new Date();
+    return d.getHours()*60 + d.getMinutes() + d.getSeconds()/60;
+  }
+
+  function drawList(){
+    const nowM = curMin();
+    const sorted = items.map((it,i)=>({it,i})).sort((a,b)=>a.it.from-b.it.from);
+    $("list").innerHTML = sorted.map(({it,i})=>{
+      const d = durOf(it), h = Math.floor(d/60), mm = d%60;
+      return `<div class="item ${selected===i?'on':''}" data-i="${i}">
+        <span class="dot" style="background:${it.color}"></span>
+        <span class="nm">${esc(it.name)}</span>
+        <span class="tm">${toHM(it.from)}〜${toHM(it.to)}</span>
+        <span class="dur">${h?h+"時間":""}${mm?mm+"分":(h?"":"0分")}</span>
+        <button class="x" data-del="${i}" aria-label="消す">×</button>
+      </div>`;
+    }).join("") || `<p class="sub">まだ何も入っていません</p>`;
+
+    $("list").querySelectorAll("[data-del]").forEach(b=>{
+      b.onclick = e=>{ e.stopPropagation(); items.splice(+b.dataset.del,1); selected=-1; commit(); };
+    });
+    $("list").querySelectorAll(".item").forEach(el=>{
+      el.onclick = ()=>{ selected = selected===+el.dataset.i ? -1 : +el.dataset.i; render(); };
+    });
+
+    const used = items.reduce((s,it)=>s+durOf(it),0);
+    const free = Math.max(0, 1440-used);
+    $("totalTxt").textContent =
+      `うまっている ${Math.floor(used/60)}時間${pad(used%60)}分 ／ あいている ${Math.floor(free/60)}時間${pad(free%60)}分`;
+  }
+
+  function drawNow(){
+    const nowM = curMin();
+    const d = new Date();
+    $("clkNow").textContent = pad(d.getHours())+":"+pad(d.getMinutes());
+    const cur = items.find(it=>contains(it, nowM));
+    $("actNow").textContent = cur ? cur.name : "よてい なし";
+    if(cur){
+      const end = cur.to;
+      let left = (end - nowM + 1440) % 1440;
+      const h = Math.floor(left/60), m = Math.floor(left%60);
+      $("leftNow").style.display = "";
+      $("leftNow").textContent = `あと ${h?h+"時間":""}${m}分`;
+    }else{
+      $("leftNow").style.display = "none";
+    }
+  }
+
+  function render(){ drawDial(); drawList(); drawNow(); }
+  function commit(){ store.save(items); render(); }
+
+  /* ── 追加 ─────────────────────────── */
+  $("swatches").innerHTML = COLORS.map(c=>
+    `<button class="sw" style="background:${c}" data-c="${c}" aria-pressed="${c===pickedColor}"></button>`).join("");
+  $("swatches").querySelectorAll(".sw").forEach(b=>{
+    b.onclick = ()=>{
+      pickedColor = b.dataset.c;
+      $("swatches").querySelectorAll(".sw").forEach(x=>x.setAttribute("aria-pressed", x.dataset.c===pickedColor));
+    };
+  });
+
+  $("addBtn").onclick = ()=>{
+    const name = $("fName").value.trim().slice(0,8);
+    const from = fromHM($("fFrom").value), to = fromHM($("fTo").value);
+    $("warn").textContent = "";
+    if(!name){ $("warn").textContent = "なまえを入れてください"; return; }
+    if(from === to){ $("warn").textContent = "はじまりと おわりが同じです"; return; }
+
+    const nw = { name, from, to, color: pickedColor };
+    const clash = items.find(it => overlaps(it, nw));
+    if(clash){ $("warn").textContent = `「${clash.name}」と重なっています`; return; }
+
+    items.push(nw);
+    $("fName").value = "";
+    commit();
+  };
+  // 分単位で重なりを見る(日またぎも正しく判定する)
+  function overlaps(a,b){
+    for(let m=0;m<1440;m++) if(contains(a,m) && contains(b,m)) return true;
+    return false;
+  }
+
+  $("resetBtn").onclick = ()=>{ items = SAMPLE.slice(); selected=-1; commit(); };
+  $("clearBtn").onclick = ()=>{ items = []; selected=-1; commit(); };
+
+  render();
+  setInterval(()=>{ drawDial(); drawNow(); }, 1000);
+})();
+</script>
+</body>
+</html>
