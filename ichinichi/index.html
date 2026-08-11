@@ -38,7 +38,7 @@
   svg.dial{width:100%;height:100%;display:block;overflow:visible}
   .seg{cursor:pointer;transition:opacity .15s}
   .seg:hover{opacity:.82}
-  .segLabel{font-family:"Kiwi Maru",serif;font-size:11px;fill:#3A3350;pointer-events:none}
+  .segLabel{font-family:"Kiwi Maru",serif;fill:#3A3350;pointer-events:none;letter-spacing:.02em}
   .hourTxt{font-size:9.5px;fill:var(--usu);font-weight:500}
   .hourTxt.major{font-size:12px;fill:var(--sumi);font-weight:700}
 
@@ -79,7 +79,8 @@
   .row{display:flex;gap:8px;align-items:center;margin-bottom:9px}
   .row:last-child{margin-bottom:0}
   input[type=text],input[type=time]{
-    font-family:inherit;font-size:14px;padding:10px 12px;border-radius:11px;
+    /* iOSは16px未満の入力欄にカーソルが入ると勝手に拡大する。16pxにして止める */
+    font-family:inherit;font-size:16px;padding:10px 12px;border-radius:11px;
     border:1px solid var(--kasumi);background:#FBFAFE;color:var(--sumi);
     outline:none;min-width:0;flex:1
   }
@@ -232,11 +233,20 @@
                stroke="var(--kami)" stroke-width="2"
                opacity="${selected===i?1:.92}"/>`;
       });
-      // 名前は一番長い区間の真ん中に置く
+      // 名前は一番長い区間の真ん中に、円に沿って傾けて置く。
+      // 横書きのままだと細い区間(30分など)には収まらないが、
+      // 半径の向きに寝かせればドーナツの厚み(66px)を使えるので入る。
       const seg = pieces(it).sort((p,q)=>(q[1]-q[0])-(p[1]-p[0]))[0];
-      if(seg[1]-seg[0] >= 45){
-        const [tx,ty] = toXY((R_OUT+R_IN)/2, (seg[0]+seg[1])/2);
-        s += `<text class="segLabel" x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle">${esc(it.name)}</text>`;
+      const span = seg[1] - seg[0];
+      if(span >= 18){
+        const mid = (seg[0]+seg[1])/2;
+        const [tx,ty] = toXY((R_OUT+R_IN)/2, mid);
+        const deg = (mid/1440)*360;                    // 0時が真上、時計回り
+        const rot = deg > 180 ? deg + 90 : deg - 90;   // 左半分は反転させて逆さ字を防ぐ
+        const fs = span < 40 ? 9.5 : span < 70 ? 10.5 : 11.5;
+        s += `<text class="segLabel" x="${tx}" y="${ty}" font-size="${fs}"
+               transform="rotate(${rot.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})"
+               text-anchor="middle" dominant-baseline="middle">${esc(it.name)}</text>`;
       }
     });
 
