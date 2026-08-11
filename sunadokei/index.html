@@ -115,6 +115,24 @@
   .row .hrs{font-variant-numeric:tabular-nums;color:var(--usu);font-size:11.5px}
   .row.me{background:rgba(242,184,114,.07);border-radius:9px;border-bottom-color:transparent}
 
+  .namerow{display:flex;gap:8px}
+  .namerow input{
+    /* iOSの自動拡大を防ぐため16px以上にする */
+    flex:1;min-width:0;font-family:"Zen Maru Gothic",serif;font-size:16px;
+    padding:11px 14px;border-radius:13px;background:rgba(245,239,230,.06);
+    color:var(--kinari);border:1px solid var(--kasumi);outline:none
+  }
+  .namerow input:focus{border-color:var(--suna)}
+  .mini{
+    font-family:"Zen Maru Gothic",serif;font-weight:700;font-size:13px;
+    padding:11px 16px;border-radius:13px;border:none;cursor:pointer;
+    background:var(--suna);color:#2A1B08;flex-shrink:0
+  }
+  .hint{margin:8px 0 0;font-size:11px;color:var(--usu);min-height:15px}
+  .buy{margin-top:9px;width:100%;font-family:"Zen Maru Gothic",serif;font-weight:700;font-size:13px;
+    padding:12px;border-radius:14px;cursor:pointer;background:transparent;
+    color:var(--garasu);border:1px solid rgba(159,216,232,.4)}
+  .buy:disabled{opacity:.4;cursor:not-allowed}
   footer{margin-top:28px;font-size:10.5px;color:rgba(245,239,230,.3);text-align:center;line-height:1.9}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -168,6 +186,7 @@
   <button class="go" id="go">すなどけいを ひっくり返す</button>
   <p class="note" id="note">ひっくり返したら、このページを開いたままにしてください。<br>離れると すなどけいは割れます。<br>戻せるのは、ひっくり返してから10秒だけ。</p>
 
+  <button class="buy" id="buyBtn" style="max-width:300px;display:none"></button>
   <div class="verdict" id="verdict"><h3 id="vTitle"></h3><p id="vBody"></p></div>
 
   <section class="shelf">
@@ -177,8 +196,18 @@
   </section>
 
   <section class="shelf">
-    <h2>きょうの ながさ</h2>
-    <p class="sub">世界中で、いま我慢できた時間</p>
+    <h2>なまえ</h2>
+    <p class="sub">ランキングに出る名前です</p>
+    <div class="namerow">
+      <input id="nameInput" maxlength="12" placeholder="なまえ" autocomplete="off">
+      <button class="mini" id="nameSave">きめる</button>
+    </div>
+    <p class="hint" id="nameHint"></p>
+  </section>
+
+  <section class="shelf">
+    <h2>いちばん ながく 我慢した人</h2>
+    <p class="sub" id="rankSub">読み込み中…</p>
     <div class="rank" id="rankList"></div>
   </section>
 
@@ -188,6 +217,12 @@
   </footer>
 </div>
 
+<script>
+  /* ここにサーバーの住所を入れると、名前・ランキング・課金が有効になります。
+     空のままなら、これまで通りブラウザの中だけで動きます。
+     例: window.SUNADOKEI_API = "https://sunadokei-xxxx.onrender.com"; */
+  window.SUNADOKEI_API = "";
+</script>
 <script>
 (function(){
   "use strict";
@@ -319,6 +354,8 @@
     $("note").textContent = "いま、ここを離れると割れます。";
     renderPicker();
     tickCancel();
+    api("/api/start", { glassId: picked.id });
+    startBeat();
     loop();
   }
 
@@ -338,15 +375,16 @@
   }
   function canCancel(){ return running && (Date.now() - startedAt) < CANCEL_WINDOW; }
 
-  function stopLoop(){ running = false; cancelAnimationFrame(raf); clearTimeout(cancelTimer); }
+  function stopLoop(){ running = false; cancelAnimationFrame(raf); clearTimeout(cancelTimer); stopBeat(); }
 
   function succeed(){
-    stopLoop(); paint(1);
+    api("/api/beat", {}); stopLoop(); paint(1);
     $("stage").className = "stage idle";
     show("ok","最後まで 落ちきりました", `${picked.name}は無事です。もう一度ひっくり返せます。`);
     after();
   }
   function cancel(){
+    api("/api/cancel", {});
     stopLoop();
     show("ok","置きなおしました", "10秒以内だったので、割れていません。すなを戻しました。");
     resetGlass(); after();
@@ -354,6 +392,11 @@
   function breakIt(reason){
     if(!running) return;
     const el = Date.now() - startedAt;
+    if(navigator.sendBeacon && API && token){
+      // 離脱の瞬間は通常の通信が間に合わないことがあるため sendBeacon で送る
+      navigator.sendBeacon(API + "/api/leave?t=" + encodeURIComponent(token));
+    }
+    api("/api/leave", {});
     stopLoop();
     owned[picked.id] = "cracked";
     $("stage").className = "stage broken";
@@ -372,7 +415,7 @@
     $("remainBox").classList.remove("danger");
     const next = GLASSES.find(g=>owned[g.id]!=="cracked");
     if(owned[picked.id]==="cracked" && next) picked = next;
-    renderPicker(); renderShelf();
+    renderPicker(); renderShelf(); loadRank();
     if(owned[picked.id]!=="cracked" && !running) {
       $("remainLbl").textContent = "すなの のこり";
       $("remainVal").textContent = hhmm(picked.mins);
@@ -402,14 +445,87 @@
     setTimeout(()=>{ if(document.hidden) breakIt("このページを離れました"); },150);
   });
 
-  /* ── 順位(仮) ──────────────────── */
-  const RANK = [
-    ["ゆき","23:41"],["Mira","22:08"],["そら","19:52"],
-    ["Léo","17:30"],["あなた","—"],["Kai","14:06"],["なぎ","11:47"]
-  ];
-  $("rankList").innerHTML = RANK.map((r,i)=>
-    `<div class="row ${r[0]==="あなた"?"me":""}"><div class="no">${i+1}</div>
-     <div class="who">${r[0]}</div><div class="hrs">${r[1]}</div></div>`).join("");
+  /* ── サーバーとのやりとり ─────────────
+     判定はすべてサーバー側。ここでの表示は見た目だけで、
+     割れた/完走したの結論はサーバーの返事に従う。 */
+  const API = window.SUNADOKEI_API || "";     // 未設定ならローカル動作のまま
+  let token = null, myName = "";
+  let beatTimer = 0;
+
+  async function api(path, body){
+    if(!API) return null;
+    try{
+      const r = await fetch(API + path, {
+        method: body ? "POST" : "GET",
+        headers: Object.assign({"Content-Type":"application/json"}, token ? {"X-Token":token} : {}),
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if(!r.ok) return null;
+      return await r.json();
+    }catch(e){ return null; }
+  }
+
+  async function boot(){
+    if(!API){ $("nameHint").textContent = "いまは本体だけで動いています(記録は残りません)"; loadRank(); return; }
+    token = sessionStorageSafe("get");
+    let me = token ? await api("/api/me") : null;
+    if(!me){
+      const r = await api("/api/register", { name: "ななし" });
+      if(r){ token = r.token; sessionStorageSafe("set", token); me = { me: r.me }; }
+    }
+    if(me && me.me){
+      myName = me.me.name;
+      $("nameInput").value = myName;
+      Object.keys(owned).forEach(k => { if(me.me.glasses[k]) owned[k] = me.me.glasses[k]; });
+      renderPicker(); renderShelf();
+    }
+    loadRank();
+  }
+  // localStorage が使えない環境でも落ちないようにする
+  function sessionStorageSafe(op, v){
+    try{
+      if(op==="get") return localStorage.getItem("sunadokei_token");
+      localStorage.setItem("sunadokei_token", v);
+    }catch(e){ return null; }
+  }
+
+  $("nameSave").onclick = async ()=>{
+    const n = $("nameInput").value.trim().slice(0,12);
+    if(!n) return;
+    if(!API){ $("nameHint").textContent = "サーバー未接続のため、名前は保存されません"; return; }
+    const r = await api("/api/rename", { name: n });
+    $("nameHint").textContent = r ? "きめました" : "保存できませんでした";
+    if(r) { myName = r.me.name; loadRank(); }
+  };
+
+  function fmtLong(ms){
+    const s = Math.floor(ms/1000), h = Math.floor(s/3600), m = Math.floor(s%3600/60);
+    return h>0 ? `${h}時間${pad(m)}分` : `${m}分${pad(s%60)}秒`;
+  }
+  async function loadRank(){
+    const r = await api("/api/ranking");
+    if(!r || !r.list){
+      $("rankSub").textContent = API ? "まだ誰も記録がありません" : "サーバーに繋ぐと、世界の記録が出ます";
+      $("rankList").innerHTML = "";
+      return;
+    }
+    $("rankSub").textContent = `${r.players}人が挑戦中`;
+    $("rankList").innerHTML = r.list.length ? r.list.map(x =>
+      `<div class="row ${x.name===myName?"me":""}"><div class="no">${x.rank}</div>
+       <div class="who">${x.name}</div><div class="hrs">${fmtLong(x.bestMs)}</div></div>`).join("")
+      : `<div class="row"><div class="who" style="color:var(--usu)">まだ誰もいません。最初の一人になれます。</div></div>`;
+  }
+
+  function startBeat(){
+    clearInterval(beatTimer);
+    beatTimer = setInterval(async ()=>{
+      if(!running || !API) return;
+      const r = await api("/api/beat", {});
+      if(r && r.state === "broken") breakIt("サーバーが離脱を確認しました");
+      if(r && r.state === "done") succeed();
+    }, 10000);
+  }
+  function stopBeat(){ clearInterval(beatTimer); }
 
   /* ── 背景の砂 ───────────────────── */
   const cv = $("dust"), cx = cv.getContext("2d");
@@ -432,7 +548,24 @@
     requestAnimationFrame(dust);
   })();
 
-  renderPicker(); renderShelf(); resetGlass();
+  function refreshBuy(){
+    const b = $("buyBtn");
+    const g = picked;
+    if(!API || owned[g.id] !== "cracked" || g.yen <= 0){ b.style.display = "none"; return; }
+    b.style.display = "block";
+    b.textContent = `「${g.name}」を買いなおす（¥${g.yen.toLocaleString()}）`;
+    b.disabled = false;
+    b.onclick = async ()=>{
+      b.disabled = true; b.textContent = "決済ページへ…";
+      const r = await api("/api/checkout", { glassId: g.id });
+      if(r && r.url) location.href = r.url;
+      else { b.textContent = "いま買えません"; }
+    };
+  }
+  const _rp = renderPicker;
+  renderPicker = function(){ _rp(); refreshBuy(); };
+
+  renderPicker(); renderShelf(); resetGlass(); boot();
 })();
 </script>
 </body>
