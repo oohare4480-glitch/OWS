@@ -33,14 +33,11 @@
   }
   header p{margin:6px 0 0;font-size:11.5px;color:var(--usu);letter-spacing:.06em}
 
-  /* ── 文字盤 ───────────────────────── */
   .dialbox{position:relative;width:100%;aspect-ratio:1;margin-top:6px}
   svg.dial{width:100%;height:100%;display:block;overflow:visible;touch-action:none}
   .ring{cursor:grab}
   .dialbox.turning .ring{cursor:grabbing}
-  .turnHint{
-    margin:9px 0 0;text-align:center;font-size:11px;color:var(--usu);letter-spacing:.04em
-  }
+  .turnHint{margin:9px 0 0;text-align:center;font-size:11px;color:var(--usu);letter-spacing:.04em}
   .turnHint b{color:var(--hari);font-weight:700;font-variant-numeric:tabular-nums}
   .seg{cursor:pointer;transition:opacity .15s}
   .seg:hover{opacity:.82}
@@ -48,31 +45,17 @@
   .hourTxt{font-size:9.5px;fill:var(--usu);font-weight:500}
   .hourTxt.major{font-size:12px;fill:var(--sumi);font-weight:700}
 
-  .center{
-    position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;pointer-events:none;text-align:center
-  }
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
   .center .now{font-size:10.5px;color:var(--usu);letter-spacing:.2em}
-  .center .act{
-    font-family:"Kiwi Maru",serif;font-size:clamp(19px,6.4vw,25px);
-    margin:3px 0 2px;max-width:44%;line-height:1.3
-  }
+  .center .act{font-family:"Kiwi Maru",serif;font-size:clamp(19px,6.4vw,25px);margin:3px 0 2px;max-width:44%;line-height:1.3}
   .center .clk{font-size:12.5px;color:var(--usu);font-variant-numeric:tabular-nums;letter-spacing:.06em}
-  .center .left{
-    margin-top:7px;font-size:10.5px;color:var(--hari);
-    background:rgba(108,92,231,.09);padding:4px 10px;border-radius:99px
-  }
+  .center .left{margin-top:7px;font-size:10.5px;color:var(--hari);background:rgba(108,92,231,.09);padding:4px 10px;border-radius:99px}
 
-  /* ── 一覧 ─────────────────────────── */
   section{margin-top:26px}
   h2{margin:0 0 3px;font-family:"Kiwi Maru",serif;font-size:14px;font-weight:500;letter-spacing:.08em}
   .sub{margin:0 0 12px;font-size:11px;color:var(--usu)}
 
-  .item{
-    display:flex;align-items:center;gap:11px;background:var(--shiro);
-    border-radius:15px;padding:11px 13px;margin-bottom:8px;
-    box-shadow:0 1px 3px rgba(42,36,56,.05)
-  }
+  .item{display:flex;align-items:center;gap:11px;background:var(--shiro);border-radius:15px;padding:11px 13px;margin-bottom:8px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
   .item.on{outline:2px solid var(--hari);outline-offset:-2px}
   .dot{width:13px;height:13px;border-radius:4px;flex-shrink:0}
   .item .nm{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -80,12 +63,10 @@
   .item .dur{font-size:10.5px;color:var(--usu);white-space:nowrap;min-width:44px;text-align:right}
   .x{border:none;background:none;color:var(--usu);font-size:17px;cursor:pointer;padding:2px 4px;line-height:1}
 
-  /* ── 追加 ─────────────────────────── */
   .form{background:var(--shiro);border-radius:17px;padding:14px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
   .row{display:flex;gap:8px;align-items:center;margin-bottom:9px}
   .row:last-child{margin-bottom:0}
   input[type=text],input[type=time],input[type=date]{
-    /* iOSは16px未満の入力欄にカーソルが入ると勝手に拡大する。16pxにして止める */
     font-family:inherit;font-size:16px;padding:10px 12px;border-radius:11px;
     border:1px solid var(--kasumi);background:#FBFAFE;color:var(--sumi);
     outline:none;min-width:0;flex:1
@@ -95,37 +76,20 @@
   .swatches{display:flex;gap:6px;flex-wrap:wrap;flex:1}
   .sw{width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer;padding:0}
   .sw[aria-pressed="true"]{border-color:var(--sumi)}
-  .add{
-    width:100%;font-family:"Kiwi Maru",serif;font-size:14px;padding:13px;
-    border-radius:13px;border:none;background:var(--hari);color:#fff;cursor:pointer
-  }
+  .add{width:100%;font-family:"Kiwi Maru",serif;font-size:14px;padding:13px;border-radius:13px;border:none;background:var(--hari);color:#fff;cursor:pointer}
   .add:disabled{opacity:.4;cursor:not-allowed}
   .warn{margin:9px 0 0;font-size:11px;color:#C2410C;min-height:14px}
 
   .tools{display:flex;gap:8px;margin-top:12px}
-  .toolNote{
-    margin:8px 0 0;text-align:center;font-size:11.5px;color:var(--hari);min-height:15px;
-    opacity:0;transition:opacity .2s
-  }
+  .toolNote{margin:8px 0 0;text-align:center;font-size:11.5px;color:var(--hari);min-height:15px;opacity:0;transition:opacity .2s}
   .toolNote.show{opacity:1}
   .flashList{animation:flashList .6s ease}
-  @keyframes flashList{
-    0%{background:rgba(108,92,231,.14)}
-    100%{background:transparent}
-  }
-  .tool{
-    flex:1;font-size:12px;padding:11px;border-radius:12px;cursor:pointer;
-    background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit;
-    transition:transform .1s, background .15s;touch-action:manipulation
-  }
+  @keyframes flashList{0%{background:rgba(108,92,231,.14)}100%{background:transparent}}
+  .tool{flex:1;font-size:12px;padding:11px;border-radius:12px;cursor:pointer;background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit;transition:transform .1s, background .15s;touch-action:manipulation}
   .tool:active{transform:scale(.96);background:#F3F1FE}
 
-  /* ── やること と カレンダー ───────────── */
   .viewBar{display:flex;gap:6px;margin:14px 0 12px}
-  .vbtn{
-    flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:10px;border-radius:12px;
-    border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer
-  }
+  .vbtn{flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:10px;border-radius:12px;border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer}
   .vbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
   .tool.kbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
   .kindRow{flex-wrap:wrap}
@@ -133,57 +97,31 @@
   .wdaysPick{display:flex;gap:6px;flex-wrap:wrap}
   .wday{width:34px;height:34px;border-radius:10px;border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);font-size:12px;cursor:pointer;font-family:inherit}
   .wday[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
-  .someday{
-    margin:18px 0 8px;font-family:"Kiwi Maru",serif;font-size:12.5px;font-weight:500;
-    color:var(--usu);letter-spacing:.08em
-  }
-  .todo{
-    display:flex;align-items:center;gap:10px;background:var(--shiro);border-radius:14px;
-    padding:11px 13px;margin-bottom:7px;box-shadow:0 1px 3px rgba(42,36,56,.05)
-  }
+  .someday{margin:18px 0 8px;font-family:"Kiwi Maru",serif;font-size:12.5px;font-weight:500;color:var(--usu);letter-spacing:.08em}
+  .todo{display:flex;align-items:center;gap:10px;background:var(--shiro);border-radius:14px;padding:11px 13px;margin-bottom:7px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
   .todo.done{opacity:.45}
   .todo.done .tt{text-decoration:line-through}
-  .chk{
-    width:21px;height:21px;border-radius:7px;border:1.6px solid var(--kasumi);
-    background:var(--shiro);cursor:pointer;flex-shrink:0;padding:0;
-    color:#fff;font-size:12px;line-height:1
-  }
+  .chk{width:21px;height:21px;border-radius:7px;border:1.6px solid var(--kasumi);background:var(--shiro);cursor:pointer;flex-shrink:0;padding:0;color:#fff;font-size:12px;line-height:1}
   .todo.done .chk{background:var(--hari);border-color:var(--hari)}
   .todo .tt{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .todo .td{font-size:11px;color:var(--usu);white-space:nowrap}
   .todo .td.soon{color:#C2410C}
   .todoEmpty{font-size:11.5px;color:var(--usu);padding:4px 2px;margin:0}
-  .todoAdd{
-    font-size:12px;color:var(--hari);text-align:center;padding:10px;
-    border:1.5px dashed var(--kasumi);border-radius:12px;cursor:pointer;margin-top:2px
-  }
+  .todoAdd{font-size:12px;color:var(--hari);text-align:center;padding:10px;border:1.5px dashed var(--kasumi);border-radius:12px;cursor:pointer;margin-top:2px}
   .todoAdd:active{background:#F3F1FE}
 
   .calTools{display:flex;gap:8px;margin-bottom:10px}
-  .calScroll{
-    max-height:60vh;overflow-y:auto;background:var(--shiro);border-radius:16px;
-    padding:4px 12px 12px;box-shadow:0 1px 3px rgba(42,36,56,.05);-webkit-overflow-scrolling:touch
-  }
+  .calScroll{max-height:60vh;overflow-y:auto;background:var(--shiro);border-radius:16px;padding:4px 12px 12px;box-shadow:0 1px 3px rgba(42,36,56,.05);-webkit-overflow-scrolling:touch}
   .mon{margin-top:14px}
   .mon:first-child{margin-top:6px}
-  .monTtl{
-    display:flex;align-items:center;gap:8px;
-    font-family:"Kiwi Maru",serif;font-size:13px;margin:0 0 6px;position:sticky;top:0;
-    background:var(--shiro);padding:8px 0 6px;z-index:1;border-bottom:2px solid var(--hari)
-  }
-  .monTtl .tag{
-    background:var(--hari);color:#fff;font-size:11px;padding:2px 9px;border-radius:99px;
-    flex-shrink:0
-  }
+  .monTtl{display:flex;align-items:center;gap:8px;font-family:"Kiwi Maru",serif;font-size:13px;margin:0 0 6px;position:sticky;top:0;background:var(--shiro);padding:8px 0 6px;z-index:1;border-bottom:2px solid var(--hari)}
+  .monTtl .tag{background:var(--hari);color:#fff;font-size:11px;padding:2px 9px;border-radius:99px;flex-shrink:0}
   .monTtl.thisMon .tag{background:#E0A020}
   .calTbl{width:100%;border-collapse:collapse;font-size:12.5px}
   .calTbl tr td{padding:7px 4px;border-bottom:1px solid var(--kasumi);vertical-align:top}
   .calTbl tr:last-child td{border-bottom:none}
   .calTbl tr{cursor:pointer}
-  .calTbl td.cd{
-    width:78px;flex-shrink:0;color:var(--usu);font-variant-numeric:tabular-nums;
-    white-space:nowrap;padding-right:10px
-  }
+  .calTbl td.cd{width:78px;flex-shrink:0;color:var(--usu);font-variant-numeric:tabular-nums;white-space:nowrap;padding-right:10px}
   .calTbl tr.today td.cd{color:var(--hari);font-weight:700}
   .calTbl tr.today{background:#F6F4FF}
   .calTbl tr.focus{background:#FFF6E4}
@@ -194,27 +132,14 @@
   .calTbl td.ce .none{color:var(--usu);font-size:11.5px}
   .calMonEmpty{font-size:11.5px;color:var(--usu);padding:6px 2px 14px}
 
-  /* ── 集中釣り ───────────────────── */
   #fishSec{margin-top:30px}
-  .pond{
-    position:relative;border-radius:20px;overflow:hidden;
-    background:linear-gradient(180deg,#1E3A5F 0%,#0F2440 100%);
-    min-height:154px;display:flex;align-items:center;justify-content:center
-  }
-  .pond .water{
-    position:absolute;inset:0;
-    background:
-      radial-gradient(60% 40% at 30% 20%, rgba(125,211,252,.16), transparent 70%),
-      radial-gradient(50% 35% at 75% 70%, rgba(165,180,252,.14), transparent 70%);
-  }
+  .pond{position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#1E3A5F 0%,#0F2440 100%);min-height:154px;display:flex;align-items:center;justify-content:center}
+  .pond .water{position:absolute;inset:0;background:radial-gradient(60% 40% at 30% 20%, rgba(125,211,252,.16), transparent 70%),radial-gradient(50% 35% at 75% 70%, rgba(165,180,252,.14), transparent 70%)}
   .pond.casting .water{animation:ripple 5s ease-in-out infinite}
   @keyframes ripple{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
   .pondIn{position:relative;text-align:center;padding:22px 16px;width:100%;z-index:2}
   .pondState{font-size:11px;color:#9FC6E8;letter-spacing:.16em}
-  .pondBig{
-    font-family:"Kiwi Maru",serif;color:#fff;margin:6px 0 3px;
-    font-size:clamp(22px,7vw,28px);line-height:1.25;word-break:break-word
-  }
+  .pondBig{font-family:"Kiwi Maru",serif;color:#fff;margin:6px 0 3px;font-size:clamp(22px,7vw,28px);line-height:1.25;word-break:break-word}
   .pondSub{font-size:12px;color:#9FC6E8;font-variant-numeric:tabular-nums}
   .pond.hooked .pondBig{animation:pop .5s cubic-bezier(.34,1.56,.64,1) both}
   @keyframes pop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
@@ -222,46 +147,26 @@
   .pond.snapped .pondBig{color:#F4A6B8}
 
   .wormPick{display:flex;gap:7px;overflow-x:auto;padding:12px 2px 4px;-webkit-overflow-scrolling:touch}
-  .worm{
-    flex-shrink:0;min-width:78px;padding:9px 10px;border-radius:13px;cursor:pointer;
-    background:var(--shiro);border:1px solid var(--kasumi);text-align:center;font-family:inherit
-  }
+  .worm{flex-shrink:0;min-width:78px;padding:9px 10px;border-radius:13px;cursor:pointer;background:var(--shiro);border:1px solid var(--kasumi);text-align:center;font-family:inherit}
   .worm[aria-pressed="true"]{border-color:var(--hari);background:#F3F1FE}
   .worm .wimg{width:36px;height:36px;display:block;margin:0 auto 3px}
   .worm .wn{font-family:"Kiwi Maru",serif;font-size:12px;display:block}
   .worm .wy{font-size:10.5px;color:var(--usu);display:block;margin-top:2px;font-variant-numeric:tabular-nums}
   .worm .wh{font-size:9.5px;color:var(--hari);display:block;margin-top:1px}
-  .worm .wbag{
-    display:inline-block;margin-top:3px;font-size:9.5px;padding:1px 6px;border-radius:99px;
-    background:#DCF2EF;color:#0F766E
-  }
+  .worm .wbag{display:inline-block;margin-top:3px;font-size:9.5px;padding:1px 6px;border-radius:99px;background:#DCF2EF;color:#0F766E}
 
   .fishBtns{margin-top:10px}
-  .cast,.pull{
-    width:100%;font-family:"Kiwi Maru",serif;font-size:14.5px;padding:14px;
-    border-radius:14px;border:none;cursor:pointer
-  }
+  .cast,.pull{width:100%;font-family:"Kiwi Maru",serif;font-size:14.5px;padding:14px;border-radius:14px;border:none;cursor:pointer}
   .cast{background:#1E3A5F;color:#fff}
   .pull{background:transparent;color:var(--hari);border:1.5px solid var(--hari)}
-  .sell{
-    width:100%;margin-top:8px;font-family:"Kiwi Maru",serif;font-size:13px;padding:12px;
-    border-radius:13px;cursor:pointer;background:transparent;
-    color:#0F766E;border:1.5px solid #5EAAA3
-  }
+  .sell{width:100%;margin-top:8px;font-family:"Kiwi Maru",serif;font-size:13px;padding:12px;border-radius:13px;cursor:pointer;background:transparent;color:#0F766E;border:1.5px solid #5EAAA3}
   .cast:disabled{opacity:.4;cursor:not-allowed}
   .fishNote{margin:9px 0 0;font-size:11px;color:var(--usu);text-align:center;line-height:1.7;min-height:15px}
 
   .creel{margin-top:16px;background:var(--shiro);border-radius:16px;padding:13px}
   .creelHead{display:flex;justify-content:space-between;font-size:11.5px;color:var(--usu);margin-bottom:9px}
-  .creelGrid{
-    display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;
-    -webkit-overflow-scrolling:touch;scrollbar-width:thin
-  }
-  .fishTag{
-    font-size:11px;padding:6px 9px;border-radius:11px;background:#F3F1FE;color:#3A3350;
-    border:1px solid var(--kasumi);flex-shrink:0;white-space:nowrap;
-    display:inline-flex;align-items:center;gap:5px
-  }
+  .creelGrid{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .fishTag{font-size:11px;padding:6px 9px;border-radius:11px;background:#F3F1FE;color:#3A3350;border:1px solid var(--kasumi);flex-shrink:0;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
   .fishTag svg{width:26px;height:15px;flex-shrink:0}
   .fishTag .fn{font-family:"Kiwi Maru",serif}
   .fishTag .mul{font-weight:700;color:var(--hari);margin-left:2px;font-variant-numeric:tabular-nums}
@@ -271,11 +176,7 @@
   .creelEmpty{font-size:11.5px;color:var(--usu)}
 
   .rarityCard{margin-top:10px;background:var(--shiro);border-radius:16px;padding:4px 13px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
-  .rarityToggle{
-    width:100%;display:flex;align-items:center;justify-content:space-between;
-    background:none;border:none;padding:11px 0;font-family:"Kiwi Maru",serif;
-    font-size:12.5px;color:var(--sumi);cursor:pointer
-  }
+  .rarityToggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;padding:11px 0;font-family:"Kiwi Maru",serif;font-size:12.5px;color:var(--sumi);cursor:pointer}
   .rc-arrow{color:var(--usu);font-size:11px;transition:transform .2s}
   .rarityToggle[aria-expanded="true"] .rc-arrow{transform:rotate(180deg)}
   .rarityBody{padding:2px 0 12px}
@@ -288,62 +189,43 @@
   .pond .scene{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   .line{stroke:rgba(255,255,255,.5);stroke-width:1;fill:none}
 
-  /* 糸の先の魚が水面から上がり、ゆらゆら揺れる */
   .hang{animation:hangUp 1.1s cubic-bezier(.25,1.15,.4,1) both}
-  @keyframes hangUp{
-    0%  {transform:translate(226px,124px) scale(.6);opacity:0}
-    25% {opacity:1}
-    100%{transform:translate(214px,56px) scale(1);opacity:1}
-  }
-  .hangSwing{
-    transform-origin:0 -30px;
-    animation:swingFish 2.4s ease-in-out 1.1s infinite
-  }
-  @keyframes swingFish{
-    0%,100%{transform:rotate(-7deg)}
-    50%    {transform:rotate(7deg)}
-  }
-  /* かかった瞬間、糸の先で魚が暴れる */
+  @keyframes hangUp{0%{transform:translate(226px,124px) scale(.6);opacity:0}25%{opacity:1}100%{transform:translate(214px,56px) scale(1);opacity:1}}
+  .hangSwing{transform-origin:0 -30px;transform-box:view-box;animation:swingFish 2.4s ease-in-out 1.1s infinite}
+  @keyframes swingFish{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+  /* 掛かった瞬間、魚の重みで竿先が食い込み → 合わせて一気に持ち上げる。一度きりの動き。 */
+  .rodG.bite{transform-origin:20px 172px;transform-box:view-box;animation:biteBend .55s cubic-bezier(.34,1.4,.5,1) both}
+  @keyframes biteBend{0%{transform:rotate(7deg)}38%{transform:rotate(-13deg)}68%{transform:rotate(-6deg)}100%{transform:rotate(-8deg)}}
   .fightFish{animation:thrash .5s ease-in-out infinite alternate}
-  @keyframes thrash{
-    from{transform:rotate(-18deg)}
-    to  {transform:rotate(16deg)}
-  }
+  @keyframes thrash{from{transform:rotate(-18deg)}to{transform:rotate(16deg)}}
 
-  /* 入水点から波紋がゆっくり広がる。水中のワームは見えない。 */
-  .pond.casting .ripple ellipse{
-    transform-origin:226px 118px;
-    animation:ring 3.3s ease-out infinite
-  }
-  @keyframes ring{
-    0%  {transform:scale(.35);opacity:0}
-    18% {opacity:.9}
-    100%{transform:scale(1.9);opacity:0}}
+  .pond.casting .ripple ellipse{transform-origin:226px 118px;transform-box:view-box;animation:ring 3.3s ease-out infinite}
+  @keyframes ring{0%{transform:scale(.35);opacity:0}18%{opacity:.9}100%{transform:scale(1.9);opacity:0}}
   .bub{fill:rgba(159,198,232,.5)}
   .pond.casting .bub{animation:rise 4s linear infinite}
   .pond.casting .bub:nth-of-type(2){animation-delay:1.3s}
   .pond.casting .bub:nth-of-type(3){animation-delay:2.6s}
-  @keyframes rise{0%{transform:translateY(0);opacity:0}
-    15%{opacity:.7}85%{opacity:.5}100%{transform:translateY(-58px);opacity:0}}
+  @keyframes rise{0%{transform:translateY(0);opacity:0}15%{opacity:.7}85%{opacity:.5}100%{transform:translateY(-58px);opacity:0}}
   .drip{animation:drip .9s ease-in .25s both}
-  @keyframes drip{
-    0%{transform:translate(0,0);opacity:.85}
-    100%{transform:translate(0,34px);opacity:0}}
+  @keyframes drip{0%{transform:translate(0,0);opacity:.85}100%{transform:translate(0,34px);opacity:0}}
   .splash{fill:none;stroke:rgba(255,255,255,.75);stroke-width:2;animation:spread .7s ease-out both}
   @keyframes spread{from{opacity:.9;transform:scale(.3)}to{opacity:0;transform:scale(1.5)}}
 
-  /* ── ページ切り替え(スクロールではなく、上のタブで画面ごと切り替える) ── */
-  .tabbar{
-    position:sticky;top:0;z-index:6;display:flex;gap:6px;
-    background:var(--kami);padding:12px 0 10px;margin-top:2px
-  }
-  .tab{
-    flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:11px 4px;border-radius:12px;
-    border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer
-  }
+  .tabbar{position:sticky;top:0;z-index:6;display:flex;gap:6px;background:var(--kami);padding:12px 0 10px;margin-top:2px}
+  .tab{flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:11px 4px;border-radius:12px;border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer}
   .tab[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
   .page{display:none}
   .page.active{display:block}
+
+  .mysetRow{background:var(--shiro);border-radius:14px;padding:11px 13px;margin-bottom:8px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
+  .mysetTop{display:flex;align-items:center;gap:10px}
+  .mysetTop .nm{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mysetDate{font-size:11px;color:var(--hari);margin-top:3px}
+  .mysetDate.none{color:var(--usu)}
+  .mysetBtns{display:flex;gap:6px;flex-shrink:0}
+  .mbtn{font-size:11px;padding:6px 10px;border-radius:9px;border:1px solid var(--kasumi);background:transparent;color:var(--usu);cursor:pointer;font-family:inherit}
+  .mbtn.use{color:var(--hari);border-color:var(--hari)}
+  .setCount{font-size:10.5px;color:var(--usu);margin:2px 0 10px}
 
   footer{margin-top:30px;text-align:center;font-size:10.5px;color:#A69FB8;line-height:1.9}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -404,6 +286,27 @@
         <button class="tool" id="clearBtn">ぜんぶ消す</button>
       </div>
       <p class="toolNote" id="toolNote"></p>
+    </section>
+
+    <section>
+      <h2>マイセット</h2>
+      <p class="sub" id="setSub">いまの予定を、名前をつけて保存できます（最大30個）</p>
+      <p class="setCount" id="setCount"></p>
+
+      <div id="setList"></div>
+
+      <div class="form" style="margin-top:12px">
+        <div class="row">
+          <input type="text" id="setName" maxlength="10" placeholder="セットの名前(例: 出勤日)">
+        </div>
+        <div class="row">
+          <input type="date" id="setDate">
+          <button class="tool" id="setNoDate" style="flex:0 0 auto">日付なし</button>
+        </div>
+        <p class="sub" style="margin:-3px 0 9px">日付を決めると、その日になったら自動で あてはまります</p>
+        <button class="add" id="setSaveBtn">いまの予定を保存</button>
+        <p class="warn" id="setWarn"></p>
+      </div>
     </section>
 
   </div>
@@ -570,7 +473,6 @@
   const fromHM = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
   const esc = s => String(s).replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
-  /* ── 保存(使えない環境でも落ちないように) ── */
   const store = {
     load(){
       try{ const v = localStorage.getItem("ichinichi"); return v ? JSON.parse(v) : null; }
@@ -582,14 +484,13 @@
   let items = store.load() || SAMPLE.slice();
   let pickedColor = COLORS[0];
   let selected = -1;
-  let turn = 0;          // 回している最中のズレ(分)。離した時に予定へ焼き付ける
+  let turn = 0;
   const wrapMin = m => ((m % 1440) + 1440) % 1440;
   const shifted = it => ({ ...it, from: wrapMin(it.from + turn), to: wrapMin(it.to + turn) });
 
-  /* ── 円の計算 ─────────────────────── */
   const CX = 200, CY = 200, R_OUT = 158, R_IN = 92, R_HOUR = 178;
   const toXY = (r, mins) => {
-    const a = (mins/1440)*Math.PI*2 - Math.PI/2;   // 0:00 を真上に
+    const a = (mins/1440)*Math.PI*2 - Math.PI/2;
     return [CX + r*Math.cos(a), CY + r*Math.sin(a)];
   };
   function arcPath(from, to){
@@ -601,30 +502,20 @@
             L${x3} ${y3} A${R_IN} ${R_IN} 0 ${big} 0 ${x4} ${y4} Z`;
   }
   function pieces(it){
-    return it.from <= it.to
-      ? [[it.from, it.to]]
-      : [[it.from, 1440],[0, it.to]];
+    return it.from <= it.to ? [[it.from, it.to]] : [[it.from, 1440],[0, it.to]];
   }
   const durOf = it => it.from <= it.to ? it.to - it.from : (1440 - it.from) + it.to;
-  const contains = (it, m) => it.from <= it.to
-    ? (m >= it.from && m < it.to)
-    : (m >= it.from || m < it.to);
+  const contains = (it, m) => it.from <= it.to ? (m >= it.from && m < it.to) : (m >= it.from || m < it.to);
 
-  /* ── 描画 ─────────────────────────── */
   function drawDial(){
     const nowM = curMin();
     let s = "";
-
-    s += `<circle class="ring" cx="${CX}" cy="${CY}" r="${(R_OUT+R_IN)/2}" fill="none"
-           stroke="var(--yoru)" stroke-width="${R_OUT-R_IN}" opacity=".45"/>`;
+    s += `<circle class="ring" cx="${CX}" cy="${CY}" r="${(R_OUT+R_IN)/2}" fill="none" stroke="var(--yoru)" stroke-width="${R_OUT-R_IN}" opacity=".45"/>`;
     s += `<path class="ring" d="${arcPath(360,1080)}" fill="#FFFFFF" opacity=".75"/>`;
-
     items.map(shifted).forEach((it, i) => {
       pieces(it).forEach(([a,b]) => {
         if(b - a < 1) return;
-        s += `<path class="seg ring" data-i="${i}" d="${arcPath(a,b)}" fill="${it.color}"
-               stroke="var(--kami)" stroke-width="2"
-               opacity="${selected===i?1:.92}"/>`;
+        s += `<path class="seg ring" data-i="${i}" d="${arcPath(a,b)}" fill="${it.color}" stroke="var(--kami)" stroke-width="2" opacity="${selected===i?1:.92}"/>`;
       });
       const seg = pieces(it).sort((p,q)=>(q[1]-q[0])-(p[1]-p[0]))[0];
       const span = seg[1] - seg[0];
@@ -634,28 +525,20 @@
         const deg = (mid/1440)*360;
         const rot = deg > 180 ? deg + 90 : deg - 90;
         const fs = span < 40 ? 9.5 : span < 70 ? 10.5 : 11.5;
-        s += `<text class="segLabel" x="${tx}" y="${ty}" font-size="${fs}"
-               transform="rotate(${rot.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})"
-               text-anchor="middle" dominant-baseline="middle">${esc(it.name)}</text>`;
+        s += `<text class="segLabel" x="${tx}" y="${ty}" font-size="${fs}" transform="rotate(${rot.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})" text-anchor="middle" dominant-baseline="middle">${esc(it.name)}</text>`;
       }
     });
-
     for(let h=0; h<24; h++){
       const m = h*60, major = h%6===0;
       const [ax,ay] = toXY(R_OUT+3, m), [bx,by] = toXY(R_OUT+(major?11:7), m);
-      s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"
-             stroke="${major?'var(--sumi)':'var(--kasumi)'}" stroke-width="${major?2:1.4}" stroke-linecap="round"/>`;
+      s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${major?'var(--sumi)':'var(--kasumi)'}" stroke-width="${major?2:1.4}" stroke-linecap="round"/>`;
       const [tx,ty] = toXY(R_HOUR, m);
-      s += `<text class="hourTxt ${major?'major':''}" x="${tx}" y="${ty}"
-             text-anchor="middle" dominant-baseline="middle">${h}</text>`;
+      s += `<text class="hourTxt ${major?'major':''}" x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle">${h}</text>`;
     }
-
     const [hx,hy] = toXY(R_OUT-6, nowM);
-    s += `<line x1="${CX}" y1="${CY}" x2="${hx}" y2="${hy}" stroke="var(--hari)"
-           stroke-width="2.6" stroke-linecap="round"/>`;
+    s += `<line x1="${CX}" y1="${CY}" x2="${hx}" y2="${hy}" stroke="var(--hari)" stroke-width="2.6" stroke-linecap="round"/>`;
     s += `<circle cx="${hx}" cy="${hy}" r="5" fill="var(--hari)"/>`;
     s += `<circle cx="${CX}" cy="${CY}" r="4.5" fill="var(--hari)"/>`;
-
     $("dial").innerHTML = s;
     $("dial").querySelectorAll(".seg").forEach(el=>{
       el.onclick = ()=>{ selected = selected===+el.dataset.i ? -1 : +el.dataset.i; render(); };
@@ -679,18 +562,15 @@
         <button class="x" data-del="${i}" aria-label="消す">×</button>
       </div>`;
     }).join("") || `<p class="sub">まだ何も入っていません</p>`;
-
     $("list").querySelectorAll("[data-del]").forEach(b=>{
       b.onclick = e=>{ e.stopPropagation(); items.splice(+b.dataset.del,1); selected=-1; commit(); };
     });
     $("list").querySelectorAll(".item").forEach(el=>{
       el.onclick = ()=>{ selected = selected===+el.dataset.i ? -1 : +el.dataset.i; render(); };
     });
-
     const used = items.reduce((s,it)=>s+durOf(it),0);
     const free = Math.max(0, 1440-used);
-    $("totalTxt").textContent =
-      `うまっている ${Math.floor(used/60)}時間${pad(used%60)}分 ／ あいている ${Math.floor(free/60)}時間${pad(free%60)}分`;
+    $("totalTxt").textContent = `うまっている ${Math.floor(used/60)}時間${pad(used%60)}分 ／ あいている ${Math.floor(free/60)}時間${pad(free%60)}分`;
   }
 
   function drawNow(){
@@ -712,7 +592,6 @@
   function render(){ drawDial(); drawList(); drawNow(); }
   function commit(){ store.save(items); render(); }
 
-  /* ── 予定を足す ───────────────────── */
   $("swatches").innerHTML = COLORS.map(c=>
     `<button class="sw" style="background:${c}" data-c="${c}" aria-pressed="${c===pickedColor}"></button>`).join("");
   $("swatches").querySelectorAll(".sw").forEach(b=>{
@@ -728,11 +607,9 @@
     $("warn").textContent = "";
     if(!name){ $("warn").textContent = "なまえを入れてください"; return; }
     if(from === to){ $("warn").textContent = "はじまりと おわりが同じです"; return; }
-
     const nw = { name, from, to, color: pickedColor };
     const clash = items.find(it => overlaps(it, nw));
     if(clash){ $("warn").textContent = `「${clash.name}」と重なっています`; return; }
-
     items.push(nw);
     $("fName").value = "";
     commit();
@@ -746,15 +623,13 @@
   function toolFeedback(msg){
     const list = $("list"), note = $("toolNote");
     list.classList.remove("flashList");
-    void list.offsetWidth;           // 同じアニメーションを続けて出せるように、いったんリセットする
+    void list.offsetWidth;
     list.classList.add("flashList");
     note.textContent = msg;
     note.classList.add("show");
     clearTimeout(toolNoteTimer);
     toolNoteTimer = setTimeout(()=> note.classList.remove("show"), 1800);
   }
-  // 「見本にもどす」「ぜんぶ消す」は、よてい欄の高さが大きく変わる(空1行 ⇔ 全件)。
-  // 何もしないと、変わった高さの分だけ画面が勝手にずれて見えるので、その分だけ打ち消す。
   function withScrollHold(fn){
     const anchor = $("resetBtn");
     const before = anchor.getBoundingClientRect().top;
@@ -766,19 +641,119 @@
     });
   }
   $("resetBtn").onclick = ()=>{
-    withScrollHold(()=>{
-      items = SAMPLE.slice(); selected=-1; turn=0; showTurn(); commit();
-    });
+    withScrollHold(()=>{ items = SAMPLE.slice(); selected=-1; turn=0; showTurn(); commit(); });
     toolFeedback("見本にもどしました");
   };
   $("clearBtn").onclick = ()=>{
-    withScrollHold(()=>{
-      items = []; selected=-1; turn=0; showTurn(); commit();
-    });
+    withScrollHold(()=>{ items = []; selected=-1; turn=0; showTurn(); commit(); });
     toolFeedback("ぜんぶ消しました");
   };
 
-  /* ── 金庫のダイヤルのように輪を回す ────── */
+  /* ══ マイセット ═══════════════════════════
+     名前と、任意で日付をつけて保存する(最大30個)。
+     日付をつけたセットは、その日になったら自動で あてはまる。 */
+  const MYSET_MAX = 30;
+  const setStore = {
+    load(){ try{ const v=localStorage.getItem("myClockSets"); return v?JSON.parse(v):null; }catch(e){ return null; } },
+    save(v){ try{ localStorage.setItem("myClockSets", JSON.stringify(v)); }catch(e){} }
+  };
+  let mySets = setStore.load() || [];
+  // 平日/休日 だった旧データが残っていても壊れないよう、kind を無視して読む
+  mySets = mySets.map(s => ({ id:s.id, name:s.name, date: s.date || null, items: s.items }));
+
+  function ymdToday(){
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function fmtSetDate(ds){
+    const [y,m,d] = ds.split("-").map(Number);
+    const today = new Date(); const t = new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    const dd = new Date(y,m-1,d);
+    const diff = Math.round((dd - t)/86400000);
+    const WDN = ["日","月","火","水","木","金","土"];
+    if(diff===0) return "きょう";
+    if(diff===1) return "あした";
+    const base = `${m}/${d}(${WDN[dd.getDay()]})`;
+    return y===today.getFullYear() ? base : `${y}/${base}`;
+  }
+
+  function setRow(s){
+    return `<div class="mysetRow">
+      <div class="mysetTop">
+        <span class="nm">${esc(s.name)}</span>
+        <span class="mysetBtns">
+          <button class="mbtn use" data-use="${s.id}">使う</button>
+          <button class="mbtn" data-setdel="${s.id}">消す</button>
+        </span>
+      </div>
+      <div class="mysetDate ${s.date?'':'none'}">${s.date ? "📅 " + fmtSetDate(s.date) + " に自動で切り替わります" : "日付なし"}</div>
+    </div>`;
+  }
+  function renderMySets(){
+    $("setCount").textContent = `${mySets.length} / ${MYSET_MAX} 個`;
+    $("setList").innerHTML = mySets.length
+      ? mySets.slice().sort((a,b)=> (a.date||"9999-99-99").localeCompare(b.date||"9999-99-99")).map(setRow).join("")
+      : `<p class="todoEmpty">まだ ありません</p>`;
+    document.querySelectorAll("[data-use]").forEach(b=>{
+      b.onclick = ()=>{
+        const s = mySets.find(x=>x.id === b.dataset.use);
+        if(!s) return;
+        withScrollHold(()=>{
+          items = s.items.map(it=>({ ...it }));
+          selected = -1; turn = 0; showTurn(); commit();
+        });
+        toolFeedback(`「${s.name}」を あてはめました`);
+      };
+    });
+    document.querySelectorAll("[data-setdel]").forEach(b=>{
+      b.onclick = ()=>{
+        mySets = mySets.filter(x=>x.id !== b.dataset.setdel);
+        setStore.save(mySets);
+        renderMySets();
+      };
+    });
+    $("setSaveBtn").disabled = mySets.length >= MYSET_MAX;
+  }
+
+  $("setNoDate").onclick = ()=>{ $("setDate").value = ""; };
+
+  $("setSaveBtn").onclick = ()=>{
+    const name = $("setName").value.trim().slice(0,10);
+    $("setWarn").textContent = "";
+    if(!name){ $("setWarn").textContent = "名前を入れてください"; return; }
+    if(mySets.length >= MYSET_MAX){
+      $("setWarn").textContent = `保存できるのは 最大${MYSET_MAX}個までです。いらないものを消してください`;
+      return;
+    }
+    mySets.push({
+      id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
+      name,
+      date: $("setDate").value || null,
+      items: items.map(it=>({ ...it }))
+    });
+    setStore.save(mySets);
+    $("setName").value = ""; $("setDate").value = "";
+    renderMySets();
+  };
+
+  // 日付つきのセットが「今日」に来ていたら、1日1回だけ自動であてはめる。
+  const autoStore = {
+    get(){ try{ return localStorage.getItem("myClockSetsAutoDate"); }catch(e){ return null; } },
+    set(v){ try{ localStorage.setItem("myClockSetsAutoDate", v); }catch(e){} }
+  };
+  function checkAutoMySet(){
+    const today = ymdToday();
+    if(autoStore.get() === today) return;   // きょうはもう確認ずみ
+    autoStore.set(today);
+    const hit = mySets.find(s => s.date === today);
+    if(!hit) return;
+    items = hit.items.map(it=>({ ...it }));
+    selected = -1; turn = 0;
+    store.save(items);
+    render(); showTurn();
+    toolFeedback(`きょうは「${hit.name}」に 自動で切り替わりました`);
+  }
+
   const dialEl = $("dial"), boxEl = document.querySelector(".dialbox");
   let drag = null;
 
@@ -796,14 +771,12 @@
     const d = Math.hypot(x, y);
     return d >= R_IN - 6 && d <= R_OUT + 6;
   }
-
   dialEl.addEventListener("pointerdown", ev=>{
     if(!inRing(ev)) return;
     drag = { moved: 0, last: angleMin(ev), pointerId: ev.pointerId };
     dialEl.setPointerCapture(ev.pointerId);
     boxEl.classList.add("turning");
   });
-
   dialEl.addEventListener("pointermove", ev=>{
     if(!drag) return;
     const now = angleMin(ev);
@@ -815,18 +788,14 @@
     turn = wrapMin(turn + step);
     drawDial(); drawNow(); showTurn();
   });
-
   function endDrag(){
     if(!drag) return;
     const wasTap = drag.moved < 4;
     const pointerId = drag.pointerId;
     drag = null;
     boxEl.classList.remove("turning");
-    // 掴んだ指の捕捉(pointer capture)を明示的に離す。放置すると、すぐ次に押した
-    // 別のボタン(見本にもどす、など)が一回目だけ反応しないことがある。
     try{ if(pointerId != null && dialEl.hasPointerCapture(pointerId)) dialEl.releasePointerCapture(pointerId); }catch(e){}
     if(wasTap){ turn = 0; showTurn(); render(); return; }
-
     const snap = Math.round(turn / 5) * 5;
     if(snap % 1440 !== 0){
       items = items.map(it=>({ ...it, from: wrapMin(it.from + snap), to: wrapMin(it.to + snap) }));
@@ -848,16 +817,13 @@
     h.innerHTML = `ぜんたいを <b>${sign}${hh?hh+"時間":""}${mm?mm+"分":(hh?"":"0分")}</b> ずらす`;
   }
 
-  /* ══ やること と カレンダー ═══════════════
-     日付は「日付」「期間」「毎週」「毎年」から選べる。日付なしは「いつか」へ。
-     カレンダーは月をつないだ一本のスクロールで、「きょうへ」で飛べる。 */
   const tstore = {
     load(){ try{ const v=localStorage.getItem("yarukoto"); return v?JSON.parse(v):null; }catch(e){ return null; } },
     save(v){ try{ localStorage.setItem("yarukoto",JSON.stringify(v)); }catch(e){} }
   };
   let todos = tstore.load() || [];
   let todoView = "list";
-  let calFocus = null;                 // 「きょうへ」などで強調している日
+  let calFocus = null;
 
   const WDN = ["日","月","火","水","木","金","土"];
   const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -875,7 +841,6 @@
   }
   function saveTodos(){ tstore.save(todos); renderTodos(); }
 
-  /* 種類ごとの判定。date=単発 / range=期間 / weekly=毎週 / yearly=毎年 / none=日付なし */
   function occursOn(t, ds){
     if(t.kind === "date") return t.date === ds;
     if(t.kind === "range") return ds >= t.dateFrom && ds <= t.dateTo;
@@ -986,11 +951,7 @@
     const text = $("tName").value.trim().slice(0,24);
     $("tWarn").textContent = "";
     if(!text){ $("tWarn").textContent = "やることを入れてください"; return; }
-
-    const todo = {
-      id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
-      text, done:false, kind: addKind
-    };
+    const todo = { id: Date.now() + "_" + Math.random().toString(36).slice(2,6), text, done:false, kind: addKind };
     if(addKind === "date"){
       if(!$("tDate").value){ $("tWarn").textContent = "日付を入れてください"; return; }
       todo.date = $("tDate").value;
@@ -1009,7 +970,6 @@
       todo.monthDay = pad(d.getMonth()+1) + "-" + pad(d.getDate());
       if($("tUntil").value) todo.until = $("tUntil").value;
     }
-
     todos.push(todo);
     $("tName").value = "";
     $("tDate").value = ""; $("tFrom").value = ""; $("tTo").value = "";
@@ -1021,16 +981,9 @@
   };
 
   $("vList").onclick = ()=>{ todoView = "list"; renderTodos(); };
-  $("vCal").onclick  = ()=>{
-    todoView = "cal"; renderTodos();
-    scrollToMonth(calFocus || todayStr());
-  };
-  $("calToday").onclick = ()=>{
-    calFocus = todayStr();
-    renderTodos(); scrollToMonth(calFocus);
-  };
+  $("vCal").onclick  = ()=>{ todoView = "cal"; renderTodos(); scrollToMonth(calFocus || todayStr()); };
+  $("calToday").onclick = ()=>{ calFocus = todayStr(); renderTodos(); scrollToMonth(calFocus); };
 
-  // カレンダーの日付行をタップしたら、その日付をあらかじめ入れたうえで、名前欄にフォーカスする。
   function jumpToAdd(dateVal){
     if(dateVal !== undefined){ setAddKind("date"); $("tDate").value = dateVal; }
     $("tName").focus();
@@ -1049,10 +1002,7 @@
   }
   function bindTodoRows(){
     document.querySelectorAll("[data-chk]").forEach(b=>{
-      b.onclick = ()=>{
-        const t = todos.find(x=>x.id === b.dataset.chk);
-        if(t){ t.done = !t.done; saveTodos(); }
-      };
+      b.onclick = ()=>{ const t = todos.find(x=>x.id === b.dataset.chk); if(t){ t.done = !t.done; saveTodos(); } };
     });
     document.querySelectorAll("[data-tdel]").forEach(b=>{
       b.onclick = ()=>{ todos = todos.filter(x=>x.id !== b.dataset.tdel); saveTodos(); };
@@ -1067,24 +1017,17 @@
     $("vCal").setAttribute("aria-pressed",  todoView === "cal");
     $("listView").style.display = todoView === "list" ? "" : "none";
     $("calView").style.display  = todoView === "cal"  ? "" : "none";
-
-    // 次に来る日の早い順。同じ日なら、済んでいないものが先。
     const dated = todos.filter(t=>t.kind !== "none")
       .map(t=>({ t, key: nextOccurrence(t) || "9999-99-99" }))
       .sort((a,b)=> a.key.localeCompare(b.key) || (a.t.done - b.t.done))
       .map(x=>x.t);
     const someday = todos.filter(t=>t.kind === "none");
-
-    $("todoDated").innerHTML =
-      dated.length ? dated.map(todoRow).join("") : `<p class="todoEmpty">日付つきのやることは まだありません</p>`;
-    $("todoSomeday").innerHTML =
-      someday.length ? someday.map(todoRow).join("") : `<p class="todoEmpty">ありません</p>`;
-
+    $("todoDated").innerHTML = dated.length ? dated.map(todoRow).join("") : `<p class="todoEmpty">日付つきのやることは まだありません</p>`;
+    $("todoSomeday").innerHTML = someday.length ? someday.map(todoRow).join("") : `<p class="todoEmpty">ありません</p>`;
     if(todoView === "cal") drawCalendar();
     bindTodoRows();
   }
 
-  // 表示する月の幅。予定のある月と、「きょうへ」で強調した月は必ず含める。
   function calRange(){
     const t = new Date();
     let lo = new Date(t.getFullYear(), t.getMonth()-2, 1);
@@ -1105,9 +1048,6 @@
     return [lo, hi];
   }
 
-  // 大学の学年暦のように、月ごとに「日付・予定」を並べた表で見せる。
-  // 空白のマス目は作らず、予定がある日だけを行として並べる(期間・毎週・毎年も、その日ごとに展開する)。
-  // どの行も、タップすればその日付で「やること」を足せる。
   function drawCalendar(){
     const [lo, hi] = calRange();
     const today = todayStr();
@@ -1118,7 +1058,6 @@
       const y = cur.getFullYear(), m = cur.getMonth();
       const ym = `${y}-${pad(m+1)}`;
       const last = new Date(y, m+1, 0).getDate();
-
       const rows = [];
       for(let dn=1; dn<=last; dn++){
         const ds = `${y}-${pad(m+1)}-${pad(dn)}`;
@@ -1132,34 +1071,27 @@
         const row = { ds: today, dn, list: [] };
         if(idx === -1) rows.push(row); else rows.splice(idx, 0, row);
       }
-
       const body = rows.length
         ? rows.map(r=>{
             const d = parseYMD(r.ds);
             const cls = ["", r.ds===today?"today":"", r.ds===calFocus?"focus":""].join(" ").trim();
-            const items = r.list.length
+            const its = r.list.length
               ? r.list.map(t=>{
                   const late = !t.done && r.ds < today;
                   return `<span class="it ${t.done?'done':''} ${late?'late':''}">${esc(t.text)}</span>`;
                 }).join("")
               : `<span class="none">${r.ds===today?"きょう ・ 予定なし":"予定なし"}</span>`;
-            return `<tr class="${cls}" data-pickdate="${r.ds}">
-              <td class="cd">${d.getMonth()+1}/${dn2(r.dn)}(${WDN[d.getDay()]})</td>
-              <td class="ce">${items}</td>
-            </tr>`;
+            return `<tr class="${cls}" data-pickdate="${r.ds}"><td class="cd">${d.getMonth()+1}/${r.dn}(${WDN[d.getDay()]})</td><td class="ce">${its}</td></tr>`;
           }).join("")
         : "";
-
       html += `<div class="mon" id="m-${ym}">
         <div class="monTtl ${isThisMon?'thisMon':''}"><span class="tag">${y}年 ${m+1}月</span></div>
-        ${rows.length ? `<table class="calTbl"><tbody>${body}</tbody></table>`
-                      : `<p class="calMonEmpty">予定はありません</p>`}
+        ${rows.length ? `<table class="calTbl"><tbody>${body}</tbody></table>` : `<p class="calMonEmpty">予定はありません</p>`}
       </div>`;
       cur.setMonth(cur.getMonth()+1);
     }
     $("calScroll").innerHTML = html;
   }
-  function dn2(n){ return String(n); }
 
   function scrollToMonth(ds){
     const el = document.getElementById("m-" + ds.slice(0,7));
@@ -1167,27 +1099,18 @@
     if(el && box) box.scrollTop = Math.max(0, el.offsetTop - box.offsetTop - 4);
   }
 
-  /* ══ ページ切り替え(スクロールではなく、上のタブで画面ごと切り替える) ══ */
   document.querySelectorAll(".tab").forEach(btn=>{
     btn.onclick = ()=>{
       document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-pressed", String(b===btn)));
-      document.querySelectorAll(".page").forEach(p=>{
-        p.classList.toggle("active", p.id === "page-" + btn.dataset.page);
-      });
+      document.querySelectorAll(".page").forEach(p=> p.classList.toggle("active", p.id === "page-" + btn.dataset.page));
       window.scrollTo({ top:0, behavior:"instant" });
     };
   });
 
-  /* ══ 集中釣り ═══════════════════════════ */
   const FISH = {"1": ["マハゼ", "ウグイ", "モツゴ", "オイカワ", "ブルーギル", "ボラ", "サッパ", "コノシロ", "スズメダイ", "ネンブツダイ", "クサフグ", "ヒイラギ", "ゴンズイ", "アイゴ", "カワムツ", "タナゴ", "ドジョウ", "ヌマチチブ"], "2": ["アジ", "サバ", "マイワシ", "カサゴ", "メバル", "カワハギ", "シロギス", "マコガレイ", "クロソイ", "ムラソイ", "マアナゴ", "タチウオ", "ホウボウ", "マエソ", "ニジマス", "ヤマメ", "ギンブナ", "コイ", "ナマズ", "テナガエビ", "メジナ", "ウミタナゴ", "サヨリ", "カマス"], "3": ["イサキ", "アイナメ", "クロダイ", "キビレ", "マゴチ", "ヒラメ", "サワラ", "シイラ", "ハタハタ", "アオリイカ", "コウイカ", "ヤリイカ", "マダコ", "タカベ", "ウマヅラハギ", "アマゴ", "イワナ", "オショロコマ", "ワカサギ", "メゴチ", "イシモチ", "シログチ", "ハナダイ"], "4": ["マダイ", "ブリ", "ワラサ", "カンパチ", "ヒラマサ", "スズキ", "ヒラスズキ", "マハタ", "キジハタ", "オオモンハタ", "アカハタ", "メダイ", "マトウダイ", "オニカサゴ", "イシダイ", "イシガキダイ", "シマアジ", "サクラマス", "サツキマス", "ライギョ", "ブラックバス", "アカムツ", "クロムツ"], "5": ["クエ", "アカアマダイ", "シロアマダイ", "キンメダイ", "キチジ", "アラ", "ハマフエフキ", "ロウニンアジ", "カスミアジ", "バラハタ", "スジアラ", "アメマス", "ヒメマス", "ビワマス", "マツカワ", "ホシガレイ", "オヒョウ", "アコウダイ", "ムツ", "ソウダガツオ", "カツオ", "マゴイ", "レンギョ"], "6": ["クロマグロ", "ミナミマグロ", "キハダマグロ", "メバチマグロ", "ビンナガマグロ", "クロカジキ", "シロカジキ", "バショウカジキ", "メカジキ", "タマカイ", "イトウ", "アカマンボウ", "マンボウ", "ヨシキリザメ", "アオザメ"]};
   const FISH_TOTAL = Object.values(FISH).reduce((s,v)=>s+v.length,0);
   const RARITY_NAME = {1:"ふつう",2:"よくいる",3:"なかなか",4:"みごと",5:"大物",6:"伝説"};
-
-  const WORMS = [
-    "ゴカイ","イソメ","アオイソメ","ジャリメ","オキアミ","エビ","カニ","イカタン",
-    "ミミズ","ブドウ虫","サシ","練りエサ","カラーワーム","シャッドテール","グラブ","ストレート",
-    "クローワーム","シュリンプ","スイムベイト","メタルジグ","タイラバ","インチク","バイブレーション","ビッグベイト"
-  ];
+  const WORMS = ["ゴカイ","イソメ","アオイソメ","ジャリメ","オキアミ","エビ","カニ","イカタン","ミミズ","ブドウ虫","サシ","練りエサ","カラーワーム","シャッドテール","グラブ","ストレート","クローワーム","シュリンプ","スイムベイト","メタルジグ","タイラバ","インチク","バイブレーション","ビッグベイト"];
   const wormOf = h => h===0
     ? { hours:0, name:"ためし釣り", yen:0, ms:10000 }
     : { hours:h, name:WORMS[h-1], yen:h*1000, ms:h*3600000 };
@@ -1223,22 +1146,12 @@
 
   function pickFish(hours){
     hours = Math.max(0.2, hours);
-    const w = {
-      1: Math.max(1, 40 - hours*1.6),
-      2: 30,
-      3: 14 + hours*0.5,
-      4: 6  + hours*0.8,
-      5: 1.2+ hours*0.6,
-      6: 0.15 + hours*0.22
-    };
+    const w = { 1: Math.max(1, 40 - hours*1.6), 2: 30, 3: 14 + hours*0.5, 4: 6 + hours*0.8, 5: 1.2+ hours*0.6, 6: 0.15 + hours*0.22 };
     const total = Object.values(w).reduce((a,b)=>a+b,0);
     let r = Math.random()*total;
     for(const k of [1,2,3,4,5,6]){
       r -= w[k];
-      if(r <= 0){
-        const list = FISH[k];
-        return { name: list[Math.floor(Math.random()*list.length)], rarity: k };
-      }
+      if(r <= 0){ const list = FISH[k]; return { name: list[Math.floor(Math.random()*list.length)], rarity: k }; }
     }
     return { name: FISH[1][0], rarity: 1 };
   }
@@ -1308,36 +1221,16 @@
     if(!kind) return "";
     const dk = shade(col,-40), lt = shade(col,45);
     switch(kind){
-      case "bars":
-        return [22,32,42,52,62].map(x=>
-          `<path d="M${x} 13 q2 17 0 34" stroke="${dk}" stroke-width="3.5" opacity=".38" fill="none"/>`).join("");
-      case "stripes":
-        return [26,40,54,68].map(x=>
-          `<path d="M${x} 10 q2 20 0 40" stroke="${dk}" stroke-width="6" opacity=".5" fill="none"/>`).join("");
-      case "parr":
-        return [24,36,48,60].map(x=>
-          `<ellipse cx="${x}" cy="28" rx="5" ry="8" fill="${dk}" opacity=".34"/>`).join("");
-      case "spots":
-        return [[26,22],[36,34],[46,20],[54,36],[64,26],[32,42],[58,16],[44,30]].map(([x,y])=>
-          `<circle cx="${x}" cy="${y}" r="2.6" fill="${dk}" opacity=".45"/>`).join("");
-      case "dots":
-        return [[24,26],[34,22],[44,30],[54,24],[62,32],[30,36],[50,38],[68,26]].map(([x,y])=>
-          `<circle cx="${x}" cy="${y}" r="1.7" fill="${lt}" opacity=".65"/>`).join("");
-      case "waves":
-        return [16,20,24].map((y,i)=>
-          `<path d="M18 ${y} q10 -5 20 0 t20 0 t20 0" stroke="${dk}" stroke-width="2"
-            fill="none" opacity="${.4-i*.08}"/>`).join("");
-      case "line":
-        return `<path d="M18 30 q26 -3 58 -2" stroke="${lt}" stroke-width="2.4" fill="none" opacity=".6"/>`;
-      case "lines":
-        return [30,36,42].map(y=>
-          `<path d="M22 ${y} q24 2 48 0" stroke="${dk}" stroke-width="1.8" fill="none" opacity=".45"/>`).join("");
-      case "mesh":
-        return [[26,22],[36,22],[46,22],[56,22],[31,30],[41,30],[51,30],[26,38],[36,38],[46,38],[56,38]]
-          .map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.2" fill="${dk}" opacity=".4"/>`).join("");
-      case "eye":
-        return `<circle cx="44" cy="28" r="7" fill="none" stroke="${dk}" stroke-width="2.4" opacity=".55"/>
-                <circle cx="44" cy="28" r="2.6" fill="${dk}" opacity=".4"/>`;
+      case "bars": return [22,32,42,52,62].map(x=>`<path d="M${x} 13 q2 17 0 34" stroke="${dk}" stroke-width="3.5" opacity=".38" fill="none"/>`).join("");
+      case "stripes": return [26,40,54,68].map(x=>`<path d="M${x} 10 q2 20 0 40" stroke="${dk}" stroke-width="6" opacity=".5" fill="none"/>`).join("");
+      case "parr": return [24,36,48,60].map(x=>`<ellipse cx="${x}" cy="28" rx="5" ry="8" fill="${dk}" opacity=".34"/>`).join("");
+      case "spots": return [[26,22],[36,34],[46,20],[54,36],[64,26],[32,42],[58,16],[44,30]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.6" fill="${dk}" opacity=".45"/>`).join("");
+      case "dots": return [[24,26],[34,22],[44,30],[54,24],[62,32],[30,36],[50,38],[68,26]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.7" fill="${lt}" opacity=".65"/>`).join("");
+      case "waves": return [16,20,24].map((y,i)=>`<path d="M18 ${y} q10 -5 20 0 t20 0 t20 0" stroke="${dk}" stroke-width="2" fill="none" opacity="${.4-i*.08}"/>`).join("");
+      case "line": return `<path d="M18 30 q26 -3 58 -2" stroke="${lt}" stroke-width="2.4" fill="none" opacity=".6"/>`;
+      case "lines": return [30,36,42].map(y=>`<path d="M22 ${y} q24 2 48 0" stroke="${dk}" stroke-width="1.8" fill="none" opacity=".45"/>`).join("");
+      case "mesh": return [[26,22],[36,22],[46,22],[56,22],[31,30],[41,30],[51,30],[26,38],[36,38],[46,38],[56,38]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.2" fill="${dk}" opacity=".4"/>`).join("");
+      case "eye": return `<circle cx="44" cy="28" r="7" fill="none" stroke="${dk}" stroke-width="2.4" opacity=".55"/><circle cx="44" cy="28" r="2.6" fill="${dk}" opacity=".4"/>`;
       default: return "";
     }
   }
@@ -1347,7 +1240,6 @@
     const [form, col] = look;
     const back = shade(col,-38), dark = shade(col,-22), light = shade(col,30), pale = shade(col,58);
     const uid = "f" + Math.abs(hashOf(name+form)) % 100000;
-
     const OUT = {
       slim:    "M84 30 C78 22 60 16 40 17 C24 18 14 23 10 30 C14 37 24 42 40 43 C60 44 78 38 84 30 Z",
       oval:    "M86 30 C80 17 62 9 44 9 C24 9 10 18 6 30 C10 42 24 51 44 51 C62 51 80 43 86 30 Z",
@@ -1357,7 +1249,6 @@
       marlin:  "M84 30 C78 20 60 14 42 15 C24 16 10 21 6 30 C10 39 24 44 42 45 C60 46 78 40 84 30 Z",
       shark:   "M88 31 C82 21 62 15 42 16 C24 17 10 22 6 30 C10 39 24 45 42 45 C62 45 82 40 88 31 Z"
     }[form];
-
     if(form === "squid"){
       return `<svg viewBox="0 0 100 60" width="${w}" height="${h}">
         <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
@@ -1367,43 +1258,31 @@
         <path d="M30 14 L46 4 L62 14 Z" fill="${dark}" opacity=".85"/>
         <ellipse cx="46" cy="26" rx="17" ry="20" fill="url(#${uid})"/>
         <ellipse cx="40" cy="20" rx="6" ry="9" fill="${pale}" opacity=".35"/>
-        <path d="M34 44 q3 12 -3 15 M41 46 q1 12 -3 15 M46 46 q0 12 0 15 M51 46 q-1 12 3 15 M58 44 q-3 12 3 15"
-              stroke="${dark}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <path d="M34 44 q3 12 -3 15 M41 46 q1 12 -3 15 M46 46 q0 12 0 15 M51 46 q-1 12 3 15 M58 44 q-3 12 3 15" stroke="${dark}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
         <path d="M62 43 q10 8 14 3" stroke="${dark}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
         <circle cx="39" cy="24" r="3.4" fill="#F2F2F5"/><circle cx="39.6" cy="24" r="2.1" fill="#12121A"/>
         </g>
       </svg>`;
     }
-
     const tail = {
-      slim:    "M10 30 L1 20 Q5 30 1 40 Z",
-      oval:    "M8 30 L0 18 Q5 30 0 42 Z",
-      round:   "M9 30 L3 22 Q6 30 3 38 Z",
-      torpedo: "M8 30 L0 15 Q6 30 0 45 Z",
-      flat:    "M7 30 L1 20 Q4 30 1 40 Z",
-      marlin:  "M7 30 L0 13 Q6 30 0 47 Z",
-      shark:   "M7 30 L0 12 Q5 28 2 44 Z"
+      slim: "M10 30 L1 20 Q5 30 1 40 Z", oval: "M8 30 L0 18 Q5 30 0 42 Z",
+      round: "M9 30 L3 22 Q6 30 3 38 Z", torpedo: "M8 30 L0 15 Q6 30 0 45 Z",
+      flat: "M7 30 L1 20 Q4 30 1 40 Z", marlin: "M7 30 L0 13 Q6 30 0 47 Z", shark: "M7 30 L0 12 Q5 28 2 44 Z"
     }[form];
-
-    const dorsal = form==="shark"
-      ? '<path d="M46 15 L54 1 L60 16 Z" fill="'+back+'"/>'
-      : form==="flat"
-        ? '<path d="M20 12 q22 -8 44 -2 q-22 4 -44 2 Z" fill="'+dark+'" opacity=".9"/>'
-        : '<path d="M38 12 q14 -9 26 -1 q-14 3 -26 1 Z" fill="'+dark+'" opacity=".9"/>';
+    const dorsal = form==="shark" ? '<path d="M46 15 L54 1 L60 16 Z" fill="'+back+'"/>'
+      : form==="flat" ? '<path d="M20 12 q22 -8 44 -2 q-22 4 -44 2 Z" fill="'+dark+'" opacity=".9"/>'
+      : '<path d="M38 12 q14 -9 26 -1 q-14 3 -26 1 Z" fill="'+dark+'" opacity=".9"/>';
     const anal = '<path d="M40 47 q10 7 20 1 q-10 2 -20 -1 Z" fill="'+dark+'" opacity=".75"/>';
     const pect = '<path d="M60 33 q10 6 8 13 q-8 -4 -12 -11 Z" fill="'+dark+'" opacity=".8"/>';
     const bill = form==="marlin" ? '<path d="M84 29 L99 26" stroke="'+dark+'" stroke-width="3" stroke-linecap="round"/>' : "";
     const gill = '<path d="M72 18 q-5 12 1 23" stroke="'+back+'" stroke-width="1.4" fill="none" opacity=".6"/>';
     const mouth = '<path d="M85 31 q-4 2 -7 1" stroke="'+back+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
     const eyeX = form==="flat" ? 74 : 78, eyeY = form==="flat" ? 24 : 27;
-
     return `<svg viewBox="0 0 100 60" width="${w}" height="${h}">
       <defs>
         <linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stop-color="${back}"/>
-          <stop offset="42%" stop-color="${col}"/>
-          <stop offset="78%" stop-color="${light}"/>
-          <stop offset="100%" stop-color="${pale}"/>
+          <stop offset="0%"  stop-color="${back}"/><stop offset="42%" stop-color="${col}"/>
+          <stop offset="78%" stop-color="${light}"/><stop offset="100%" stop-color="${pale}"/>
         </linearGradient>
         <clipPath id="c${uid}"><path d="${OUT}"/></clipPath>
       </defs>
@@ -1443,13 +1322,12 @@
     return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
   }
 
-  /* ワームの絵。種類ごとに姿を変える。 */
   function lureSVG(name){
     const bait = {
-      "ゴカイ":   ["worm","#C97A6E"], "イソメ":["worm","#A85C4A"], "アオイソメ":["worm","#6E7A5C"],
-      "ジャリメ": ["worm","#C4A088"], "オキアミ":["shrimp","#E8A08C"], "エビ":["shrimp","#E88C7A"],
-      "カニ":     ["crab","#C4705C"], "イカタン":["strip","#E8DCC9"], "ミミズ":["worm","#B06B5C"],
-      "ブドウ虫": ["grub","#E8D9A8"], "サシ":["grub","#F0E4C4"], "練りエサ":["dough","#D9C48C"],
+      "ゴカイ":["worm","#C97A6E"], "イソメ":["worm","#A85C4A"], "アオイソメ":["worm","#6E7A5C"],
+      "ジャリメ":["worm","#C4A088"], "オキアミ":["shrimp","#E8A08C"], "エビ":["shrimp","#E88C7A"],
+      "カニ":["crab","#C4705C"], "イカタン":["strip","#E8DCC9"], "ミミズ":["worm","#B06B5C"],
+      "ブドウ虫":["grub","#E8D9A8"], "サシ":["grub","#F0E4C4"], "練りエサ":["dough","#D9C48C"],
       "カラーワーム":["worm","#8C6BC4"], "シャッドテール":["soft","#6EA8C4"], "グラブ":["soft","#7AC48C"],
       "ストレート":["worm","#5C8CC4"], "クローワーム":["crab","#5C6E4A"], "シュリンプ":["shrimp","#D98C7A"],
       "スイムベイト":["plug","#8CA8C4"], "メタルジグ":["jig","#C9CCD1"], "タイラバ":["rubber","#D9604A"],
@@ -1460,42 +1338,23 @@
     const dk = shade(col,-30), lt = shade(col,32);
     const hook = '<path d="M0 -14 L0 4 q0 8 -7 8 q-6 0 -6 -6" stroke="#B8BCC4" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
     const P = {
-      worm:  `<path d="M-1 -8 q7 5 -2 11 q-8 5 1 11 q7 5 -1 9" stroke="${col}" stroke-width="5.5"
-                fill="none" stroke-linecap="round"/>
-              <path d="M-1 -8 q7 5 -2 11" stroke="${lt}" stroke-width="2" fill="none" opacity=".6"/>`,
-      shrimp:`<path d="M2 -8 q9 6 5 15 q-4 8 -12 8" stroke="${col}" stroke-width="6" fill="none" stroke-linecap="round"/>
-              <path d="M-5 15 l-6 5 M-5 15 l-2 8" stroke="${dk}" stroke-width="1.6" stroke-linecap="round"/>
-              <circle cx="4" cy="-6" r="1.6" fill="#22222A"/>`,
-      crab:  `<ellipse cx="0" cy="4" rx="9" ry="7" fill="${col}"/>
-              <path d="M-9 0 q-7 -4 -9 2 M9 0 q7 -4 9 2" stroke="${dk}" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-              <path d="M-7 9 l-5 6 M0 11 l0 7 M7 9 l5 6" stroke="${dk}" stroke-width="1.8" stroke-linecap="round"/>`,
-      grub:  `<ellipse cx="0" cy="3" rx="6" ry="9" fill="${col}"/>
-              <path d="M-6 -1 h12 M-6 4 h12 M-5 9 h10" stroke="${dk}" stroke-width="1.2" opacity=".5"/>`,
-      dough: `<circle cx="0" cy="3" r="8" fill="${col}"/>
-              <circle cx="-3" cy="0" r="2.4" fill="${lt}" opacity=".7"/>`,
-      strip: `<path d="M-4 -8 L4 -8 L3 14 L-3 14 Z" fill="${col}"/>
-              <path d="M0 -8 L0 14" stroke="${dk}" stroke-width="1" opacity=".5"/>`,
-      soft:  `<path d="M0 -8 q6 8 2 14" stroke="${col}" stroke-width="7" fill="none" stroke-linecap="round"/>
-              <path d="M2 6 q9 5 3 13 q-5 -4 -6 -10" fill="${col}"/>`,
-      plug:  `<ellipse cx="0" cy="2" rx="6" ry="12" fill="${col}"/>
-              <path d="M0 14 l-6 8 l6 -3 l6 3 Z" fill="${dk}"/>
-              <circle cx="-2" cy="-5" r="2" fill="#F2F2F5"/><circle cx="-2" cy="-5" r="1.1" fill="#22222A"/>`,
-      jig:   `<path d="M0 -10 L5 4 L0 16 L-5 4 Z" fill="${col}"/>
-              <path d="M0 -10 L5 4 L0 16 Z" fill="${lt}" opacity=".5"/>`,
-      rubber:`<ellipse cx="0" cy="0" rx="7" ry="6" fill="${col}"/>
-              <path d="M-5 5 q-2 12 2 15 M0 6 q0 12 0 14 M5 5 q2 12 -2 15"
-                stroke="${dk}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`
+      worm: `<path d="M-1 -8 q7 5 -2 11 q-8 5 1 11 q7 5 -1 9" stroke="${col}" stroke-width="5.5" fill="none" stroke-linecap="round"/><path d="M-1 -8 q7 5 -2 11" stroke="${lt}" stroke-width="2" fill="none" opacity=".6"/>`,
+      shrimp:`<path d="M2 -8 q9 6 5 15 q-4 8 -12 8" stroke="${col}" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M-5 15 l-6 5 M-5 15 l-2 8" stroke="${dk}" stroke-width="1.6" stroke-linecap="round"/><circle cx="4" cy="-6" r="1.6" fill="#22222A"/>`,
+      crab: `<ellipse cx="0" cy="4" rx="9" ry="7" fill="${col}"/><path d="M-9 0 q-7 -4 -9 2 M9 0 q7 -4 9 2" stroke="${dk}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M-7 9 l-5 6 M0 11 l0 7 M7 9 l5 6" stroke="${dk}" stroke-width="1.8" stroke-linecap="round"/>`,
+      grub: `<ellipse cx="0" cy="3" rx="6" ry="9" fill="${col}"/><path d="M-6 -1 h12 M-6 4 h12 M-5 9 h10" stroke="${dk}" stroke-width="1.2" opacity=".5"/>`,
+      dough:`<circle cx="0" cy="3" r="8" fill="${col}"/><circle cx="-3" cy="0" r="2.4" fill="${lt}" opacity=".7"/>`,
+      strip:`<path d="M-4 -8 L4 -8 L3 14 L-3 14 Z" fill="${col}"/><path d="M0 -8 L0 14" stroke="${dk}" stroke-width="1" opacity=".5"/>`,
+      soft: `<path d="M0 -8 q6 8 2 14" stroke="${col}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M2 6 q9 5 3 13 q-5 -4 -6 -10" fill="${col}"/>`,
+      plug: `<ellipse cx="0" cy="2" rx="6" ry="12" fill="${col}"/><path d="M0 14 l-6 8 l6 -3 l6 3 Z" fill="${dk}"/><circle cx="-2" cy="-5" r="2" fill="#F2F2F5"/><circle cx="-2" cy="-5" r="1.1" fill="#22222A"/>`,
+      jig: `<path d="M0 -10 L5 4 L0 16 L-5 4 Z" fill="${col}"/><path d="M0 -10 L5 4 L0 16 Z" fill="${lt}" opacity=".5"/>`,
+      rubber:`<ellipse cx="0" cy="0" rx="7" ry="6" fill="${col}"/><path d="M-5 5 q-2 12 2 15 M0 6 q0 12 0 14 M5 5 q2 12 -2 15" stroke="${dk}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`
     }[form];
     return hook + P;
   }
 
-  /* ── 竿 ─────────────────────────────
-     竿の形はひとつだけ持ち、投げる動きは「その形ぜんたいを手もとを軸に回す」。
-     こうするとリールやガイドが置いてけぼりになってズレることが起きない。 */
   const SEA = 118;
-  function rodPath(){
-    return { d:"M6 176 Q70 120 132 84 Q186 54 226 40", tipX:226, tipY:40 };
-  }
+  const MOUTH_DX = -49, MOUTH_DY = 13.4;
+  function rodPath(){ return { d:"M6 176 Q70 120 132 84 Q186 54 226 40", tipX:226, tipY:40 }; }
   const ROD_PIVOT = { x:20, y:172 };
   function rotatePoint(px, py, cx, cy, deg){
     const rad = deg * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
@@ -1503,37 +1362,32 @@
     return { x: cx + dx*c - dy*s, y: cy + dx*s + dy*c };
   }
   const GRAD = `<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
-      <stop offset="72%" stop-color="rgba(255,255,255,.45)"/>
+      <stop offset="0%" stop-color="rgba(255,255,255,.75)"/>
+      <stop offset="72%" stop-color="rgba(255,255,255,.6)"/>
       <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
     </linearGradient></defs>`;
-
   function rodGroup(rotDeg, cls){
     const R = rodPath();
-    return `<g class="${cls||''}" transform="rotate(${rotDeg.toFixed(2)} ${ROD_PIVOT.x} ${ROD_PIVOT.y})">
+    const cname = ("rodG " + (cls||"")).trim();
+    const attr = `transform="rotate(${rotDeg.toFixed(2)} ${ROD_PIVOT.x} ${ROD_PIVOT.y})"`;
+    return `<g class="${cname}" ${attr}>
       <path d="${R.d}" stroke="#2E2A26" stroke-width="6" fill="none" stroke-linecap="round" opacity=".9"/>
       <path d="${R.d}" stroke="#8C5A2B" stroke-width="4" fill="none" stroke-linecap="round"/>
       <rect x="4" y="164" width="34" height="13" rx="6" transform="rotate(-33 20 170)" fill="#1F1C19"/>
-      <g transform="translate(56 140) rotate(-33)">
-        <circle r="9" fill="#9AA0A8"/><circle r="5" fill="#6E747C"/><circle r="1.8" fill="#3A3E44"/>
-      </g>
+      <g transform="translate(56 140) rotate(-33)"><circle r="9" fill="#9AA0A8"/><circle r="5" fill="#6E747C"/><circle r="1.8" fill="#3A3E44"/></g>
       <circle cx="112" cy="98" r="3.4" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
       <circle cx="168" cy="68" r="3"   fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
       <circle cx="212" cy="46" r="2.6" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
     </g>`;
   }
 
-  /* 投げ入れの動き。角度と、ワームが竿を離れて飛ぶ進み具合をなめらかに繋ぐ。 */
   const ROT_KF  = [[0,0],[0.30,-34],[0.58,26],[0.74,8],[0.88,-4],[1,0]];
   const LURE_KF = [[0,0],[0.58,0],[0.90,1],[1,1]];
   const smoothstep = x => { x = Math.max(0,Math.min(1,x)); return x*x*(3-2*x); };
   function lerpKF(keys, t){
     for(let i=0;i<keys.length-1;i++){
       const [t0,v0] = keys[i], [t1,v1] = keys[i+1];
-      if(t <= t1){
-        const local = t1===t0 ? 1 : smoothstep((t-t0)/(t1-t0));
-        return v0 + (v1-v0)*local;
-      }
+      if(t <= t1){ const local = t1===t0 ? 1 : smoothstep((t-t0)/(t1-t0)); return v0 + (v1-v0)*local; }
     }
     return keys[keys.length-1][1];
   }
@@ -1547,7 +1401,6 @@
     const tip = rotatePoint(R.tipX, R.tipY, ROD_PIVOT.x, ROD_PIVOT.y, rot);
     const lureT = lerpKF(LURE_KF, t);
     const water = { x:226, y:SEA };
-
     let far, lure = "", line = "";
     if(lureT <= 0){
       far = tip;
@@ -1559,16 +1412,13 @@
       far = { x: rel.x + (water.x-rel.x)*lureT, y: rel.y + (water.y-rel.y)*lureT - arc };
       if(lureT < 1){
         lure = `<g transform="translate(${far.x} ${far.y})">${lureSVG(wormName)}</g>`;
-        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+far.x)/2} ${(tip.y+far.y)/2-10} ${far.x} ${far.y}"
-                 stroke="url(#lg)" stroke-width="1" fill="none"/>`;
+        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+far.x)/2} ${(tip.y+far.y)/2-10} ${far.x} ${far.y}" stroke="url(#lg)" stroke-width="1" fill="none"/>`;
       }else{
-        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+water.x)/2+4} ${(tip.y+water.y)/2} ${water.x} ${water.y+6}"
-                 stroke="url(#lg)" stroke-width="1" fill="none"/>`;
+        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+water.x)/2+4} ${(tip.y+water.y)/2} ${water.x} ${water.y+6}" stroke="url(#lg)" stroke-width="1" fill="none"/>`;
       }
     }
     const splash = lureT >= 0.995
-      ? `<circle class="splash" cx="${water.x}" cy="${water.y}" r="10"/>
-         <circle class="splash" cx="${water.x}" cy="${water.y}" r="17" style="animation-delay:.08s"/>` : "";
+      ? `<circle class="splash" cx="${water.x}" cy="${water.y}" r="10"/><circle class="splash" cx="${water.x}" cy="${water.y}" r="17" style="animation-delay:.08s"/>` : "";
     $("scene").innerHTML = `${GRAD}${rodGroup(rot)}${line}${lure}${splash}`;
   }
 
@@ -1584,18 +1434,83 @@
     castRaf = requestAnimationFrame(step);
   }
 
+  // ── 掛かっている間の糸とさかな ─────────────────────────────
+  // 竿の「合わせ」(bite)と、さかなの「上げ」「揺れ」(hang/swing)を
+  // どちらもここで数値計算し、糸はその2点(竿先・さかなの口)を
+  // 毎フレーム実際に結んで描く。CSSアニメーションや getCTM の値読み取りに
+  // 頼らないので、竿先と糸の起点が食い違って見える(切れて見える)ことがない。
+  let hookedRaf = null;
+  const cancelHookedAnim = ()=>{ if(hookedRaf){ cancelAnimationFrame(hookedRaf); hookedRaf = null; } };
+
+  const BITE_KF = [[0,7],[0.38,-13],[0.68,-6],[1,-8]];
+  const HANG_KF = [[0,{x:226,y:124,s:.6,o:0}],[0.25,{x:226,y:124,s:.6,o:1}],[1,{x:214,y:56,s:1,o:1}]];
+  function lerpHang(t){
+    t = Math.max(0, Math.min(1,t));
+    for(let i=0;i<HANG_KF.length-1;i++){
+      const [t0,v0] = HANG_KF[i], [t1,v1] = HANG_KF[i+1];
+      if(t <= t1){
+        const local = t1===t0 ? 1 : smoothstep((t-t0)/(t1-t0));
+        return {
+          x: v0.x + (v1.x-v0.x)*local,
+          y: v0.y + (v1.y-v0.y)*local,
+          s: v0.s + (v1.s-v0.s)*local,
+          o: v0.o + (v1.o-v0.o)*local
+        };
+      }
+    }
+    return HANG_KF[HANG_KF.length-1][1];
+  }
+
+  function startHookedAnimation(fishName){
+    cancelHookedAnim();
+    const dynEl = document.getElementById("hookedDyn");
+    if(!dynEl) return;
+    const t0 = performance.now();
+    const BITE_MS = 550, HANG_MS = 1100, SWING_MS = 2400, SWING_DELAY = 1100, SWING_AMP = 7;
+    const step = now=>{
+      const el = now - t0;
+      const rot = el < BITE_MS ? lerpKF(BITE_KF, el/BITE_MS) : -8;
+      const hg = lerpHang(el/HANG_MS);
+      const swingT = el < SWING_DELAY ? 0 : ((el-SWING_DELAY) % SWING_MS)/SWING_MS;
+      const swingAngle = el < SWING_DELAY ? 0 : SWING_AMP*Math.sin(swingT*Math.PI*2 - Math.PI/2);
+
+      // 竿先の「本当の」座標を、竿と同じ回転角で計算する(表示に使う回転と完全に一致させる)
+      const tip = rotatePoint(226, 40, ROD_PIVOT.x, ROD_PIVOT.y, rot);
+
+      // さかなの口の座標も、表示に使う translate/scale/rotate と同じ式で計算する
+      const rad = swingAngle*Math.PI/180;
+      const dx = MOUTH_DX, dy = MOUTH_DY + 30;
+      const rdx = dx*Math.cos(rad) - dy*Math.sin(rad);
+      const rdy = dx*Math.sin(rad) + dy*Math.cos(rad);
+      const localX = rdx, localY = -30 + rdy;
+      const mouthX = hg.x + localX*hg.s;
+      const mouthY = hg.y + localY*hg.s;
+
+      const mx = (tip.x + mouthX)/2, my = (tip.y + mouthY)/2 + 4;
+
+      dynEl.innerHTML = `
+        ${rodGroup(rot, "")}
+        <path class="line" d="M${tip.x.toFixed(1)} ${tip.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${mouthX.toFixed(1)} ${mouthY.toFixed(1)}"/>
+        <g transform="translate(${hg.x.toFixed(1)} ${hg.y.toFixed(1)}) scale(${hg.s.toFixed(3)})" opacity="${hg.o.toFixed(2)}">
+          <g transform="rotate(${swingAngle.toFixed(2)} 0 -30)">
+            <g transform="translate(-70 -30)">${fishSVG(fishName,140,84)}</g>
+          </g>
+        </g>`;
+      hookedRaf = requestAnimationFrame(step);
+    };
+    hookedRaf = requestAnimationFrame(step);
+  }
+
   function drawScene(mode, fishName){
+    cancelHookedAnim();
     const R = rodPath();
-    const rot = mode==="hooked" ? -14 : 0;
+    const rot = 0;
     const tip = rotatePoint(R.tipX, R.tipY, ROD_PIVOT.x, ROD_PIVOT.y, rot);
-
-    // まだ垂らしていないときは糸を出さない。糸が切れたときも本線は出さない。
-    const showLine = (mode !== "idle" && mode !== "snapped");
-    const end = mode==="hooked" ? {x:214,y:56} : {x:226,y:SEA+6};
+    const showLine = (mode === "cast");
+    const end = mode==="hooked" ? {x:214, y:56} : {x:226, y:SEA+6};
     const line = showLine
-      ? `<path d="M${tip.x} ${tip.y} Q${(tip.x+end.x)/2+4} ${(tip.y+end.y)/2} ${end.x} ${end.y}"
-          stroke="url(#lg)" stroke-width="1" fill="none"/>` : "";
-
+      ? `<path d="M${tip.x} ${tip.y} Q${(tip.x+end.x)/2+4} ${(tip.y+end.y)/2} ${end.x} ${end.y}" stroke="url(#lg)" stroke-width="1" fill="none"/>` : "";
+    const rodMarkup = mode === "hooked" ? "" : rodGroup(rot, "");
     const rings = mode==="cast" ? `
       <g class="ripple">
         <ellipse cx="226" cy="${SEA}" rx="9"  ry="3"   fill="none" stroke="rgba(190,225,255,.55)" stroke-width="1.3"/>
@@ -1603,30 +1518,23 @@
         <ellipse cx="226" cy="${SEA}" rx="27" ry="8"   fill="none" stroke="rgba(190,225,255,.2)"  stroke-width="1" style="animation-delay:2.2s"/>
       </g>` : "";
     const bubbles = mode==="cast"
-      ? `<circle class="bub" cx="120" cy="158" r="3.4"/>
-         <circle class="bub" cx="196" cy="166" r="2.6"/>
-         <circle class="bub" cx="158" cy="150" r="3"/>` : "";
-
+      ? `<circle class="bub" cx="120" cy="158" r="3.4"/><circle class="bub" cx="196" cy="166" r="2.6"/><circle class="bub" cx="158" cy="150" r="3"/>` : "";
     let center = "";
     if(mode === "hooked"){
-      // 水面(226,118)から、ぶら下がる位置(214,56)まで跳ね上がってくる。
       center = `
         <circle class="splash" cx="226" cy="${SEA}" r="12"/>
         <circle class="splash" cx="226" cy="${SEA}" r="22" style="animation-delay:.1s"/>
         <circle class="splash" cx="226" cy="${SEA}" r="32" style="animation-delay:.2s"/>
-        <g class="hang" transform="translate(${end.x} ${end.y})">
-          <g class="hangSwing">
-            <g transform="translate(-70 -30)">${fishSVG(fishName,140,84)}</g>
-          </g>
-        </g>
-        <circle class="drip" cx="204" cy="${SEA-6}"  r="2.4" fill="rgba(200,230,255,.8)"/>
-        <circle class="drip" cx="228" cy="${SEA}"    r="1.8" fill="rgba(200,230,255,.7)" style="animation-delay:.35s"/>
-        <circle class="drip" cx="216" cy="${SEA-14}" r="2"   fill="rgba(200,230,255,.75)" style="animation-delay:.5s"/>`;
+        <circle class="drip" cx="${end.x+MOUTH_DX-3}"  cy="${end.y+MOUTH_DY+2}"  r="2.4" fill="rgba(200,230,255,.8)"/>
+        <circle class="drip" cx="${end.x+MOUTH_DX+9}"  cy="${end.y+MOUTH_DY-4}"  r="1.8" fill="rgba(200,230,255,.7)" style="animation-delay:.35s"/>
+        <circle class="drip" cx="${end.x+MOUTH_DX+2}"  cy="${end.y+MOUTH_DY+10}" r="2"   fill="rgba(200,230,255,.75)" style="animation-delay:.5s"/>
+        <g id="hookedDyn"></g>`;
     }else if(mode === "snapped"){
       center = `<path d="M${tip.x} ${tip.y} Q227 58 223 72" stroke="url(#lg)" stroke-width="1" fill="none"/>
         <path d="M230 96 Q228 106 226 ${SEA}" stroke="url(#lg)" stroke-width="1" fill="none" opacity=".4"/>`;
     }
-    $("scene").innerHTML = `${GRAD}${rodGroup(rot)}${line}${rings}${bubbles}${center}`;
+    $("scene").innerHTML = `${GRAD}${rodMarkup}${line}${rings}${bubbles}${center}`;
+    if(mode === "hooked") startHookedAnimation(fishName);
   }
 
   function drawPond(){
@@ -1638,23 +1546,14 @@
       drawScene("idle");
       $("pondState").textContent = "まだ 糸を垂らしていません";
       $("pondBig").textContent = w.name;
-      $("pondSub").textContent = w.yen
-        ? `¥${w.yen.toLocaleString()} ／ ${w.hours}時間で釣れる`
-        : "お金はかかりません ／ 10秒で釣れる";
+      $("pondSub").textContent = w.yen ? `¥${w.yen.toLocaleString()} ／ ${w.hours}時間で釣れる` : "お金はかかりません ／ 10秒で釣れる";
       $("castBtn").style.display = "";
       $("pullBtn").style.display = "none";
       const have = bagCount(w.hours);
-      $("castBtn").textContent = !w.yen
-        ? "ためしに 糸を垂らす（無料）"
-        : have > 0
-          ? `${w.name}で 糸を垂らす`
-          : `${w.name}を買って 糸を垂らす（¥${w.yen.toLocaleString()}）`;
-      if(w.yen && have > 0){
-        $("sellBtn").style.display = "";
-        $("sellBtn").textContent = `${w.name}を売る（¥${w.yen.toLocaleString()} もどる）`;
-      }else{
-        $("sellBtn").style.display = "none";
-      }
+      $("castBtn").textContent = !w.yen ? "ためしに 糸を垂らす（無料）"
+        : have > 0 ? `${w.name}で 糸を垂らす` : `${w.name}を買って 糸を垂らす（¥${w.yen.toLocaleString()}）`;
+      if(w.yen && have > 0){ $("sellBtn").style.display = ""; $("sellBtn").textContent = `${w.name}を売る（¥${w.yen.toLocaleString()} もどる）`; }
+      else{ $("sellBtn").style.display = "none"; }
       $("fishNote").textContent = "垂らしてから10秒以内なら、お金を取り出せます。";
       return;
     }
@@ -1668,8 +1567,7 @@
     $("pullBtn").style.display = "";
     if(canPull()){
       const rest = Math.ceil((PULL_WINDOW - (Date.now() - cast.startedAt))/1000);
-      $("pullBtn").textContent = cast.yen
-        ? `糸を上げて ¥${cast.yen.toLocaleString()} を取り出す（${rest}）` : `やめる（${rest}）`;
+      $("pullBtn").textContent = cast.yen ? `糸を上げて ¥${cast.yen.toLocaleString()} を取り出す（${rest}）` : `やめる（${rest}）`;
       $("pullBtn").disabled = false;
       $("fishNote").textContent = "取り出せるのは いまから10秒だけです。";
     }else{
@@ -1687,23 +1585,14 @@
   function drawCreel(){
     $("creelCount").textContent = `${new Set(creel.map(f=>f.name)).size} / ${FISH_TOTAL}`;
     const tally = new Map();
-    for(const f of creel){
-      const t = tally.get(f.name) || { name:f.name, rarity:f.rarity, n:0 };
-      t.n++; tally.set(f.name, t);
-    }
+    for(const f of creel){ const t = tally.get(f.name) || { name:f.name, rarity:f.rarity, n:0 }; t.n++; tally.set(f.name, t); }
     const list = [...tally.values()].sort((a,b)=> b.rarity-a.rarity || b.n-a.n || a.name.localeCompare(b.name));
     $("creelGrid").innerHTML = list.length
-      ? list.map(f=>
-          `<span class="fishTag r${f.rarity}">
-             ${fishSVG(f.name,34,20)}
-             <span class="fn">${esc(f.name)}</span>
-             ${f.n>1?`<span class="mul">×${f.n}</span>`:""}
-             <span class="r">${RARITY_NAME[f.rarity]}</span>
-           </span>`).join("")
+      ? list.map(f=>`<span class="fishTag r${f.rarity}">${fishSVG(f.name,34,20)}<span class="fn">${esc(f.name)}</span>${f.n>1?`<span class="mul">×${f.n}</span>`:""}<span class="r">${RARITY_NAME[f.rarity]}</span></span>`).join("")
       : `<span class="creelEmpty">まだ 何も釣れていません</span>`;
   }
 
-  let staging = false;      // 演出中は他の描画で上書きしない
+  let staging = false;
 
   $("sellBtn").onclick = ()=>{
     const w = wormOf(wormH);
@@ -1718,6 +1607,7 @@
 
   $("castBtn").onclick = ()=>{
     if(cast || staging) return;
+    cancelHookedAnim();
     const w = wormOf(wormH);
     if(w.yen){
       if(bagCount(w.hours) <= 0) bag[w.hours] = 1;
@@ -1768,14 +1658,14 @@
     $("scene").dataset.m = "hooked";
     $("pondState").textContent = "釣れました";
     $("pondBig").textContent = got.name;
-    $("pondSub").textContent = yen
-      ? `${RARITY_NAME[got.rarity]} ／ ¥${yen.toLocaleString()} も戻りました` : RARITY_NAME[got.rarity];
+    $("pondSub").textContent = yen ? `${RARITY_NAME[got.rarity]} ／ ¥${yen.toLocaleString()} も戻りました` : RARITY_NAME[got.rarity];
     $("castBtn").style.display = "";
     $("pullBtn").style.display = "none";
     $("fishNote").textContent = "びくに入りました。";
   }
 
   function snap(){
+    cancelHookedAnim();
     if(staging && !cast){
       cancelCastAnim();
       staging = false;
@@ -1800,7 +1690,6 @@
     $("fishNote").textContent = "画面を離れたため、釣りは終わりました。";
   }
 
-  // 離脱の検知。ここがこの機能の核心。
   document.addEventListener("visibilitychange", ()=>{
     if(document.visibilityState === "hidden") snap();
   });
@@ -1820,8 +1709,13 @@
 
   drawWorms(); drawPond(); drawCreel();
   renderTodos();
+  renderMySets();
+  checkAutoMySet();
   render();
-  setInterval(()=>{ if(!drag){ drawDial(); drawNow(); } }, 1000);
+  setInterval(()=>{
+    if(!drag){ drawDial(); drawNow(); }
+    checkAutoMySet();   // 日付がまたいだ瞬間(アプリを開いたままの深夜)も拾えるようにする
+  }, 1000);
 })();
 </script>
 </body>
