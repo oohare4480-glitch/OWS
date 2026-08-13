@@ -270,6 +270,21 @@
   .fishTag.r6{background:#FFE9F0;border-color:#F5BFD2;font-weight:700}
   .creelEmpty{font-size:11.5px;color:var(--usu)}
 
+  .rarityCard{margin-top:10px;background:var(--shiro);border-radius:16px;padding:4px 13px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
+  .rarityToggle{
+    width:100%;display:flex;align-items:center;justify-content:space-between;
+    background:none;border:none;padding:11px 0;font-family:"Kiwi Maru",serif;
+    font-size:12.5px;color:var(--sumi);cursor:pointer
+  }
+  .rc-arrow{color:var(--usu);font-size:11px;transition:transform .2s}
+  .rarityToggle[aria-expanded="true"] .rc-arrow{transform:rotate(180deg)}
+  .rarityBody{padding:2px 0 12px}
+  .rarityItem{display:flex;align-items:center;gap:8px;padding:5px 0}
+  .rdot{width:11px;height:11px;border-radius:4px;flex-shrink:0}
+  .rarityItem .rn{font-family:"Kiwi Maru",serif;font-size:12px;flex-shrink:0;min-width:52px}
+  .rarityItem .rd{font-size:11px;color:var(--usu)}
+  .rarityNote{margin:8px 0 0;font-size:10.5px;color:var(--usu);line-height:1.6}
+
   .pond .scene{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   .line{stroke:rgba(255,255,255,.5);stroke-width:1;fill:none}
 
@@ -487,6 +502,39 @@
           <span id="creelCount">0 / 129</span>
         </div>
         <div class="creelGrid" id="creelGrid"></div>
+      </div>
+
+      <div class="rarityCard">
+        <button class="rarityToggle" id="rarityToggle" aria-expanded="false">
+          <span>レア度について</span><span class="rc-arrow" id="rarityArrow">▾</span>
+        </button>
+        <div class="rarityBody" id="rarityBody" style="display:none">
+          <div class="rarityItem">
+            <span class="rdot" style="background:#B7C4D6"></span>
+            <span class="rn">ふつう</span><span class="rd">どこでも、いちばんよく釣れる</span>
+          </div>
+          <div class="rarityItem">
+            <span class="rdot" style="background:#8FB0D6"></span>
+            <span class="rn">よくいる</span><span class="rd">それなりの確率で釣れる</span>
+          </div>
+          <div class="rarityItem">
+            <span class="rdot" style="background:#8C6BC4"></span>
+            <span class="rn">なかなか</span><span class="rd">少しめずらしい</span>
+          </div>
+          <div class="rarityItem">
+            <span class="rdot" style="background:#5EAAA3"></span>
+            <span class="rn">みごと</span><span class="rd">なかなか出会えない</span>
+          </div>
+          <div class="rarityItem">
+            <span class="rdot" style="background:#E0A020"></span>
+            <span class="rn">大物</span><span class="rd">めったに釣れない大物</span>
+          </div>
+          <div class="rarityItem">
+            <span class="rdot" style="background:#E0568C"></span>
+            <span class="rn">伝説</span><span class="rd">ごくわずかな確率、最高レア</span>
+          </div>
+          <p class="rarityNote">長いワーム（長く待つほど）を使うほど、レアな魚が出やすくなります。</p>
+        </div>
       </div>
     </section>
   </div>
@@ -1766,6 +1814,12 @@
     if(Date.now() - cast.startedAt >= cast.ms) hooked();
     else drawPond();
   }, 250);
+
+  $("rarityToggle").onclick = ()=>{
+    const open = $("rarityToggle").getAttribute("aria-expanded") === "true";
+    $("rarityToggle").setAttribute("aria-expanded", String(!open));
+    $("rarityBody").style.display = open ? "none" : "";
+  };
 
   drawWorms(); drawPond(); drawCreel();
   renderTodos();
