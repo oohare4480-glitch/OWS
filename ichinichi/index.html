@@ -683,8 +683,8 @@
     return false;
   }
 
-  $("resetBtn").onclick = ()=>{ items = SAMPLE.slice(); selected=-1; commit(); };
-  $("clearBtn").onclick = ()=>{ items = []; selected=-1; commit(); };
+  $("resetBtn").onclick = ()=>{ items = SAMPLE.slice(); selected=-1; turn=0; showTurn(); commit(); };
+  $("clearBtn").onclick = ()=>{ items = []; selected=-1; turn=0; showTurn(); commit(); };
 
   /* ── 金庫のダイヤルのように輪を回す ────── */
   const dialEl = $("dial"), boxEl = document.querySelector(".dialbox");
