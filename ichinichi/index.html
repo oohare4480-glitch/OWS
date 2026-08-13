@@ -103,10 +103,22 @@
   .warn{margin:9px 0 0;font-size:11px;color:#C2410C;min-height:14px}
 
   .tools{display:flex;gap:8px;margin-top:12px}
+  .toolNote{
+    margin:8px 0 0;text-align:center;font-size:11.5px;color:var(--hari);min-height:15px;
+    opacity:0;transition:opacity .2s
+  }
+  .toolNote.show{opacity:1}
+  .flashList{animation:flashList .6s ease}
+  @keyframes flashList{
+    0%{background:rgba(108,92,231,.14)}
+    100%{background:transparent}
+  }
   .tool{
     flex:1;font-size:12px;padding:11px;border-radius:12px;cursor:pointer;
-    background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit
+    background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit;
+    transition:transform .1s, background .15s
   }
+  .tool:active{transform:scale(.96);background:#F3F1FE}
 
   /* ── やること と カレンダー ───────────── */
   .viewBar{display:flex;gap:6px;margin:14px 0 12px}
@@ -376,6 +388,7 @@
         <button class="tool" id="resetBtn">見本にもどす</button>
         <button class="tool" id="clearBtn">ぜんぶ消す</button>
       </div>
+      <p class="toolNote" id="toolNote"></p>
     </section>
 
   </div>
@@ -683,8 +696,41 @@
     return false;
   }
 
-  $("resetBtn").onclick = ()=>{ items = SAMPLE.slice(); selected=-1; turn=0; showTurn(); commit(); };
-  $("clearBtn").onclick = ()=>{ items = []; selected=-1; turn=0; showTurn(); commit(); };
+  let toolNoteTimer = null;
+  function toolFeedback(msg){
+    const list = $("list"), note = $("toolNote");
+    list.classList.remove("flashList");
+    void list.offsetWidth;           // 同じアニメーションを続けて出せるように、いったんリセットする
+    list.classList.add("flashList");
+    note.textContent = msg;
+    note.classList.add("show");
+    clearTimeout(toolNoteTimer);
+    toolNoteTimer = setTimeout(()=> note.classList.remove("show"), 1800);
+  }
+  // 「見本にもどす」「ぜんぶ消す」は、よてい欄の高さが大きく変わる(空1行 ⇔ 全件)。
+  // 何もしないと、変わった高さの分だけ画面が勝手にずれて見えるので、その分だけ打ち消す。
+  function withScrollHold(fn){
+    const anchor = $("resetBtn");
+    const before = anchor.getBoundingClientRect().top;
+    fn();
+    requestAnimationFrame(()=>{
+      const after = anchor.getBoundingClientRect().top;
+      const diff = after - before;
+      if(diff) window.scrollBy(0, diff);
+    });
+  }
+  $("resetBtn").onclick = ()=>{
+    withScrollHold(()=>{
+      items = SAMPLE.slice(); selected=-1; turn=0; showTurn(); commit();
+    });
+    toolFeedback("見本にもどしました");
+  };
+  $("clearBtn").onclick = ()=>{
+    withScrollHold(()=>{
+      items = []; selected=-1; turn=0; showTurn(); commit();
+    });
+    toolFeedback("ぜんぶ消しました");
+  };
 
   /* ── 金庫のダイヤルのように輪を回す ────── */
   const dialEl = $("dial"), boxEl = document.querySelector(".dialbox");
