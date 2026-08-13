@@ -116,6 +116,8 @@
   }
   .vbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
   .tool.kbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
+  .kindRow{flex-wrap:wrap}
+  .kindRow .kbtn{flex:1 1 30%;min-width:76px}
   .wdaysPick{display:flex;gap:6px;flex-wrap:wrap}
   .wday{width:34px;height:34px;border-radius:10px;border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);font-size:12px;cursor:pointer;font-family:inherit}
   .wday[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
@@ -381,36 +383,7 @@
   <div class="page" id="page-todo">
     <section id="todoSec">
       <h2>やること</h2>
-      <p class="sub">日付・期間・毎週から えらべます</p>
-
-      <div class="form">
-        <div class="row">
-          <input type="text" id="tName" maxlength="24" placeholder="やること(例: 友人と釣りに行く)">
-        </div>
-        <div class="row kindRow" id="kindRow">
-          <button class="tool kbtn" data-kind="none" aria-pressed="true">日付なし</button>
-          <button class="tool kbtn" data-kind="date" aria-pressed="false">日付</button>
-          <button class="tool kbtn" data-kind="range" aria-pressed="false">期間</button>
-          <button class="tool kbtn" data-kind="weekly" aria-pressed="false">毎週</button>
-        </div>
-        <div class="row" id="dateRow" style="display:none">
-          <input type="date" id="tDate">
-        </div>
-        <div class="row" id="rangeRow" style="display:none">
-          <input type="date" id="tFrom">
-          <span class="tilde">〜</span>
-          <input type="date" id="tTo">
-        </div>
-        <div class="row" id="weeklyRow" style="display:none">
-          <div class="wdaysPick" id="wdaysPick"></div>
-        </div>
-        <div class="row" id="untilRow" style="display:none">
-          <span class="tilde" style="flex:0 0 auto">いつまで(なくてもよい)</span>
-          <input type="date" id="tUntil">
-        </div>
-        <button class="add" id="tAdd">足す</button>
-        <p class="warn" id="tWarn"></p>
-      </div>
+      <p class="sub">日付・期間・毎週・毎年から えらべます</p>
 
       <div class="viewBar">
         <button class="vbtn" id="vList" aria-pressed="true">リスト</button>
@@ -430,6 +403,41 @@
         <div class="calScroll" id="calScroll"></div>
         <h3 class="someday">いつか（日付なし）</h3>
         <div id="calSomeday"></div>
+      </div>
+
+      <h2 style="margin-top:26px">あたらしく 足す</h2>
+      <div class="form">
+        <div class="row">
+          <input type="text" id="tName" maxlength="24" placeholder="やること(例: 友人と釣りに行く)">
+        </div>
+        <div class="row kindRow" id="kindRow">
+          <button class="tool kbtn" data-kind="none" aria-pressed="true">日付なし</button>
+          <button class="tool kbtn" data-kind="date" aria-pressed="false">日付</button>
+          <button class="tool kbtn" data-kind="range" aria-pressed="false">期間</button>
+          <button class="tool kbtn" data-kind="weekly" aria-pressed="false">毎週</button>
+          <button class="tool kbtn" data-kind="yearly" aria-pressed="false">毎年</button>
+        </div>
+        <div class="row" id="dateRow" style="display:none">
+          <input type="date" id="tDate">
+        </div>
+        <div class="row" id="rangeRow" style="display:none">
+          <input type="date" id="tFrom">
+          <span class="tilde">〜</span>
+          <input type="date" id="tTo">
+        </div>
+        <div class="row" id="weeklyRow" style="display:none">
+          <div class="wdaysPick" id="wdaysPick"></div>
+        </div>
+        <div class="row" id="yearlyRow" style="display:none">
+          <span class="tilde" style="flex:0 0 auto">毎年 くりかえす日</span>
+          <input type="date" id="tYearly">
+        </div>
+        <div class="row" id="untilRow" style="display:none">
+          <span class="tilde" style="flex:0 0 auto">いつまで(なくてもよい)</span>
+          <input type="date" id="tUntil">
+        </div>
+        <button class="add" id="tAdd">足す</button>
+        <p class="warn" id="tWarn"></p>
       </div>
     </section>
   </div>
@@ -745,7 +753,7 @@
   }
 
   /* ══ やること と カレンダー ═══════════════
-     日付は「日付」「期間」「毎週」から選べる。日付なしは「いつか」へ。
+     日付は「日付」「期間」「毎週」「毎年」から選べる。日付なしは「いつか」へ。
      カレンダーは月をつないだ一本のスクロールで、「きょうへ」で飛べる。 */
   const tstore = {
     load(){ try{ const v=localStorage.getItem("yarukoto"); return v?JSON.parse(v):null; }catch(e){ return null; } },
@@ -771,13 +779,18 @@
   }
   function saveTodos(){ tstore.save(todos); renderTodos(); }
 
-  /* 種類ごとの判定。date=単発 / range=期間 / weekly=毎週 / none=日付なし */
+  /* 種類ごとの判定。date=単発 / range=期間 / weekly=毎週 / yearly=毎年 / none=日付なし */
   function occursOn(t, ds){
     if(t.kind === "date") return t.date === ds;
     if(t.kind === "range") return ds >= t.dateFrom && ds <= t.dateTo;
     if(t.kind === "weekly"){
       const wd = parseYMD(ds).getDay();
       if(!t.weekdays.includes(wd)) return false;
+      if(t.until && ds > t.until) return false;
+      return true;
+    }
+    if(t.kind === "yearly"){
+      if(ds.slice(5) !== t.monthDay) return false;
       if(t.until && ds > t.until) return false;
       return true;
     }
@@ -797,6 +810,15 @@
       }
       return null;
     }
+    if(t.kind === "yearly"){
+      const today = todayStr();
+      const [mm,dd] = t.monthDay.split("-").map(Number);
+      let y = Number(today.slice(0,4));
+      let ds = `${y}-${pad(mm)}-${pad(dd)}`;
+      if(ds < today){ y += 1; ds = `${y}-${pad(mm)}-${pad(dd)}`; }
+      if(t.until && ds > t.until) return null;
+      return ds;
+    }
     return null;
   }
   function todoDateLabel(t){
@@ -805,6 +827,10 @@
     if(t.kind === "weekly"){
       const wd = t.weekdays.slice().sort().map(d=>WDN[d]).join("・");
       return `毎週${wd}${t.until ? `（${fmtDate(t.until)}まで）` : ""}`;
+    }
+    if(t.kind === "yearly"){
+      const [mm,dd] = t.monthDay.split("-").map(Number);
+      return `毎年 ${mm}/${dd}${t.until ? `（${fmtDate(t.until)}まで）` : ""}`;
     }
     return "";
   }
@@ -823,6 +849,12 @@
       const n = dayDiff(nx);
       return { late:false, soon: !t.done && n<=1 };
     }
+    if(t.kind === "yearly"){
+      const nx = nextOccurrence(t);
+      if(nx == null) return { late: !t.done, soon:false };
+      const n = dayDiff(nx);
+      return { late:false, soon: !t.done && n<=1 };
+    }
     return { late:false, soon:false };
   }
 
@@ -835,7 +867,8 @@
     $("dateRow").style.display   = k==="date"   ? "" : "none";
     $("rangeRow").style.display  = k==="range"  ? "" : "none";
     $("weeklyRow").style.display = k==="weekly" ? "" : "none";
-    $("untilRow").style.display  = k==="weekly" ? "" : "none";
+    $("yearlyRow").style.display = k==="yearly" ? "" : "none";
+    $("untilRow").style.display  = (k==="weekly" || k==="yearly") ? "" : "none";
   }
   document.querySelectorAll(".kbtn").forEach(b=>{
     b.onclick = ()=> setAddKind(b.dataset.kind);
@@ -874,11 +907,17 @@
       if(!selectedWdays.length){ $("tWarn").textContent = "曜日を えらんでください"; return; }
       todo.weekdays = selectedWdays.slice().sort();
       if($("tUntil").value) todo.until = $("tUntil").value;
+    }else if(addKind === "yearly"){
+      if(!$("tYearly").value){ $("tWarn").textContent = "毎年の日付を入れてください"; return; }
+      const d = parseYMD($("tYearly").value);
+      todo.monthDay = pad(d.getMonth()+1) + "-" + pad(d.getDate());
+      if($("tUntil").value) todo.until = $("tUntil").value;
     }
 
     todos.push(todo);
     $("tName").value = "";
-    $("tDate").value = ""; $("tFrom").value = ""; $("tTo").value = ""; $("tUntil").value = "";
+    $("tDate").value = ""; $("tFrom").value = ""; $("tTo").value = "";
+    $("tYearly").value = ""; $("tUntil").value = "";
     selectedWdays = [];
     $("wdaysPick").querySelectorAll(".wday").forEach(b=>b.setAttribute("aria-pressed","false"));
     setAddKind("none");
@@ -960,6 +999,7 @@
       if(x.kind === "date") marks.push(x.date);
       else if(x.kind === "range"){ marks.push(x.dateFrom); marks.push(x.dateTo); }
       else if(x.kind === "weekly" && x.until) marks.push(x.until);
+      else if(x.kind === "yearly" && x.until) marks.push(x.until);
     }
     if(calFocus) marks.push(calFocus);
     for(const s of marks){
@@ -971,7 +1011,7 @@
   }
 
   // 大学の学年暦のように、月ごとに「日付・予定」を並べた表で見せる。
-  // 空白のマス目は作らず、予定がある日だけを行として並べる(期間・毎週も、その日ごとに展開する)。
+  // 空白のマス目は作らず、予定がある日だけを行として並べる(期間・毎週・毎年も、その日ごとに展開する)。
   // どの行も、タップすればその日付で「やること」を足せる。
   function drawCalendar(){
     const [lo, hi] = calRange();
