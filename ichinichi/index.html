@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>いちにち時計 と 集中釣り</title>
+<title>To Do集中時計</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -84,7 +84,7 @@
   .form{background:var(--shiro);border-radius:17px;padding:14px;box-shadow:0 1px 3px rgba(42,36,56,.05)}
   .row{display:flex;gap:8px;align-items:center;margin-bottom:9px}
   .row:last-child{margin-bottom:0}
-  input[type=text],input[type=time]{
+  input[type=text],input[type=time],input[type=date]{
     /* iOSは16px未満の入力欄にカーソルが入ると勝手に拡大する。16pxにして止める */
     font-family:inherit;font-size:16px;padding:10px 12px;border-radius:11px;
     border:1px solid var(--kasumi);background:#FBFAFE;color:var(--sumi);
@@ -108,6 +108,78 @@
     background:transparent;border:1px solid var(--kasumi);color:var(--usu);font-family:inherit
   }
 
+  /* ── やること と カレンダー ───────────── */
+  .viewBar{display:flex;gap:6px;margin:14px 0 12px}
+  .vbtn{
+    flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:10px;border-radius:12px;
+    border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer
+  }
+  .vbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
+  .tool.kbtn[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
+  .wdaysPick{display:flex;gap:6px;flex-wrap:wrap}
+  .wday{width:34px;height:34px;border-radius:10px;border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);font-size:12px;cursor:pointer;font-family:inherit}
+  .wday[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
+  .someday{
+    margin:18px 0 8px;font-family:"Kiwi Maru",serif;font-size:12.5px;font-weight:500;
+    color:var(--usu);letter-spacing:.08em
+  }
+  .todo{
+    display:flex;align-items:center;gap:10px;background:var(--shiro);border-radius:14px;
+    padding:11px 13px;margin-bottom:7px;box-shadow:0 1px 3px rgba(42,36,56,.05)
+  }
+  .todo.done{opacity:.45}
+  .todo.done .tt{text-decoration:line-through}
+  .chk{
+    width:21px;height:21px;border-radius:7px;border:1.6px solid var(--kasumi);
+    background:var(--shiro);cursor:pointer;flex-shrink:0;padding:0;
+    color:#fff;font-size:12px;line-height:1
+  }
+  .todo.done .chk{background:var(--hari);border-color:var(--hari)}
+  .todo .tt{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .todo .td{font-size:11px;color:var(--usu);white-space:nowrap}
+  .todo .td.soon{color:#C2410C}
+  .todoEmpty{font-size:11.5px;color:var(--usu);padding:4px 2px;margin:0}
+  .todoAdd{
+    font-size:12px;color:var(--hari);text-align:center;padding:10px;
+    border:1.5px dashed var(--kasumi);border-radius:12px;cursor:pointer;margin-top:2px
+  }
+  .todoAdd:active{background:#F3F1FE}
+
+  .calTools{display:flex;gap:8px;margin-bottom:10px}
+  .calScroll{
+    max-height:60vh;overflow-y:auto;background:var(--shiro);border-radius:16px;
+    padding:4px 12px 12px;box-shadow:0 1px 3px rgba(42,36,56,.05);-webkit-overflow-scrolling:touch
+  }
+  .mon{margin-top:14px}
+  .mon:first-child{margin-top:6px}
+  .monTtl{
+    display:flex;align-items:center;gap:8px;
+    font-family:"Kiwi Maru",serif;font-size:13px;margin:0 0 6px;position:sticky;top:0;
+    background:var(--shiro);padding:8px 0 6px;z-index:1;border-bottom:2px solid var(--hari)
+  }
+  .monTtl .tag{
+    background:var(--hari);color:#fff;font-size:11px;padding:2px 9px;border-radius:99px;
+    flex-shrink:0
+  }
+  .monTtl.thisMon .tag{background:#E0A020}
+  .calTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .calTbl tr td{padding:7px 4px;border-bottom:1px solid var(--kasumi);vertical-align:top}
+  .calTbl tr:last-child td{border-bottom:none}
+  .calTbl tr{cursor:pointer}
+  .calTbl td.cd{
+    width:78px;flex-shrink:0;color:var(--usu);font-variant-numeric:tabular-nums;
+    white-space:nowrap;padding-right:10px
+  }
+  .calTbl tr.today td.cd{color:var(--hari);font-weight:700}
+  .calTbl tr.today{background:#F6F4FF}
+  .calTbl tr.focus{background:#FFF6E4}
+  .calTbl td.ce{color:var(--sumi)}
+  .calTbl td.ce .it{display:block;line-height:1.6}
+  .calTbl td.ce .it.done{color:var(--usu);text-decoration:line-through}
+  .calTbl td.ce .it.late{color:#C2410C}
+  .calTbl td.ce .none{color:var(--usu);font-size:11.5px}
+  .calMonEmpty{font-size:11.5px;color:var(--usu);padding:6px 2px 14px}
+
   /* ── 集中釣り ───────────────────── */
   #fishSec{margin-top:30px}
   .pond{
@@ -123,7 +195,7 @@
   }
   .pond.casting .water{animation:ripple 5s ease-in-out infinite}
   @keyframes ripple{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-  .pondIn{position:relative;text-align:center;padding:22px 16px;width:100%}
+  .pondIn{position:relative;text-align:center;padding:22px 16px;width:100%;z-index:2}
   .pondState{font-size:11px;color:#9FC6E8;letter-spacing:.16em}
   .pondBig{
     font-family:"Kiwi Maru",serif;color:#fff;margin:6px 0 3px;
@@ -171,41 +243,12 @@
     display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;
     -webkit-overflow-scrolling:touch;scrollbar-width:thin
   }
-
-  /* 投げる: 振りかぶって前へ振り抜く */
-  .rodSwing{transform-origin:20px 172px;animation:swing 1.05s cubic-bezier(.5,-0.3,.3,1.4) both}
-  @keyframes swing{
-    0%  {transform:rotate(0deg)}
-    26% {transform:rotate(-26deg)}
-    52% {transform:rotate(16deg)}
-    74% {transform:rotate(-5deg)}
-    100%{transform:rotate(0deg)}}
-  /* ワームが弧を描いて飛び、水面へ落ちる */
-  .flyLure{animation:fly 1.05s cubic-bezier(.32,.5,.5,1) both}
-  @keyframes fly{
-    0%  {transform:translate(70px,150px) scale(.7);opacity:0}
-    30% {transform:translate(120px,60px) scale(.9);opacity:1}
-    62% {transform:translate(200px,26px) scale(1)}
-    88% {transform:translate(226px,104px) scale(.9);opacity:1}
-    100%{transform:translate(226px,120px) scale(.6);opacity:0}}
-  /* 合わせ: 竿を持ち上げて、しなったまま揺れる */
-  .rodPull{transform-origin:20px 172px;animation:pull .9s cubic-bezier(.34,1.4,.5,1) both}
-  @keyframes pull{
-    0%  {transform:rotate(0deg)}
-    38% {transform:rotate(-13deg)}
-    70% {transform:rotate(-8deg)}
-    100%{transform:rotate(-10deg)}}
-  .lineTight{animation:taut .9s ease-out both}
-  @keyframes taut{from{opacity:0}to{opacity:1}}
-  /* 糸の先で魚が暴れる */
-  .hookedFish{animation:thrash .6s ease-in-out .5s infinite alternate}
-  @keyframes thrash{
-    from{transform:translate(196px,126px) rotate(-16deg)}
-    to  {transform:translate(206px,132px) rotate(14deg)}}
   .fishTag{
     font-size:11px;padding:6px 9px;border-radius:11px;background:#F3F1FE;color:#3A3350;
-    border:1px solid var(--kasumi);flex-shrink:0;white-space:nowrap
+    border:1px solid var(--kasumi);flex-shrink:0;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:5px
   }
+  .fishTag svg{width:26px;height:15px;flex-shrink:0}
   .fishTag .fn{font-family:"Kiwi Maru",serif}
   .fishTag .mul{font-weight:700;color:var(--hari);margin-left:2px;font-variant-numeric:tabular-nums}
   .fishTag .r{font-size:9px;color:var(--usu);margin-left:3px}
@@ -214,39 +257,8 @@
   .creelEmpty{font-size:11.5px;color:var(--usu)}
 
   .pond .scene{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-  .pondIn{position:relative;z-index:2}
-  .rod{stroke:#C9A227;stroke-width:3;stroke-linecap:round;fill:none}
   .line{stroke:rgba(255,255,255,.5);stroke-width:1;fill:none}
-  /* 竿を振ってワームを投げ入れる。振りかぶり→前へ振り抜き→戻る。 */
-  .pond.casting-anim .rodG{
-    transform-origin:12px 172px;   /* 手元を支点に振る */
-    animation:swing .95s cubic-bezier(.3,.9,.35,1) both
-  }
-  @keyframes swing{
-    0%  {transform:rotate(0deg)}
-    26% {transform:rotate(19deg)}   /* 振りかぶり */
-    52% {transform:rotate(-15deg)}  /* 前へ振り抜く */
-    72% {transform:rotate(5deg)}
-    100%{transform:rotate(0deg)}
-  }
-  /* 投げ入れたワームが飛んで、水面へ落ちる */
-  .flying{animation:fly .95s cubic-bezier(.2,.5,.5,1) both}
-  @keyframes fly{
-    0%  {transform:translate(-120px,-30px) scale(.6);opacity:0}
-    30% {opacity:1}
-    100%{transform:translate(0,0) scale(1);opacity:0}
-  }
-  /* 魚が掛かった瞬間、竿を持ち上げる */
-  .pond.hooked .rodG{
-    transform-origin:12px 172px;
-    animation:liftRod 1.1s cubic-bezier(.25,1.2,.4,1) both
-  }
-  @keyframes liftRod{
-    0%  {transform:rotate(9deg)}    /* 食い込んで先が沈む */
-    35% {transform:rotate(-24deg)}  /* 合わせて煽る(拡大) */
-    70% {transform:rotate(-14deg)}
-    100%{transform:rotate(-16deg)}  /* 持ち上げたまま */
-  }
+
   /* 糸の先の魚が水面から上がり、ゆらゆら揺れる */
   .hang{animation:hangUp 1.1s cubic-bezier(.25,1.15,.4,1) both}
   @keyframes hangUp{
@@ -262,6 +274,12 @@
     0%,100%{transform:rotate(-7deg)}
     50%    {transform:rotate(7deg)}
   }
+  /* かかった瞬間、糸の先で魚が暴れる */
+  .fightFish{animation:thrash .5s ease-in-out infinite alternate}
+  @keyframes thrash{
+    from{transform:rotate(-18deg)}
+    to  {transform:rotate(16deg)}
+  }
 
   /* 入水点から波紋がゆっくり広がる。水中のワームは見えない。 */
   .pond.casting .ripple ellipse{
@@ -272,19 +290,12 @@
     0%  {transform:scale(.35);opacity:0}
     18% {opacity:.9}
     100%{transform:scale(1.9);opacity:0}}
-  .pond.snapped .line{stroke:#F4A6B8;stroke-dasharray:3 5}
   .bub{fill:rgba(159,198,232,.5)}
   .pond.casting .bub{animation:rise 4s linear infinite}
   .pond.casting .bub:nth-of-type(2){animation-delay:1.3s}
   .pond.casting .bub:nth-of-type(3){animation-delay:2.6s}
   @keyframes rise{0%{transform:translateY(0);opacity:0}
     15%{opacity:.7}85%{opacity:.5}100%{transform:translateY(-58px);opacity:0}}
-  .catchInner{animation:leap 1.25s cubic-bezier(.28,1.5,.45,1) both}
-  @keyframes leap{
-    0%  {transform:translate(0,60px) rotate(52deg) scale(.55);opacity:0}
-    30% {opacity:1}
-    62% {transform:translate(-14px,-16px) rotate(-16deg) scale(1.04)}
-    100%{transform:translate(0,0) rotate(-7deg) scale(1);opacity:1}}
   .drip{animation:drip .9s ease-in .25s both}
   @keyframes drip{
     0%{transform:translate(0,0);opacity:.85}
@@ -292,8 +303,19 @@
   .splash{fill:none;stroke:rgba(255,255,255,.75);stroke-width:2;animation:spread .7s ease-out both}
   @keyframes spread{from{opacity:.9;transform:scale(.3)}to{opacity:0;transform:scale(1.5)}}
 
-  .fishTag{display:inline-flex;align-items:center;gap:5px}
-  .fishTag svg{width:26px;height:15px;flex-shrink:0}
+  /* ── ページ切り替え(スクロールではなく、上のタブで画面ごと切り替える) ── */
+  .tabbar{
+    position:sticky;top:0;z-index:6;display:flex;gap:6px;
+    background:var(--kami);padding:12px 0 10px;margin-top:2px
+  }
+  .tab{
+    flex:1;font-family:"Kiwi Maru",serif;font-size:13px;padding:11px 4px;border-radius:12px;
+    border:1px solid var(--kasumi);background:var(--shiro);color:var(--usu);cursor:pointer
+  }
+  .tab[aria-pressed="true"]{background:var(--hari);color:#fff;border-color:var(--hari)}
+  .page{display:none}
+  .page.active{display:block}
+
   footer{margin-top:30px;text-align:center;font-size:10.5px;color:#A69FB8;line-height:1.9}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -302,83 +324,151 @@
 <div class="wrap">
 
   <header>
-    <h1>いちにち時計</h1>
-    <p>ひとまわりで24時間。針がいまを指します</p>
+    <h1>To Do集中時計</h1>
+    <p>24時間時計、To Doリスト、お金をかけた集中釣り</p>
   </header>
 
-  <div class="dialbox">
-    <svg class="dial" id="dial" viewBox="0 0 400 400"></svg>
-    <div class="center">
-      <div class="now">いま</div>
-      <div class="act" id="actNow">—</div>
-      <div class="clk" id="clkNow">--:--</div>
-      <div class="left" id="leftNow" style="display:none"></div>
+  <nav class="tabbar" id="tabbar">
+    <button class="tab" data-page="clock" aria-pressed="true">とけい・よてい</button>
+    <button class="tab" data-page="todo" aria-pressed="false">やること</button>
+    <button class="tab" data-page="fish" aria-pressed="false">つり</button>
+  </nav>
+
+  <div class="page active" id="page-clock">
+
+    <div class="dialbox">
+      <svg class="dial" id="dial" viewBox="0 0 400 400"></svg>
+      <div class="center">
+        <div class="now">いま</div>
+        <div class="act" id="actNow">—</div>
+        <div class="clk" id="clkNow">--:--</div>
+        <div class="left" id="leftNow" style="display:none"></div>
+      </div>
     </div>
+
+    <p class="turnHint" id="turnHint">円をつまんで回すと、予定ぜんたいをずらせます</p>
+
+    <section>
+      <h2>よてい</h2>
+      <p class="sub" id="totalTxt"></p>
+      <div id="list"></div>
+    </section>
+
+    <section>
+      <h2>あたらしく 足す</h2>
+      <p class="sub">日をまたぐ時間(23:00〜6:00 など)も入れられます</p>
+      <div class="form">
+        <div class="row">
+          <input type="text" id="fName" maxlength="8" placeholder="なまえ(例: 勉強)">
+        </div>
+        <div class="row">
+          <input type="time" id="fFrom" value="09:00">
+          <span class="tilde">〜</span>
+          <input type="time" id="fTo" value="12:00">
+        </div>
+        <div class="row"><div class="swatches" id="swatches"></div></div>
+        <button class="add" id="addBtn">足す</button>
+        <p class="warn" id="warn"></p>
+      </div>
+      <div class="tools">
+        <button class="tool" id="resetBtn">見本にもどす</button>
+        <button class="tool" id="clearBtn">ぜんぶ消す</button>
+      </div>
+    </section>
+
   </div>
 
-  <p class="turnHint" id="turnHint">円をつまんで回すと、予定ぜんたいをずらせます</p>
+  <div class="page" id="page-todo">
+    <section id="todoSec">
+      <h2>やること</h2>
+      <p class="sub">日付・期間・毎週から えらべます</p>
 
-
-  <section id="fishSec">
-    <h2>集中釣り</h2>
-    <p class="sub">お金をワームに換えて、糸を垂らす。<br>
-      画面を離れると糸が切れて、ワームは戻りません。<br>取り出せるのは 垂らしてから10秒だけ。</p>
-
-    <div class="pond" id="pond">
-      <div class="water"></div>
-      <svg class="scene" id="scene" viewBox="0 0 300 190" aria-hidden="true"></svg>
-      <div class="pondIn">
-        <div class="pondState" id="pondState">まだ 糸を垂らしていません</div>
-        <div class="pondBig" id="pondBig">—</div>
-        <div class="pondSub" id="pondSub"></div>
+      <div class="form">
+        <div class="row">
+          <input type="text" id="tName" maxlength="24" placeholder="やること(例: 友人と釣りに行く)">
+        </div>
+        <div class="row kindRow" id="kindRow">
+          <button class="tool kbtn" data-kind="none" aria-pressed="true">日付なし</button>
+          <button class="tool kbtn" data-kind="date" aria-pressed="false">日付</button>
+          <button class="tool kbtn" data-kind="range" aria-pressed="false">期間</button>
+          <button class="tool kbtn" data-kind="weekly" aria-pressed="false">毎週</button>
+        </div>
+        <div class="row" id="dateRow" style="display:none">
+          <input type="date" id="tDate">
+        </div>
+        <div class="row" id="rangeRow" style="display:none">
+          <input type="date" id="tFrom">
+          <span class="tilde">〜</span>
+          <input type="date" id="tTo">
+        </div>
+        <div class="row" id="weeklyRow" style="display:none">
+          <div class="wdaysPick" id="wdaysPick"></div>
+        </div>
+        <div class="row" id="untilRow" style="display:none">
+          <span class="tilde" style="flex:0 0 auto">いつまで(なくてもよい)</span>
+          <input type="date" id="tUntil">
+        </div>
+        <button class="add" id="tAdd">足す</button>
+        <p class="warn" id="tWarn"></p>
       </div>
-    </div>
 
-    <div class="wormPick" id="wormPick"></div>
-
-    <div class="fishBtns">
-      <button class="cast" id="castBtn">ワームを買って 糸を垂らす</button>
-      <button class="pull" id="pullBtn" style="display:none">糸を上げて お金を取り出す</button>
-      <button class="sell" id="sellBtn" style="display:none">ワームを売る（全額もどる）</button>
-    </div>
-    <p class="fishNote" id="fishNote"></p>
-
-    <div class="creel">
-      <div class="creelHead">
-        <span>びく（釣った魚）</span>
-        <span id="creelCount">0 / 129</span>
+      <div class="viewBar">
+        <button class="vbtn" id="vList" aria-pressed="true">リスト</button>
+        <button class="vbtn" id="vCal" aria-pressed="false">カレンダー</button>
       </div>
-      <div class="creelGrid" id="creelGrid"></div>
-    </div>
-  </section>
 
-  <section>
-    <h2>よてい</h2>
-    <p class="sub" id="totalTxt"></p>
-    <div id="list"></div>
-  </section>
+      <div id="listView">
+        <div id="todoDated"></div>
+        <h3 class="someday">いつか（日付なし）</h3>
+        <div id="todoSomeday"></div>
+      </div>
 
-  <section>
-    <h2>あたらしく 足す</h2>
-    <p class="sub">日をまたぐ時間(23:00〜6:00 など)も入れられます</p>
-    <div class="form">
-      <div class="row">
-        <input type="text" id="fName" maxlength="8" placeholder="なまえ(例: 勉強)">
+      <div id="calView" style="display:none">
+        <div class="calTools">
+          <button class="tool" id="calToday" style="flex:1">きょうへ</button>
+        </div>
+        <div class="calScroll" id="calScroll"></div>
+        <h3 class="someday">いつか（日付なし）</h3>
+        <div id="calSomeday"></div>
       </div>
-      <div class="row">
-        <input type="time" id="fFrom" value="09:00">
-        <span class="tilde">〜</span>
-        <input type="time" id="fTo" value="12:00">
+    </section>
+  </div>
+
+  <div class="page" id="page-fish">
+    <section id="fishSec">
+      <h2>集中釣り</h2>
+      <p class="sub">お金をワームに換えて、糸を垂らす。<br>
+        ちゃんと釣れれば、お金はぜんぶ戻ります。<br>
+        画面を離れると糸が切れて、ワームは戻りません。<br>取り出せるのは 垂らしてから10秒だけ。</p>
+
+      <div class="pond" id="pond">
+        <div class="water"></div>
+        <svg class="scene" id="scene" viewBox="0 0 300 190" aria-hidden="true"></svg>
+        <div class="pondIn">
+          <div class="pondState" id="pondState">まだ 糸を垂らしていません</div>
+          <div class="pondBig" id="pondBig">—</div>
+          <div class="pondSub" id="pondSub"></div>
+        </div>
       </div>
-      <div class="row"><div class="swatches" id="swatches"></div></div>
-      <button class="add" id="addBtn">足す</button>
-      <p class="warn" id="warn"></p>
-    </div>
-    <div class="tools">
-      <button class="tool" id="resetBtn">見本にもどす</button>
-      <button class="tool" id="clearBtn">ぜんぶ消す</button>
-    </div>
-  </section>
+
+      <div class="wormPick" id="wormPick"></div>
+
+      <div class="fishBtns">
+        <button class="cast" id="castBtn">ワームを買って 糸を垂らす</button>
+        <button class="pull" id="pullBtn" style="display:none">糸を上げて お金を取り出す</button>
+        <button class="sell" id="sellBtn" style="display:none">ワームを売る（全額もどる）</button>
+      </div>
+      <p class="fishNote" id="fishNote"></p>
+
+      <div class="creel">
+        <div class="creelHead">
+          <span>びく（釣った魚）</span>
+          <span id="creelCount">0 / 129</span>
+        </div>
+        <div class="creelGrid" id="creelGrid"></div>
+      </div>
+    </section>
+  </div>
 
   <footer>
     予定はこの端末に保存されます。<br>
@@ -411,6 +501,7 @@
   const pad = n => String(n).padStart(2,"0");
   const toHM = m => pad(Math.floor(m/60)%24)+":"+pad(m%60);
   const fromHM = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+  const esc = s => String(s).replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
   /* ── 保存(使えない環境でも落ちないように) ── */
   const store = {
@@ -435,7 +526,6 @@
     return [CX + r*Math.cos(a), CY + r*Math.sin(a)];
   };
   function arcPath(from, to){
-    // 日をまたぐ場合は呼び出し側で分割済み
     const span = to - from;
     const big = span > 720 ? 1 : 0;
     const [x1,y1] = toXY(R_OUT, from), [x2,y2] = toXY(R_OUT, to);
@@ -443,7 +533,6 @@
     return `M${x1} ${y1} A${R_OUT} ${R_OUT} 0 ${big} 1 ${x2} ${y2}
             L${x3} ${y3} A${R_IN} ${R_IN} 0 ${big} 0 ${x4} ${y4} Z`;
   }
-  // 日またぎを 0時で切って、描ける区間の配列にする
   function pieces(it){
     return it.from <= it.to
       ? [[it.from, it.to]]
@@ -459,12 +548,10 @@
     const nowM = curMin();
     let s = "";
 
-    // 夜の帯(18時〜6時)をうっすら敷く
     s += `<circle class="ring" cx="${CX}" cy="${CY}" r="${(R_OUT+R_IN)/2}" fill="none"
            stroke="var(--yoru)" stroke-width="${R_OUT-R_IN}" opacity=".45"/>`;
     s += `<path class="ring" d="${arcPath(360,1080)}" fill="#FFFFFF" opacity=".75"/>`;
 
-    // 予定(回している最中はズレを乗せて描く)
     items.map(shifted).forEach((it, i) => {
       pieces(it).forEach(([a,b]) => {
         if(b - a < 1) return;
@@ -472,16 +559,13 @@
                stroke="var(--kami)" stroke-width="2"
                opacity="${selected===i?1:.92}"/>`;
       });
-      // 名前は一番長い区間の真ん中に、円に沿って傾けて置く。
-      // 横書きのままだと細い区間(30分など)には収まらないが、
-      // 半径の向きに寝かせればドーナツの厚み(66px)を使えるので入る。
       const seg = pieces(it).sort((p,q)=>(q[1]-q[0])-(p[1]-p[0]))[0];
       const span = seg[1] - seg[0];
       if(span >= 18){
         const mid = (seg[0]+seg[1])/2;
         const [tx,ty] = toXY((R_OUT+R_IN)/2, mid);
-        const deg = (mid/1440)*360;                    // 0時が真上、時計回り
-        const rot = deg > 180 ? deg + 90 : deg - 90;   // 左半分は反転させて逆さ字を防ぐ
+        const deg = (mid/1440)*360;
+        const rot = deg > 180 ? deg + 90 : deg - 90;
         const fs = span < 40 ? 9.5 : span < 70 ? 10.5 : 11.5;
         s += `<text class="segLabel" x="${tx}" y="${ty}" font-size="${fs}"
                transform="rotate(${rot.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})"
@@ -489,7 +573,6 @@
       }
     });
 
-    // 目盛りと数字
     for(let h=0; h<24; h++){
       const m = h*60, major = h%6===0;
       const [ax,ay] = toXY(R_OUT+3, m), [bx,by] = toXY(R_OUT+(major?11:7), m);
@@ -500,7 +583,6 @@
              text-anchor="middle" dominant-baseline="middle">${h}</text>`;
     }
 
-    // 針(1日で一周)
     const [hx,hy] = toXY(R_OUT-6, nowM);
     s += `<line x1="${CX}" y1="${CY}" x2="${hx}" y2="${hy}" stroke="var(--hari)"
            stroke-width="2.6" stroke-linecap="round"/>`;
@@ -512,7 +594,6 @@
       el.onclick = ()=>{ selected = selected===+el.dataset.i ? -1 : +el.dataset.i; render(); };
     });
   }
-  const esc = s => String(s).replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
   function curMin(){
     const d = new Date();
@@ -520,7 +601,6 @@
   }
 
   function drawList(){
-    const nowM = curMin();
     const sorted = items.map((it,i)=>({it,i})).sort((a,b)=>a.it.from-b.it.from);
     $("list").innerHTML = sorted.map(({it,i})=>{
       const d = durOf(it), h = Math.floor(d/60), mm = d%60;
@@ -553,8 +633,7 @@
     const cur = items.map(shifted).find(it=>contains(it, nowM));
     $("actNow").textContent = cur ? cur.name : "よてい なし";
     if(cur){
-      const end = cur.to;
-      let left = (end - nowM + 1440) % 1440;
+      let left = (cur.to - nowM + 1440) % 1440;
       const h = Math.floor(left/60), m = Math.floor(left%60);
       $("leftNow").style.display = "";
       $("leftNow").textContent = `あと ${h?h+"時間":""}${m}分`;
@@ -566,7 +645,7 @@
   function render(){ drawDial(); drawList(); drawNow(); }
   function commit(){ store.save(items); render(); }
 
-  /* ── 追加 ─────────────────────────── */
+  /* ── 予定を足す ───────────────────── */
   $("swatches").innerHTML = COLORS.map(c=>
     `<button class="sw" style="background:${c}" data-c="${c}" aria-pressed="${c===pickedColor}"></button>`).join("");
   $("swatches").querySelectorAll(".sw").forEach(b=>{
@@ -591,7 +670,6 @@
     $("fName").value = "";
     commit();
   };
-  // 分単位で重なりを見る(日またぎも正しく判定する)
   function overlaps(a,b){
     for(let m=0;m<1440;m++) if(contains(a,m) && contains(b,m)) return true;
     return false;
@@ -600,9 +678,7 @@
   $("resetBtn").onclick = ()=>{ items = SAMPLE.slice(); selected=-1; commit(); };
   $("clearBtn").onclick = ()=>{ items = []; selected=-1; commit(); };
 
-  /* ── 金庫のダイヤルのように輪を回す ──────────
-     目盛りと針は動かさず、予定の輪だけを回す。
-     時差ボケや夜勤で生活が丸ごとずれた時に、予定を作り直さずに済む。 */
+  /* ── 金庫のダイヤルのように輪を回す ────── */
   const dialEl = $("dial"), boxEl = document.querySelector(".dialbox");
   let drag = null;
 
@@ -610,7 +686,7 @@
     const r = dialEl.getBoundingClientRect();
     const x = (ev.clientX - r.left) / r.width  * 400 - CX;
     const y = (ev.clientY - r.top ) / r.height * 400 - CY;
-    const a = Math.atan2(y, x) + Math.PI/2;          // 真上を0にする
+    const a = Math.atan2(y, x) + Math.PI/2;
     return wrapMin(a / (Math.PI*2) * 1440);
   }
   function inRing(ev){
@@ -623,7 +699,7 @@
 
   dialEl.addEventListener("pointerdown", ev=>{
     if(!inRing(ev)) return;
-    drag = { startMin: angleMin(ev), moved: 0, last: angleMin(ev), id: ev.pointerId };
+    drag = { moved: 0, last: angleMin(ev) };
     dialEl.setPointerCapture(ev.pointerId);
     boxEl.classList.add("turning");
   });
@@ -631,7 +707,6 @@
   dialEl.addEventListener("pointermove", ev=>{
     if(!drag) return;
     const now = angleMin(ev);
-    // 0時をまたいでも自然に回るよう、前回との差分を積み上げる
     let step = now - drag.last;
     if(step >  720) step -= 1440;
     if(step < -720) step += 1440;
@@ -641,14 +716,13 @@
     drawDial(); drawNow(); showTurn();
   });
 
-  function endDrag(ev){
+  function endDrag(){
     if(!drag) return;
-    const wasTap = drag.moved < 4;          // ほとんど動いていなければ「選択」とみなす
+    const wasTap = drag.moved < 4;
     drag = null;
     boxEl.classList.remove("turning");
     if(wasTap){ turn = 0; showTurn(); render(); return; }
 
-    // 5分刻みに揃えて、予定そのものへ焼き付ける
     const snap = Math.round(turn / 5) * 5;
     if(snap % 1440 !== 0){
       items = items.map(it=>({ ...it, from: wrapMin(it.from + snap), to: wrapMin(it.to + snap) }));
@@ -664,28 +738,321 @@
     const h = $("turnHint");
     if(!drag){ h.innerHTML = "円をつまんで回すと、予定ぜんたいをずらせます"; return; }
     const snap = Math.round(turn / 5) * 5;
-    const s = snap > 720 ? snap - 1440 : snap;       // 近いほうの向きで表す
+    const s = snap > 720 ? snap - 1440 : snap;
     const sign = s >= 0 ? "+" : "−";
     const av = Math.abs(s), hh = Math.floor(av/60), mm = av%60;
     h.innerHTML = `ぜんたいを <b>${sign}${hh?hh+"時間":""}${mm?mm+"分":(hh?"":"0分")}</b> ずらす`;
   }
 
+  /* ══ やること と カレンダー ═══════════════
+     日付は「日付」「期間」「毎週」から選べる。日付なしは「いつか」へ。
+     カレンダーは月をつないだ一本のスクロールで、「きょうへ」で飛べる。 */
+  const tstore = {
+    load(){ try{ const v=localStorage.getItem("yarukoto"); return v?JSON.parse(v):null; }catch(e){ return null; } },
+    save(v){ try{ localStorage.setItem("yarukoto",JSON.stringify(v)); }catch(e){} }
+  };
+  let todos = tstore.load() || [];
+  let todoView = "list";
+  let calFocus = null;                 // 「きょうへ」などで強調している日
 
-  /* ══ 集中釣り ═══════════════════════════
-     お金をワームに換え、糸を垂らす。時間ぶん粘れば魚が釣れる。
-     途中で画面を離れると糸が切れ、ワームは戻らない。
-     お金は「取り出す」ボタンでいつでも戻せる = 罰金ではなく貯金箱。 */
-  const FISH = {"1": ["マハゼ", "ウグイ", "モツゴ", "オイカワ", "ブルーギル", "ボラ", "サッパ", "コノシロ", "スズメダイ", "ネンブツダイ", "クサフグ", "ヒイラギ", "ゴンズイ", "アイゴ", "カワムツ", "タナゴ", "ドジョウ", "ヌマチチブ"], "2": ["アジ", "サバ", "マイワシ", "カサゴ", "メバル", "カワハギ", "シロギス", "マコガレイ", "クロソイ", "ムラソイ", "マアナゴ", "タチウオ", "ホウボウ", "マエソ", "ニジマス", "ヤマメ", "ギンブナ", "コイ", "ナマズ", "テナガエビ", "メジナ", "ウミタナゴ", "サヨリ", "カマス"], "3": ["イサキ", "アイナメ", "クロダイ", "キビレ", "マゴチ", "ヒラメ", "サワラ", "シイラ", "ハタハタ", "アオリイカ", "コウイカ", "ヤリイカ", "マダコ", "タカベ", "ウマヅラハギ", "アマゴ", "イワナ", "オショロコマ", "ワカサギ", "ヒラメ", "メゴチ", "イシモチ", "シログチ", "ハナダイ"], "4": ["マダイ", "ブリ", "ワラサ", "カンパチ", "ヒラマサ", "スズキ", "ヒラスズキ", "マハタ", "キジハタ", "オオモンハタ", "アカハタ", "メダイ", "マトウダイ", "オニカサゴ", "イシダイ", "イシガキダイ", "シマアジ", "サクラマス", "サツキマス", "ライギョ", "ブラックバス", "ヒラメ座布団", "マゴチ大物", "アカムツ", "クロムツ"], "5": ["クエ", "アカアマダイ", "シロアマダイ", "キンメダイ", "キチジ", "アラ", "ハマフエフキ", "ロウニンアジ", "カスミアジ", "バラハタ", "スジアラ", "アメマス", "ヒメマス", "ビワマス", "マツカワ", "ホシガレイ", "オヒョウ", "アコウダイ", "ムツ", "ソウダガツオ", "カツオ", "マゴイ", "レンギョ"], "6": ["クロマグロ", "ミナミマグロ", "キハダマグロ", "メバチマグロ", "ビンナガマグロ", "クロカジキ", "シロカジキ", "バショウカジキ", "メカジキ", "タマカイ", "イトウ", "アカマンボウ", "マンボウ", "ヨシキリザメ", "アオザメ"]};
+  const WDN = ["日","月","火","水","木","金","土"];
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const todayStr = () => ymd(new Date());
+  const parseYMD = s => { const a = s.split("-").map(Number); return new Date(a[0], a[1]-1, a[2]); };
+  const dayDiff = s => Math.round((parseYMD(s) - parseYMD(todayStr())) / 86400000);
+
+  function fmtDate(s){
+    const n = dayDiff(s);
+    if(n === 0) return "きょう";
+    if(n === 1) return "あした";
+    if(n === -1) return "きのう";
+    const d = parseYMD(s), base = `${d.getMonth()+1}/${d.getDate()}(${WDN[d.getDay()]})`;
+    return d.getFullYear() === new Date().getFullYear() ? base : `${d.getFullYear()}/${base}`;
+  }
+  function saveTodos(){ tstore.save(todos); renderTodos(); }
+
+  /* 種類ごとの判定。date=単発 / range=期間 / weekly=毎週 / none=日付なし */
+  function occursOn(t, ds){
+    if(t.kind === "date") return t.date === ds;
+    if(t.kind === "range") return ds >= t.dateFrom && ds <= t.dateTo;
+    if(t.kind === "weekly"){
+      const wd = parseYMD(ds).getDay();
+      if(!t.weekdays.includes(wd)) return false;
+      if(t.until && ds > t.until) return false;
+      return true;
+    }
+    return false;
+  }
+  function nextOccurrence(t){
+    if(t.kind === "date") return t.date;
+    if(t.kind === "range") return t.dateFrom;
+    if(t.kind === "weekly"){
+      const base = parseYMD(todayStr());
+      for(let i=0;i<7;i++){
+        const d = new Date(base); d.setDate(d.getDate()+i);
+        if(t.weekdays.includes(d.getDay())){
+          const ds = ymd(d);
+          if(!t.until || ds <= t.until) return ds;
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+  function todoDateLabel(t){
+    if(t.kind === "date") return fmtDate(t.date);
+    if(t.kind === "range") return `${fmtDate(t.dateFrom)}〜${fmtDate(t.dateTo)}`;
+    if(t.kind === "weekly"){
+      const wd = t.weekdays.slice().sort().map(d=>WDN[d]).join("・");
+      return `毎週${wd}${t.until ? `（${fmtDate(t.until)}まで）` : ""}`;
+    }
+    return "";
+  }
+  function todoLateSoon(t){
+    if(t.kind === "date"){
+      const n = dayDiff(t.date);
+      return { late: !t.done && n<0, soon: !t.done && n>=0 && n<=1 };
+    }
+    if(t.kind === "range"){
+      const nTo = dayDiff(t.dateTo), nFrom = dayDiff(t.dateFrom);
+      return { late: !t.done && nTo<0, soon: !t.done && nFrom<=1 && nTo>=0 };
+    }
+    if(t.kind === "weekly"){
+      const nx = nextOccurrence(t);
+      if(nx == null) return { late: !t.done, soon:false };
+      const n = dayDiff(nx);
+      return { late:false, soon: !t.done && n<=1 };
+    }
+    return { late:false, soon:false };
+  }
+
+  let addKind = "none";
+  let selectedWdays = [];
+
+  function setAddKind(k){
+    addKind = k;
+    document.querySelectorAll(".kbtn").forEach(b=> b.setAttribute("aria-pressed", String(b.dataset.kind===k)));
+    $("dateRow").style.display   = k==="date"   ? "" : "none";
+    $("rangeRow").style.display  = k==="range"  ? "" : "none";
+    $("weeklyRow").style.display = k==="weekly" ? "" : "none";
+    $("untilRow").style.display  = k==="weekly" ? "" : "none";
+  }
+  document.querySelectorAll(".kbtn").forEach(b=>{
+    b.onclick = ()=> setAddKind(b.dataset.kind);
+  });
+  setAddKind("none");
+
+  $("wdaysPick").innerHTML = WDN.map((w,i)=>
+    `<button type="button" class="wday" data-d="${i}" aria-pressed="false">${w}</button>`).join("");
+  $("wdaysPick").querySelectorAll(".wday").forEach(b=>{
+    b.onclick = ()=>{
+      const d = +b.dataset.d;
+      const idx = selectedWdays.indexOf(d);
+      if(idx===-1) selectedWdays.push(d); else selectedWdays.splice(idx,1);
+      b.setAttribute("aria-pressed", String(idx===-1));
+    };
+  });
+
+  $("tAdd").onclick = ()=>{
+    const text = $("tName").value.trim().slice(0,24);
+    $("tWarn").textContent = "";
+    if(!text){ $("tWarn").textContent = "やることを入れてください"; return; }
+
+    const todo = {
+      id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
+      text, done:false, kind: addKind
+    };
+    if(addKind === "date"){
+      if(!$("tDate").value){ $("tWarn").textContent = "日付を入れてください"; return; }
+      todo.date = $("tDate").value;
+    }else if(addKind === "range"){
+      const from = $("tFrom").value, to = $("tTo").value;
+      if(!from || !to){ $("tWarn").textContent = "はじまりと おわりを入れてください"; return; }
+      if(from > to){ $("tWarn").textContent = "はじまりが おわりより あとです"; return; }
+      todo.dateFrom = from; todo.dateTo = to;
+    }else if(addKind === "weekly"){
+      if(!selectedWdays.length){ $("tWarn").textContent = "曜日を えらんでください"; return; }
+      todo.weekdays = selectedWdays.slice().sort();
+      if($("tUntil").value) todo.until = $("tUntil").value;
+    }
+
+    todos.push(todo);
+    $("tName").value = "";
+    $("tDate").value = ""; $("tFrom").value = ""; $("tTo").value = ""; $("tUntil").value = "";
+    selectedWdays = [];
+    $("wdaysPick").querySelectorAll(".wday").forEach(b=>b.setAttribute("aria-pressed","false"));
+    setAddKind("none");
+    saveTodos();
+  };
+
+  $("vList").onclick = ()=>{ todoView = "list"; renderTodos(); };
+  $("vCal").onclick  = ()=>{
+    todoView = "cal"; renderTodos();
+    scrollToMonth(calFocus || todayStr());
+  };
+  $("calToday").onclick = ()=>{
+    calFocus = todayStr();
+    renderTodos(); scrollToMonth(calFocus);
+  };
+
+  // カレンダーの日付行をタップしたら、その日付をあらかじめ入れたうえで、名前欄にフォーカスする。
+  function jumpToAdd(dateVal){
+    if(dateVal !== undefined){ setAddKind("date"); $("tDate").value = dateVal; }
+    $("tName").focus();
+    $("tName").scrollIntoView({ behavior:"smooth", block:"center" });
+  }
+
+  function todoRow(t){
+    const { late, soon } = todoLateSoon(t);
+    const label = todoDateLabel(t);
+    return `<div class="todo ${t.done?'done':''}">
+      <button class="chk" data-chk="${t.id}">${t.done?"✓":""}</button>
+      <span class="tt">${esc(t.text)}</span>
+      ${label ? `<span class="td ${soon?'soon':''}">${late?"すぎた ":""}${label}</span>` : ""}
+      <button class="x" data-tdel="${t.id}" aria-label="消す">×</button>
+    </div>`;
+  }
+  function bindTodoRows(){
+    document.querySelectorAll("[data-chk]").forEach(b=>{
+      b.onclick = ()=>{
+        const t = todos.find(x=>x.id === b.dataset.chk);
+        if(t){ t.done = !t.done; saveTodos(); }
+      };
+    });
+    document.querySelectorAll("[data-tdel]").forEach(b=>{
+      b.onclick = ()=>{ todos = todos.filter(x=>x.id !== b.dataset.tdel); saveTodos(); };
+    });
+    document.querySelectorAll("[data-pickdate]").forEach(tr=>{
+      tr.onclick = ()=> jumpToAdd(tr.dataset.pickdate);
+    });
+  }
+
+  function renderTodos(){
+    $("vList").setAttribute("aria-pressed", todoView === "list");
+    $("vCal").setAttribute("aria-pressed",  todoView === "cal");
+    $("listView").style.display = todoView === "list" ? "" : "none";
+    $("calView").style.display  = todoView === "cal"  ? "" : "none";
+
+    // 次に来る日の早い順。同じ日なら、済んでいないものが先。
+    const dated = todos.filter(t=>t.kind !== "none")
+      .map(t=>({ t, key: nextOccurrence(t) || "9999-99-99" }))
+      .sort((a,b)=> a.key.localeCompare(b.key) || (a.t.done - b.t.done))
+      .map(x=>x.t);
+    const someday = todos.filter(t=>t.kind === "none");
+
+    $("todoDated").innerHTML =
+      dated.length ? dated.map(todoRow).join("") : `<p class="todoEmpty">日付つきのやることは まだありません</p>`;
+    const sHtml = someday.length ? someday.map(todoRow).join("") : `<p class="todoEmpty">ありません</p>`;
+    $("todoSomeday").innerHTML = sHtml;
+    $("calSomeday").innerHTML = sHtml;
+
+    if(todoView === "cal") drawCalendar();
+    bindTodoRows();
+  }
+
+  // 表示する月の幅。予定のある月と、「きょうへ」で強調した月は必ず含める。
+  function calRange(){
+    const t = new Date();
+    let lo = new Date(t.getFullYear(), t.getMonth()-2, 1);
+    let hi = new Date(t.getFullYear(), t.getMonth()+12, 1);
+    const marks = [];
+    for(const x of todos){
+      if(x.kind === "date") marks.push(x.date);
+      else if(x.kind === "range"){ marks.push(x.dateFrom); marks.push(x.dateTo); }
+      else if(x.kind === "weekly" && x.until) marks.push(x.until);
+    }
+    if(calFocus) marks.push(calFocus);
+    for(const s of marks){
+      const d = parseYMD(s), m = new Date(d.getFullYear(), d.getMonth(), 1);
+      if(m < lo) lo = m;
+      if(m > hi) hi = m;
+    }
+    return [lo, hi];
+  }
+
+  // 大学の学年暦のように、月ごとに「日付・予定」を並べた表で見せる。
+  // 空白のマス目は作らず、予定がある日だけを行として並べる(期間・毎週も、その日ごとに展開する)。
+  // どの行も、タップすればその日付で「やること」を足せる。
+  function drawCalendar(){
+    const [lo, hi] = calRange();
+    const today = todayStr();
+    const todayYM = today.slice(0,7);
+    let html = "";
+    const cur = new Date(lo);
+    while(cur <= hi){
+      const y = cur.getFullYear(), m = cur.getMonth();
+      const ym = `${y}-${pad(m+1)}`;
+      const last = new Date(y, m+1, 0).getDate();
+
+      const rows = [];
+      for(let dn=1; dn<=last; dn++){
+        const ds = `${y}-${pad(m+1)}-${pad(dn)}`;
+        const list = todos.filter(t=>t.kind!=="none" && occursOn(t, ds));
+        if(list.length) rows.push({ ds, dn, list });
+      }
+      const isThisMon = ym === todayYM;
+      if(isThisMon && !rows.some(r=>r.ds===today)){
+        const dn = Number(today.slice(8,10));
+        const idx = rows.findIndex(r => r.dn > dn);
+        const row = { ds: today, dn, list: [] };
+        if(idx === -1) rows.push(row); else rows.splice(idx, 0, row);
+      }
+
+      const body = rows.length
+        ? rows.map(r=>{
+            const d = parseYMD(r.ds);
+            const cls = ["", r.ds===today?"today":"", r.ds===calFocus?"focus":""].join(" ").trim();
+            const items = r.list.length
+              ? r.list.map(t=>{
+                  const late = !t.done && r.ds < today;
+                  return `<span class="it ${t.done?'done':''} ${late?'late':''}">${esc(t.text)}</span>`;
+                }).join("")
+              : `<span class="none">${r.ds===today?"きょう ・ 予定なし":"予定なし"}</span>`;
+            return `<tr class="${cls}" data-pickdate="${r.ds}">
+              <td class="cd">${d.getMonth()+1}/${dn2(r.dn)}(${WDN[d.getDay()]})</td>
+              <td class="ce">${items}</td>
+            </tr>`;
+          }).join("")
+        : "";
+
+      html += `<div class="mon" id="m-${ym}">
+        <div class="monTtl ${isThisMon?'thisMon':''}"><span class="tag">${y}年 ${m+1}月</span></div>
+        ${rows.length ? `<table class="calTbl"><tbody>${body}</tbody></table>`
+                      : `<p class="calMonEmpty">予定はありません</p>`}
+      </div>`;
+      cur.setMonth(cur.getMonth()+1);
+    }
+    $("calScroll").innerHTML = html;
+  }
+  function dn2(n){ return String(n); }
+
+  function scrollToMonth(ds){
+    const el = document.getElementById("m-" + ds.slice(0,7));
+    const box = $("calScroll");
+    if(el && box) box.scrollTop = Math.max(0, el.offsetTop - box.offsetTop - 4);
+  }
+
+  /* ══ ページ切り替え(スクロールではなく、上のタブで画面ごと切り替える) ══ */
+  document.querySelectorAll(".tab").forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-pressed", String(b===btn)));
+      document.querySelectorAll(".page").forEach(p=>{
+        p.classList.toggle("active", p.id === "page-" + btn.dataset.page);
+      });
+      window.scrollTo({ top:0, behavior:"instant" });
+    };
+  });
+
+  /* ══ 集中釣り ═══════════════════════════ */
+  const FISH = {"1": ["マハゼ", "ウグイ", "モツゴ", "オイカワ", "ブルーギル", "ボラ", "サッパ", "コノシロ", "スズメダイ", "ネンブツダイ", "クサフグ", "ヒイラギ", "ゴンズイ", "アイゴ", "カワムツ", "タナゴ", "ドジョウ", "ヌマチチブ"], "2": ["アジ", "サバ", "マイワシ", "カサゴ", "メバル", "カワハギ", "シロギス", "マコガレイ", "クロソイ", "ムラソイ", "マアナゴ", "タチウオ", "ホウボウ", "マエソ", "ニジマス", "ヤマメ", "ギンブナ", "コイ", "ナマズ", "テナガエビ", "メジナ", "ウミタナゴ", "サヨリ", "カマス"], "3": ["イサキ", "アイナメ", "クロダイ", "キビレ", "マゴチ", "ヒラメ", "サワラ", "シイラ", "ハタハタ", "アオリイカ", "コウイカ", "ヤリイカ", "マダコ", "タカベ", "ウマヅラハギ", "アマゴ", "イワナ", "オショロコマ", "ワカサギ", "メゴチ", "イシモチ", "シログチ", "ハナダイ"], "4": ["マダイ", "ブリ", "ワラサ", "カンパチ", "ヒラマサ", "スズキ", "ヒラスズキ", "マハタ", "キジハタ", "オオモンハタ", "アカハタ", "メダイ", "マトウダイ", "オニカサゴ", "イシダイ", "イシガキダイ", "シマアジ", "サクラマス", "サツキマス", "ライギョ", "ブラックバス", "アカムツ", "クロムツ"], "5": ["クエ", "アカアマダイ", "シロアマダイ", "キンメダイ", "キチジ", "アラ", "ハマフエフキ", "ロウニンアジ", "カスミアジ", "バラハタ", "スジアラ", "アメマス", "ヒメマス", "ビワマス", "マツカワ", "ホシガレイ", "オヒョウ", "アコウダイ", "ムツ", "ソウダガツオ", "カツオ", "マゴイ", "レンギョ"], "6": ["クロマグロ", "ミナミマグロ", "キハダマグロ", "メバチマグロ", "ビンナガマグロ", "クロカジキ", "シロカジキ", "バショウカジキ", "メカジキ", "タマカイ", "イトウ", "アカマンボウ", "マンボウ", "ヨシキリザメ", "アオザメ"]};
   const FISH_TOTAL = Object.values(FISH).reduce((s,v)=>s+v.length,0);
   const RARITY_NAME = {1:"ふつう",2:"よくいる",3:"なかなか",4:"みごと",5:"大物",6:"伝説"};
 
-  // 1〜24時間のワーム。値段は1時間=1000円
   const WORMS = [
     "ゴカイ","イソメ","アオイソメ","ジャリメ","オキアミ","エビ","カニ","イカタン",
     "ミミズ","ブドウ虫","サシ","練りエサ","カラーワーム","シャッドテール","グラブ","ストレート",
     "クローワーム","シュリンプ","スイムベイト","メタルジグ","タイラバ","インチク","バイブレーション","ビッグベイト"
   ];
-  // 動作を試すための10秒ワーム。値段は0円。h=0 を試用の印にする。
   const wormOf = h => h===0
     ? { hours:0, name:"ためし釣り", yen:0, ms:10000 }
     : { hours:h, name:WORMS[h-1], yen:h*1000, ms:h*3600000 };
@@ -694,15 +1061,13 @@
     load(){ try{ const v=localStorage.getItem("tsuri"); return v?JSON.parse(v):null; }catch(e){ return null; } },
     save(v){ try{ localStorage.setItem("tsuri",JSON.stringify(v)); }catch(e){} }
   };
-  let creel = fstore.load() || [];      // 釣った魚(名前とレア度)
-  let wormH = 0;                        // 選んでいるワーム(0=ためし釣り)
-  // 買ったワームは在庫として持つ。使わなければ、いつでも売って全額戻せる。
+  let creel = fstore.load() || [];
+  let wormH = 0;
   let bag = (function(){ try{ const v=localStorage.getItem("tsuriBag"); return v?JSON.parse(v):{}; }catch(e){ return {}; } })();
   const saveBag = ()=>{ try{ localStorage.setItem("tsuriBag", JSON.stringify(bag)); }catch(e){} };
   const bagCount = h => bag[h] || 0;
-  let cast = null;                      // { hours, yen, name, startedAt }
-  const PULL_WINDOW = 10000;            // 取り出せるのは糸を垂らしてから10秒だけ
-  let pullTimer = 0;
+  let cast = null;
+  const PULL_WINDOW = 10000;
   const canPull = () => cast && (Date.now() - cast.startedAt) < PULL_WINDOW;
 
   function drawWorms(){
@@ -723,7 +1088,6 @@
 
   function pickFish(hours){
     hours = Math.max(0.2, hours);
-    // 長く粘るほど良い魚が出やすい。1時間でも伝説が出る芽は残す。
     const w = {
       1: Math.max(1, 40 - hours*1.6),
       2: 30,
@@ -744,11 +1108,7 @@
     return { name: FISH[1][0], rarity: 1 };
   }
 
-
-  /* 魚の絵は名前から性質を引いて組み立てる。129種ぶん手描きはできないが、
-     体型・色・ひれの形を変えるだけで、種ごとに違う姿になる。 */
   const FISH_LOOK = {
-    // 体型: slim(細長い) / oval(平たい) / round(丸い) / torpedo(紡錘) / flat(カレイ型) / squid(イカ)
     "マハゼ":["slim","#8A7A5C"],"ウグイ":["slim","#7F8C9B"],"モツゴ":["slim","#9AA6B2"],
     "オイカワ":["slim","#8FB8D8"],"ブルーギル":["oval","#5C7A5C"],"ボラ":["torpedo","#8C99A8"],
     "サッパ":["slim","#A9BCC9"],"コノシロ":["slim","#9FB4C4"],"スズメダイ":["oval","#4A5568"],
@@ -778,8 +1138,7 @@
     "マトウダイ":["oval","#B4A88C"],"オニカサゴ":["oval","#B0503C"],"イシダイ":["oval","#6E747E"],
     "イシガキダイ":["oval","#8C8878"],"シマアジ":["oval","#B4C0C9"],"サクラマス":["torpedo","#A88C94"],
     "サツキマス":["torpedo","#9E8C84"],"ライギョ":["slim","#5A6B4A"],"ブラックバス":["oval","#5C6B4A"],
-    "ヒラメ座布団":["flat","#5E5443"],"マゴチ大物":["flat","#7E6E52"],"アカムツ":["oval","#C4503C"],
-    "クロムツ":["oval","#4A4A54"],
+    "アカムツ":["oval","#C4503C"],"クロムツ":["oval","#4A4A54"],
     "クエ":["oval","#6B6050"],"アカアマダイ":["oval","#D9846E"],"シロアマダイ":["oval","#D6C4B0"],
     "キンメダイ":["oval","#D64A4A"],"キチジ":["oval","#D95C3C"],"アラ":["oval","#7E7466"],
     "ハマフエフキ":["oval","#8C8272"],"ロウニンアジ":["torpedo","#9EAAB4"],"カスミアジ":["torpedo","#5C7A9E"],
@@ -794,7 +1153,6 @@
     "タマカイ":["oval","#6B6452"],"イトウ":["torpedo","#7A7060"],"アカマンボウ":["round","#C4504A"],
     "マンボウ":["round","#8C94A0"],"ヨシキリザメ":["shark","#5C7494"],"アオザメ":["shark","#4A6480"]
   };
-  // 模様。実物の特徴を数種に分類する。
   const PATTERN = {
     "オイカワ":"bars","カワムツ":"bars","ヤマメ":"parr","アマゴ":"parr","サクラマス":"parr",
     "サツキマス":"parr","ビワマス":"parr","イワナ":"spots","オショロコマ":"spots","アメマス":"spots",
@@ -803,26 +1161,25 @@
     "イシダイ":"stripes","イシガキダイ":"mesh","シマアジ":"bars","タカベ":"line",
     "クロダイ":"bars","キビレ":"bars","メジナ":"line","ブルーギル":"bars","ブラックバス":"line",
     "カツオ":"lines","キハダマグロ":"line","クロマグロ":"line","メバチマグロ":"line",
-    "アオリイカ":"dots","コウイカ":"waves","タチウオ":"none","サヨリ":"none",
+    "アオリイカ":"dots","コウイカ":"waves",
     "ヒラメ":"spots","マコガレイ":"spots","マツカワ":"spots","ホシガレイ":"spots","オヒョウ":"spots",
     "キジハタ":"spots","アカハタ":"spots","オオモンハタ":"spots","マハタ":"bars","クエ":"bars",
     "タマカイ":"spots","スジアラ":"dots","バラハタ":"dots","カサゴ":"spots","オニカサゴ":"spots",
-    "メバル":"none","クサフグ":"dots","ホウボウ":"spots","マトウダイ":"eye","カワハギ":"none",
-    "バショウカジキ":"line","クロカジキ":"bars","シロカジキ":"line","メカジキ":"none",
-    "ワカサギ":"none","キンメダイ":"none","アカムツ":"none","ノドグロ":"none"
+    "クサフグ":"dots","ホウボウ":"spots","マトウダイ":"eye",
+    "バショウカジキ":"line","クロカジキ":"bars","シロカジキ":"line"
   };
   function patternOf(name, col){
     const kind = PATTERN[name];
     if(!kind) return "";
     const dk = shade(col,-40), lt = shade(col,45);
     switch(kind){
-      case "bars":   // オイカワやクロダイのような縦じま
+      case "bars":
         return [22,32,42,52,62].map(x=>
           `<path d="M${x} 13 q2 17 0 34" stroke="${dk}" stroke-width="3.5" opacity=".38" fill="none"/>`).join("");
       case "stripes":
         return [26,40,54,68].map(x=>
           `<path d="M${x} 10 q2 20 0 40" stroke="${dk}" stroke-width="6" opacity=".5" fill="none"/>`).join("");
-      case "parr":   // ヤマメのパーマーク
+      case "parr":
         return [24,36,48,60].map(x=>
           `<ellipse cx="${x}" cy="28" rx="5" ry="8" fill="${dk}" opacity=".34"/>`).join("");
       case "spots":
@@ -831,19 +1188,19 @@
       case "dots":
         return [[24,26],[34,22],[44,30],[54,24],[62,32],[30,36],[50,38],[68,26]].map(([x,y])=>
           `<circle cx="${x}" cy="${y}" r="1.7" fill="${lt}" opacity=".65"/>`).join("");
-      case "waves":  // サバの背の波模様
+      case "waves":
         return [16,20,24].map((y,i)=>
           `<path d="M18 ${y} q10 -5 20 0 t20 0 t20 0" stroke="${dk}" stroke-width="2"
             fill="none" opacity="${.4-i*.08}"/>`).join("");
-      case "line":   // 側線に沿った1本線
+      case "line":
         return `<path d="M18 30 q26 -3 58 -2" stroke="${lt}" stroke-width="2.4" fill="none" opacity=".6"/>`;
-      case "lines":  // カツオの腹の縦じま
+      case "lines":
         return [30,36,42].map(y=>
           `<path d="M22 ${y} q24 2 48 0" stroke="${dk}" stroke-width="1.8" fill="none" opacity=".45"/>`).join("");
       case "mesh":
         return [[26,22],[36,22],[46,22],[56,22],[31,30],[41,30],[51,30],[26,38],[36,38],[46,38],[56,38]]
           .map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.2" fill="${dk}" opacity=".4"/>`).join("");
-      case "eye":    // マトウダイの的
+      case "eye":
         return `<circle cx="44" cy="28" r="7" fill="none" stroke="${dk}" stroke-width="2.4" opacity=".55"/>
                 <circle cx="44" cy="28" r="2.6" fill="${dk}" opacity=".4"/>`;
       default: return "";
@@ -856,7 +1213,6 @@
     const back = shade(col,-38), dark = shade(col,-22), light = shade(col,30), pale = shade(col,58);
     const uid = "f" + Math.abs(hashOf(name+form)) % 100000;
 
-    // 体の形。頭は丸く、尾に向かって細る。魚らしい非対称を作る。
     const OUT = {
       slim:    "M84 30 C78 22 60 16 40 17 C24 18 14 23 10 30 C14 37 24 42 40 43 C60 44 78 38 84 30 Z",
       oval:    "M86 30 C80 17 62 9 44 9 C24 9 10 18 6 30 C10 42 24 51 44 51 C62 51 80 43 86 30 Z",
@@ -884,7 +1240,6 @@
       </svg>`;
     }
 
-    // 尾びれ。形ごとに切れ込みの深さを変える。
     const tail = {
       slim:    "M10 30 L1 20 Q5 30 1 40 Z",
       oval:    "M8 30 L0 18 Q5 30 0 42 Z",
@@ -900,7 +1255,6 @@
       : form==="flat"
         ? '<path d="M20 12 q22 -8 44 -2 q-22 4 -44 2 Z" fill="'+dark+'" opacity=".9"/>'
         : '<path d="M38 12 q14 -9 26 -1 q-14 3 -26 1 Z" fill="'+dark+'" opacity=".9"/>';
-
     const anal = '<path d="M40 47 q10 7 20 1 q-10 2 -20 -1 Z" fill="'+dark+'" opacity=".75"/>';
     const pect = '<path d="M60 33 q10 6 8 13 q-8 -4 -12 -11 Z" fill="'+dark+'" opacity=".8"/>';
     const bill = form==="marlin" ? '<path d="M84 29 L99 26" stroke="'+dark+'" stroke-width="3" stroke-linecap="round"/>' : "";
@@ -908,7 +1262,6 @@
     const mouth = '<path d="M85 31 q-4 2 -7 1" stroke="'+back+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
     const eyeX = form==="flat" ? 74 : 78, eyeY = form==="flat" ? 24 : 27;
 
-    // 図鑑と同じく頭を左に向ける。描画は右向きのまま、最後に左右反転する。
     return `<svg viewBox="0 0 100 60" width="${w}" height="${h}">
       <defs>
         <linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
@@ -955,7 +1308,6 @@
     return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
   }
 
-  /* 池の情景。竿から糸が伸びて、先にワームが揺れる。 */
   /* ワームの絵。種類ごとに姿を変える。 */
   function lureSVG(name){
     const bait = {
@@ -1002,32 +1354,44 @@
     return hook + P;
   }
 
-  /* 竿の形。静止した1つの形だけを持ち、しなりは表現しない。
-     0 = まっすぐ / 正 = 手前に曲がる / 負 = 先が沈む(合わせ・食い込み用に少しだけ使う)。 */
-  function rodPath(bend){
-    const tipX = 226 - bend*30, tipY = 40 + bend*40;
-    const c1x = 70 + bend*6,  c1y = 120 + bend*10;
-    const c2x = 132 - bend*14, c2y = 84 + bend*22;
-    return { d:`M6 176 Q${c1x} ${c1y} ${c2x} ${c2y} Q${186-bend*26} ${54+bend*28} ${tipX} ${tipY}`,
-             tipX, tipY };
+  /* ── 竿 ─────────────────────────────
+     竿の形はひとつだけ持ち、投げる動きは「その形ぜんたいを手もとを軸に回す」。
+     こうするとリールやガイドが置いてけぼりになってズレることが起きない。 */
+  const SEA = 118;
+  function rodPath(){
+    return { d:"M6 176 Q70 120 132 84 Q186 54 226 40", tipX:226, tipY:40 };
   }
-
-  /* 投げる瞬間は、竿の「形」を変えるのではなく、竿の絵ぜんたい(曲線・持ち手・
-     リール・ガイド)を、手もと(支点)を中心に剛体として回転させる。
-     こうすると、竿の形をそのまま回すだけなので、リールなどの部品が
-     置いてけぼりになってズレることが原理的に起こらない。
-     糸の根もとは、回転後の穂先の座標をそのつど計算して使う。 */
-  const ROD_PIVOT = { x:20, y:172 };   // 手もと(グリップ)。ここを中心に振る
+  const ROD_PIVOT = { x:20, y:172 };
   function rotatePoint(px, py, cx, cy, deg){
-    const rad = deg * Math.PI / 180;
+    const rad = deg * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
     const dx = px - cx, dy = py - cy;
-    const c = Math.cos(rad), s = Math.sin(rad);
     return { x: cx + dx*c - dy*s, y: cy + dx*s + dy*c };
   }
+  const GRAD = `<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
+      <stop offset="72%" stop-color="rgba(255,255,255,.45)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient></defs>`;
 
-  let castRaf = null;
-  function cancelCastAnim(){ if(castRaf){ cancelAnimationFrame(castRaf); castRaf = null; } }
-  function smoothstep(x){ x = Math.max(0, Math.min(1,x)); return x*x*(3-2*x); }
+  function rodGroup(rotDeg, cls){
+    const R = rodPath();
+    return `<g class="${cls||''}" transform="rotate(${rotDeg.toFixed(2)} ${ROD_PIVOT.x} ${ROD_PIVOT.y})">
+      <path d="${R.d}" stroke="#2E2A26" stroke-width="6" fill="none" stroke-linecap="round" opacity=".9"/>
+      <path d="${R.d}" stroke="#8C5A2B" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <rect x="4" y="164" width="34" height="13" rx="6" transform="rotate(-33 20 170)" fill="#1F1C19"/>
+      <g transform="translate(56 140) rotate(-33)">
+        <circle r="9" fill="#9AA0A8"/><circle r="5" fill="#6E747C"/><circle r="1.8" fill="#3A3E44"/>
+      </g>
+      <circle cx="112" cy="98" r="3.4" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
+      <circle cx="168" cy="68" r="3"   fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
+      <circle cx="212" cy="46" r="2.6" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
+    </g>`;
+  }
+
+  /* 投げ入れの動き。角度と、ワームが竿を離れて飛ぶ進み具合をなめらかに繋ぐ。 */
+  const ROT_KF  = [[0,0],[0.30,-34],[0.58,26],[0.74,8],[0.88,-4],[1,0]];
+  const LURE_KF = [[0,0],[0.58,0],[0.90,1],[1,1]];
+  const smoothstep = x => { x = Math.max(0,Math.min(1,x)); return x*x*(3-2*x); };
   function lerpKF(keys, t){
     for(let i=0;i<keys.length-1;i++){
       const [t0,v0] = keys[i], [t1,v1] = keys[i+1];
@@ -1038,122 +1402,64 @@
     }
     return keys[keys.length-1][1];
   }
-  // 竿の回転角(度)。マイナス=反時計回り(上へ、頭上へ振りかぶる)
-  // プラス=時計回り(前へ、水面へ向けて振り抜く)。
-  // 0(構え) → 大きく振りかぶり(上) → 勢いよく振り抜く(前) → 収まる、の順。
-  const ROT_KF = [[0,0],[0.30,-58],[0.58,36],[0.74,10],[0.86,-6],[0.95,2],[1,0]];
-  // ワームが竿を離れて飛んでいく進み具合(0=まだ竿先/1=着水)。振り抜きの頂点(0.58)で離れる。
-  const LURE_KF = [[0,0],[0.58,0],[0.88,1],[1,1]];
 
-  function drawThrowFrame(t, wormName, prevTip){
-    const SEA = 118, water = {x:226, y:SEA};
-    const R0 = rodPath(0);                              // 竿の形はいつも同じ、静止形
-    const rot = lerpKF(ROT_KF, t);                       // いまの回転角
-    const tip = rotatePoint(R0.tipX, R0.tipY, ROD_PIVOT.x, ROD_PIVOT.y, rot); // 回転後の穂先
+  let castRaf = null;
+  const cancelCastAnim = ()=>{ if(castRaf){ cancelAnimationFrame(castRaf); castRaf = null; } };
+
+  function drawThrowFrame(t, wormName){
+    const R = rodPath();
+    const rot = lerpKF(ROT_KF, t);
+    const tip = rotatePoint(R.tipX, R.tipY, ROD_PIVOT.x, ROD_PIVOT.y, rot);
     const lureT = lerpKF(LURE_KF, t);
+    const water = { x:226, y:SEA };
 
-    let far;
+    let far, lure = "", line = "";
     if(lureT <= 0){
-      far = tip;                                          // まだ竿先についたまま、竿と一緒に振られる
+      far = tip;
+      lure = `<g transform="translate(${far.x} ${far.y})">${lureSVG(wormName)}</g>`;
+      line = `<path d="M${tip.x} ${tip.y} L${far.x} ${far.y}" stroke="url(#lg)" stroke-width="1" fill="none"/>`;
     }else{
-      const releaseRot = lerpKF(ROT_KF, 0.58);
-      const releaseTip = rotatePoint(R0.tipX, R0.tipY, ROD_PIVOT.x, ROD_PIVOT.y, releaseRot);
-      const arcH = 55*Math.sin(Math.PI*lureT);            // 弧を描いて飛ぶ
-      far = {
-        x: releaseTip.x + (water.x-releaseTip.x)*lureT,
-        y: releaseTip.y + (water.y-releaseTip.y)*lureT - arcH
-      };
+      const rel = rotatePoint(R.tipX, R.tipY, ROD_PIVOT.x, ROD_PIVOT.y, lerpKF(ROT_KF, 0.58));
+      const arc = 52*Math.sin(Math.PI*lureT);
+      far = { x: rel.x + (water.x-rel.x)*lureT, y: rel.y + (water.y-rel.y)*lureT - arc };
+      if(lureT < 1){
+        lure = `<g transform="translate(${far.x} ${far.y})">${lureSVG(wormName)}</g>`;
+        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+far.x)/2} ${(tip.y+far.y)/2-10} ${far.x} ${far.y}"
+                 stroke="url(#lg)" stroke-width="1" fill="none"/>`;
+      }else{
+        line = `<path d="M${tip.x} ${tip.y} Q${(tip.x+water.x)/2+4} ${(tip.y+water.y)/2} ${water.x} ${water.y+6}"
+                 stroke="url(#lg)" stroke-width="1" fill="none"/>`;
+      }
     }
-
-    // 糸のしなり: 穂先の動く速さと向きから、糸の膨らみを作る。
-    // 竿が急に振れるほど糸は置いていかれて弓なりになり、着水が近づくほどまっすぐ張る。
-    let ctrlOffX = 0, ctrlOffY = 0;
-    if(prevTip){
-      const vx = tip.x - prevTip.x, vy = tip.y - prevTip.y;
-      const settle = 1 - smoothstep(lureT);
-      ctrlOffX = -vy * 1.6 * settle;
-      ctrlOffY =  vx * 1.6 * settle;
-    }
-
-    // 竿の絵(曲線・持ち手・リール・ガイド)はすべて同じ<g>の中に置き、
-    // その<g>ごと rotate() で回す。これで全部品が同じ角度で一緒に動く。
-    const rod = `
-      <g class="rodG" transform="rotate(${rot.toFixed(2)} ${ROD_PIVOT.x} ${ROD_PIVOT.y})">
-        <path d="${R0.d}" stroke="#2E2A26" stroke-width="6" fill="none" stroke-linecap="round" opacity=".9"/>
-        <path d="${R0.d}" stroke="#8C5A2B" stroke-width="4" fill="none" stroke-linecap="round"/>
-        <rect x="4" y="164" width="34" height="13" rx="6" transform="rotate(-33 20 170)" fill="#1F1C19"/>
-        <g transform="translate(56 140) rotate(-33)">
-          <circle r="9" fill="#9AA0A8"/><circle r="5" fill="#6E747C"/><circle r="1.8" fill="#3A3E44"/>
-        </g>
-        <circle cx="112" cy="98" r="3.4" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-        <circle cx="168" cy="68" r="3"   fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-        <circle cx="${R0.tipX-14}" cy="${R0.tipY+6}" r="2.6" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-      </g>
-      <path class="lineMain" d="M${tip.x} ${tip.y}
-            Q${(tip.x+far.x)/2+ctrlOffX} ${(tip.y+far.y)/2-6+ctrlOffY} ${far.x} ${far.y}"
-            stroke="url(#lg)" stroke-width="1" fill="none"/>`;
-    const grad = `<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
-        <stop offset="72%" stop-color="rgba(255,255,255,.45)"/>
-        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-      </linearGradient></defs>`;
-    const lure = lureT > 0 ? `<g transform="translate(${far.x} ${far.y})">${lureSVG(wormName)}</g>` : "";
     const splash = lureT >= 0.995
       ? `<circle class="splash" cx="${water.x}" cy="${water.y}" r="10"/>
          <circle class="splash" cx="${water.x}" cy="${water.y}" r="17" style="animation-delay:.08s"/>` : "";
-    $("scene").innerHTML = `${grad}${rod}${lure}${splash}`;
-    return tip;
+    $("scene").innerHTML = `${GRAD}${rodGroup(rot)}${line}${lure}${splash}`;
   }
 
   function animateThrow(ms, wormName, onDone){
     cancelCastAnim();
     const t0 = performance.now();
-    let prevTip = null;
     const step = now=>{
       const t = Math.min(1, (now-t0)/ms);
-      prevTip = drawThrowFrame(t, wormName, prevTip);
-      if(t < 1){ castRaf = requestAnimationFrame(step); }
-      else{ castRaf = null; onDone && onDone(); }
+      drawThrowFrame(t, wormName);
+      if(t < 1) castRaf = requestAnimationFrame(step);
+      else { castRaf = null; onDone && onDone(); }
     };
     castRaf = requestAnimationFrame(step);
   }
 
-  function drawScene(mode, fishName, lureName){
-    const s = $("scene");
-    const SEA = 118;
-    const bend = mode==="hooked" ? 0.5 : 0;   // 魚の重みで穂先が下がる
-    const R = rodPath(bend);
+  function drawScene(mode, fishName){
+    const R = rodPath();
+    const rot = mode==="hooked" ? -14 : 0;
+    const tip = rotatePoint(R.tipX, R.tipY, ROD_PIVOT.x, ROD_PIVOT.y, rot);
 
-    // 糸は穂先から水面へ。合わせた時は、魚が最終的に落ち着く位置(hangUpの終点)に合わせる。
-    // ここを釣り上げ途中の位置にすると、魚が浮き上がる間 糸だけ動かず、魚が糸から外れて見えてしまう。
-    const lineEnd = mode==="hooked" ? {x:214, y:56} : {x:226, y:SEA+6};
-    const lineEl = `<path class="lineMain" d="M${R.tipX} ${R.tipY}
-                    Q${(R.tipX+lineEnd.x)/2+4} ${(R.tipY+lineEnd.y)/2} ${lineEnd.x} ${lineEnd.y}"
-                    stroke="url(#lg)" stroke-width="1" fill="none"/>`;
-
-    // 糸は竿(rodG)の中に置く。竿が振れて穂先が動くアニメーション中も、
-    // 糸の根もとが必ず穂先にくっついたまま動くようにするため。
-    // (以前は糸を竿の外に静止画として描いていたため、竿だけが振れて
-    //  糸が置き去りになる見た目のズレが起きていた)
-    const rod = `
-      <g class="rodG">
-        <path d="${R.d}" stroke="#2E2A26" stroke-width="6" fill="none" stroke-linecap="round" opacity=".9"/>
-        <path d="${R.d}" stroke="#8C5A2B" stroke-width="4" fill="none" stroke-linecap="round"/>
-        <rect x="4" y="164" width="34" height="13" rx="6" transform="rotate(-33 20 170)" fill="#1F1C19"/>
-        <g transform="translate(56 140) rotate(-33)">
-          <circle r="9" fill="#9AA0A8"/><circle r="5" fill="#6E747C"/><circle r="1.8" fill="#3A3E44"/>
-        </g>
-        <circle cx="112" cy="98" r="3.4" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-        <circle cx="168" cy="68" r="3"   fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-        <circle cx="${R.tipX-14}" cy="${R.tipY+6}" r="2.6" fill="none" stroke="#B8BCC4" stroke-width="1.6"/>
-        ${mode==="snapped" ? "" : lineEl}
-      </g>`;
-
-    const grad = `<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
-        <stop offset="72%" stop-color="rgba(255,255,255,.45)"/>
-        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-      </linearGradient></defs>`;
+    // まだ垂らしていないときは糸を出さない。糸が切れたときも本線は出さない。
+    const showLine = (mode !== "idle" && mode !== "snapped");
+    const end = mode==="hooked" ? {x:214,y:56} : {x:226,y:SEA+6};
+    const line = showLine
+      ? `<path d="M${tip.x} ${tip.y} Q${(tip.x+end.x)/2+4} ${(tip.y+end.y)/2} ${end.x} ${end.y}"
+          stroke="url(#lg)" stroke-width="1" fill="none"/>` : "";
 
     const rings = mode==="cast" ? `
       <g class="ripple">
@@ -1168,36 +1474,38 @@
 
     let center = "";
     if(mode === "hooked"){
-      // 糸の先に魚がぶら下がっている。水面から引き上げられる。
+      // 水面(226,118)から、ぶら下がる位置(214,56)まで跳ね上がってくる。
       center = `
         <circle class="splash" cx="226" cy="${SEA}" r="12"/>
         <circle class="splash" cx="226" cy="${SEA}" r="22" style="animation-delay:.1s"/>
         <circle class="splash" cx="226" cy="${SEA}" r="32" style="animation-delay:.2s"/>
-        <g class="hang" transform="translate(${lineEnd.x} ${lineEnd.y})">
+        <g class="hang" transform="translate(${end.x} ${end.y})">
           <g class="hangSwing">
             <g transform="translate(-70 -30)">${fishSVG(fishName,140,84)}</g>
           </g>
         </g>
-        <circle class="drip" cx="204" cy="${SEA-6}" r="2.4" fill="rgba(200,230,255,.8)"/>
-        <circle class="drip" cx="228" cy="${SEA}"   r="1.8" fill="rgba(200,230,255,.7)" style="animation-delay:.35s"/>
-        <circle class="drip" cx="216" cy="${SEA-14}" r="2"  fill="rgba(200,230,255,.75)" style="animation-delay:.5s"/>`;
+        <circle class="drip" cx="204" cy="${SEA-6}"  r="2.4" fill="rgba(200,230,255,.8)"/>
+        <circle class="drip" cx="228" cy="${SEA}"    r="1.8" fill="rgba(200,230,255,.7)" style="animation-delay:.35s"/>
+        <circle class="drip" cx="216" cy="${SEA-14}" r="2"   fill="rgba(200,230,255,.75)" style="animation-delay:.5s"/>`;
     }else if(mode === "snapped"){
-      center = `<path d="M${R.tipX} ${R.tipY} Q227 58 223 72" stroke="url(#lg)" stroke-width="1" fill="none"/>
+      center = `<path d="M${tip.x} ${tip.y} Q227 58 223 72" stroke="url(#lg)" stroke-width="1" fill="none"/>
         <path d="M230 96 Q228 106 226 ${SEA}" stroke="url(#lg)" stroke-width="1" fill="none" opacity=".4"/>`;
     }
-    s.innerHTML = `${grad}${rod}${rings}${bubbles}${center}`;
+    $("scene").innerHTML = `${GRAD}${rodGroup(rot)}${line}${rings}${bubbles}${center}`;
   }
 
   function drawPond(){
     const el = $("pond");
     el.className = "pond" + (cast ? " casting" : "");
-    if(!cast) $("scene").dataset.m = "idle";
     if(!cast){
       const w = wormOf(wormH);
-      drawScene("idle", null, wormOf(wormH).name);
+      $("scene").dataset.m = "idle";
+      drawScene("idle");
       $("pondState").textContent = "まだ 糸を垂らしていません";
-      $("pondBig").textContent = `${w.name}`;
-      $("pondSub").textContent = w.yen ? `¥${w.yen.toLocaleString()} ／ ${w.hours}時間で釣れる` : "お金はかかりません ／ 10秒で釣れる";
+      $("pondBig").textContent = w.name;
+      $("pondSub").textContent = w.yen
+        ? `¥${w.yen.toLocaleString()} ／ ${w.hours}時間で釣れる`
+        : "お金はかかりません ／ 10秒で釣れる";
       $("castBtn").style.display = "";
       $("pullBtn").style.display = "none";
       const have = bagCount(w.hours);
@@ -1206,7 +1514,6 @@
         : have > 0
           ? `${w.name}で 糸を垂らす`
           : `${w.name}を買って 糸を垂らす（¥${w.yen.toLocaleString()}）`;
-      // 使っていないワームは、いつでも売って全額もどせる
       if(w.yen && have > 0){
         $("sellBtn").style.display = "";
         $("sellBtn").textContent = `${w.name}を売る（¥${w.yen.toLocaleString()} もどる）`;
@@ -1217,8 +1524,7 @@
       return;
     }
     const left = cast.ms - (Date.now() - cast.startedAt);
-    if($("scene").dataset.m === "throwing") { /* 投げ入れ中は触らない */ }
-    else if($("scene").dataset.m !== "cast"){ drawScene("cast", null, cast.name); $("scene").dataset.m = "cast"; }
+    if($("scene").dataset.m !== "cast"){ drawScene("cast"); $("scene").dataset.m = "cast"; }
     $("pondState").textContent = `${cast.name}で 釣り中`;
     $("pondBig").textContent = fmtLeft(left);
     $("pondSub").textContent = cast.yen ? `¥${cast.yen.toLocaleString()}ぶん 沈めています` : "ためし釣り";
@@ -1227,7 +1533,8 @@
     $("pullBtn").style.display = "";
     if(canPull()){
       const rest = Math.ceil((PULL_WINDOW - (Date.now() - cast.startedAt))/1000);
-      $("pullBtn").textContent = cast.yen ? `糸を上げて ¥${cast.yen.toLocaleString()} を取り出す（${rest}）` : `やめる（${rest}）`;
+      $("pullBtn").textContent = cast.yen
+        ? `糸を上げて ¥${cast.yen.toLocaleString()} を取り出す（${rest}）` : `やめる（${rest}）`;
       $("pullBtn").disabled = false;
       $("fishNote").textContent = "取り出せるのは いまから10秒だけです。";
     }else{
@@ -1244,12 +1551,10 @@
 
   function drawCreel(){
     $("creelCount").textContent = `${new Set(creel.map(f=>f.name)).size} / ${FISH_TOTAL}`;
-    // 同じ魚はまとめて数える。レアな順、同じレアなら多い順に並べる。
     const tally = new Map();
     for(const f of creel){
-      const k = f.name;
-      const t = tally.get(k) || { name:f.name, rarity:f.rarity, n:0 };
-      t.n++; tally.set(k, t);
+      const t = tally.get(f.name) || { name:f.name, rarity:f.rarity, n:0 };
+      t.n++; tally.set(f.name, t);
     }
     const list = [...tally.values()].sort((a,b)=> b.rarity-a.rarity || b.n-a.n || a.name.localeCompare(b.name));
     $("creelGrid").innerHTML = list.length
@@ -1263,6 +1568,8 @@
       : `<span class="creelEmpty">まだ 何も釣れていません</span>`;
   }
 
+  let staging = false;      // 演出中は他の描画で上書きしない
+
   $("sellBtn").onclick = ()=>{
     const w = wormOf(wormH);
     if(!w.yen || bagCount(w.hours) <= 0) return;
@@ -1273,20 +1580,18 @@
     $("pondSub").textContent = `¥${w.yen.toLocaleString()} がもどりました`;
     $("fishNote").textContent = "使っていないワームは いつでも売れます。";
   };
-  let staging = false;      // 演出中は他の描画で上書きしない
+
   $("castBtn").onclick = ()=>{
     if(cast || staging) return;
     const w = wormOf(wormH);
     if(w.yen){
-      // 在庫が無ければ、ここで買う
       if(bagCount(w.hours) <= 0) bag[w.hours] = 1;
-      bag[w.hours] = bagCount(w.hours) - 1;   // 1本を糸に付ける
+      bag[w.hours] = bagCount(w.hours) - 1;
       if(!bag[w.hours]) delete bag[w.hours];
       saveBag();
     }
-    // 投げる演出を見せてから、実際の計測を始める
     staging = true;
-    $("pond").className = "pond casting-throw";
+    $("pond").className = "pond";
     $("scene").dataset.m = "throwing";
     $("pondState").textContent = "投げています";
     $("pondBig").textContent = w.name;
@@ -1301,10 +1606,11 @@
       drawWorms(); drawPond();
     });
   };
+
   $("pullBtn").onclick = ()=>{
     if(!canPull()) return;
     const yen = cast.yen, hrs = cast.hours;
-    if(yen){ bag[hrs] = bagCount(hrs) + 1; saveBag(); }   // ワームは手元に戻る
+    if(yen){ bag[hrs] = bagCount(hrs) + 1; saveBag(); }
     cast = null;
     drawWorms(); drawPond();
     $("pullBtn").disabled = false;
@@ -1313,39 +1619,29 @@
     $("fishNote").textContent = "またいつでも 糸を垂らせます。";
   };
 
-  function hooked(){
-    const got = pickFish(cast.hours);
-    // まず竿を持ち上げて、糸の先で魚が暴れる。そのあと水面から抜く。
-    const el0 = $("pond");
-    el0.className = "pond";
-    drawScene("fight", got.name);
-    $("scene").dataset.m = "fight";
-    $("pondState").textContent = "かかりました";
-    $("pondBig").textContent = "…";
-    $("pondSub").textContent = "";
-    staging = true;
-    setTimeout(()=>{ staging = false; land(got); }, 1200);
-  }
+  function hooked(){ land(pickFish(cast.hours)); }
+
   function land(got){
     creel.push(got);
     fstore.save(creel);
     const yen = cast.yen, hrs = cast.hours;
-    if(yen){ bag[hrs] = bagCount(hrs) + 1; saveBag(); }   // 釣り上げたらワームも回収
+    if(yen){ bag[hrs] = bagCount(hrs) + 1; saveBag(); }
     cast = null;
     drawWorms(); drawCreel();
-    const el = $("pond");
-    el.className = "pond hooked";
-    drawScene("hooked", got.name); $("scene").dataset.m = "hooked";
+    $("pond").className = "pond hooked";
+    drawScene("hooked", got.name);
+    $("scene").dataset.m = "hooked";
     $("pondState").textContent = "釣れました";
     $("pondBig").textContent = got.name;
-    $("pondSub").textContent = yen ? `${RARITY_NAME[got.rarity]} ／ ¥${yen.toLocaleString()} も戻りました` : RARITY_NAME[got.rarity];
+    $("pondSub").textContent = yen
+      ? `${RARITY_NAME[got.rarity]} ／ ¥${yen.toLocaleString()} も戻りました` : RARITY_NAME[got.rarity];
     $("castBtn").style.display = "";
     $("pullBtn").style.display = "none";
     $("fishNote").textContent = "びくに入りました。";
   }
+
   function snap(){
     if(staging && !cast){
-      // 投げている最中(まだ cast が立つ前)に離脱した場合は、演出だけ止める
       cancelCastAnim();
       staging = false;
       $("scene").dataset.m = "idle";
@@ -1354,12 +1650,13 @@
     }
     if(!cast) return;
     cancelCastAnim();
+    staging = false;
     const yen = cast.yen, nm = cast.name;
     cast = null;
     drawWorms();
-    const el = $("pond");
-    el.className = "pond snapped";
-    drawScene("snapped"); $("scene").dataset.m = "snapped";
+    $("pond").className = "pond snapped";
+    drawScene("snapped");
+    $("scene").dataset.m = "snapped";
     $("pondState").textContent = "糸が切れました";
     $("pondBig").textContent = `${nm} を 失いました`;
     $("pondSub").textContent = yen ? `¥${yen.toLocaleString()} は戻りません` : "ためし釣りなので お金は減りません";
@@ -1381,7 +1678,7 @@
   }, 250);
 
   drawWorms(); drawPond(); drawCreel();
-
+  renderTodos();
   render();
   setInterval(()=>{ if(!drag){ drawDial(); drawNow(); } }, 1000);
 })();
