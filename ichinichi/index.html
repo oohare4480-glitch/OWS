@@ -429,8 +429,6 @@
           <button class="tool" id="calToday" style="flex:1">きょうへ</button>
         </div>
         <div class="calScroll" id="calScroll"></div>
-        <h3 class="someday">いつか（日付なし）</h3>
-        <div id="calSomeday"></div>
       </div>
 
       <h2 style="margin-top:26px">あたらしく 足す</h2>
@@ -1079,9 +1077,8 @@
 
     $("todoDated").innerHTML =
       dated.length ? dated.map(todoRow).join("") : `<p class="todoEmpty">日付つきのやることは まだありません</p>`;
-    const sHtml = someday.length ? someday.map(todoRow).join("") : `<p class="todoEmpty">ありません</p>`;
-    $("todoSomeday").innerHTML = sHtml;
-    $("calSomeday").innerHTML = sHtml;
+    $("todoSomeday").innerHTML =
+      someday.length ? someday.map(todoRow).join("") : `<p class="todoEmpty">ありません</p>`;
 
     if(todoView === "cal") drawCalendar();
     bindTodoRows();
