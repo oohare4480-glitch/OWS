@@ -103,6 +103,11 @@ const MAP_W = 480, MAP_H = 480;
 const ZONE_R_BASE = 4;
 const MOVE_COOLDOWN = 5e3;
 const MARCH_INTERVAL = 15e3;
+const MARCH_TICK_UNIT = MARCH_INTERVAL / 16; // \u6700\u5C0F\u5237\u65B0\u5358\u4F4D(0.9375\u79D2)\u3002\u901A\u5E38\u306F16\u30E6\u30CB\u30C3\u30C8\u306716\u500D\u901F\u306F1\u30E6\u30CB\u30C3\u30C8\u3054\u3068\u306B\u9032\u8ECD\u3002
+function marchCountdown(army, t, anchor) {
+  const interval = MARCH_INTERVAL / (army && army.speedMult ? army.speedMult : 1);
+  return Math.max(0, interval - (t - anchor) % interval) / 1e3;
+}
 const AI_PER_FRAME = 4;
 const SPAWN_CHECK_INTERVAL = 8e3;
 const LOOT_RESPAWN_MS = 15e3;    // 残骸を補充する間隔
@@ -135,7 +140,21 @@ function owsSetTimeScale(s) {
   owsTimeScale = s;
 }
 function zoneRadiusFor(army) {
-  return ZONE_R_BASE + (army.kills || 0);
+  return ZONE_R_BASE + Math.floor(army.growth != null ? army.growth : (army.kills || 0));
+}
+// \u81EA\u5206\u3088\u308A\u683C\u4E0A\u3092\u5012\u3059\u3068\u591A\u3081\u306B\u3001\u683C\u4E0B\u3092\u72E9\u3046\u3068\u4E0B\u9650(0.15)\u307E\u3067\u8584\u304F\u306A\u308B\u4F38\u3073\u4FC2\u6570\u3002
+// \u3053\u308C\u306B\u3088\u308A\u300C\u30D3\u30AE\u30CA\u30FC\u3092\u5927\u91CF\u306B\u98DF\u3079\u3066\u98A8\u8239\u306B\u306A\u308B\u300D\u3060\u3051\u3067\u306F\u7E04\u5F35\u308A\u304C\u4F38\u3073\u306A\u304F\u306A\u308A\u3001\u5927\u7269\u540C\u58EB\u304C\u3076\u3064\u304B\u308A\u5408\u308F\u306A\u3044\u3068\u5927\u304D\u304F\u306A\u308C\u306A\u3044\u3002
+function killGain(myKills, victimKills) {
+  const diff = (victimKills || 0) - (myKills || 0);
+  if (diff >= 0) return 1 + Math.min(1, diff * 0.05);
+  return Math.max(0.15, 1 + diff * 0.03);
+}
+// \u8A0E\u738B\u6570(\u8868\u793A\u7528\u30C8\u30ED\u30D5\u30A3\u30FC)\u306F\u5F93\u6765\u901A\u308A+1\u3059\u308B\u304C\u3001\u7E04\u5F35\u308A\u62E1\u5927(growth)\u306F\u76F8\u624B\u306E\u5F37\u3055\u306B\u5FDC\u3058\u3066\u5225\u679A\u3067\u52A0\u7B97\u3059\u308B\u3002
+function addKillGrowth(army, victimKills) {
+  const myKills = army.kills || 0;
+  if (army.growth == null) army.growth = myKills;
+  army.kills = myKills + 1;
+  army.growth += killGain(myKills, victimKills);
 }
 const STEPS = {
   P: [[0, -1]],
@@ -340,13 +359,33 @@ function relocateArmy(W, a, center, facing) {
   a.facing = facing;
   a.center = [center[0], center[1]];
   placeArmyCentered(W.cells, a.id, a.center, facing);
+  a.kingKey = K(center[0], center[1]);
   a.zone = null;
   refreshZone(a);
 }
-function buildKingIndex(cells) {
+// \u5404\u8ECD\u304C\u8997\u3048\u3066\u3044\u308B\u7389\u306E\u4F4D\u7F6E(kingKey)\u3092\u78BA\u304B\u3081\u308B\u3060\u3051\u3067\u6E08\u3081\u3070\u3001\u76E4\u9762\u5168\u4F53\u3092\u8D70\u67FB\u3057\u306A\u3044\u3002
+// \u6BCE\u30D5\u30EC\u30FC\u30E0\u547C\u3070\u308C\u308B\u306E\u3067\u3001\u6570\u4E07\u30DE\u30B9\u306E\u8D70\u67FB\u3092\u8EE2\u306E\u6570(\u6570\u767E)\u3060\u3051\u306E\u78BA\u8A8D\u306B\u6E1B\u3089\u3059\u3002
+// \u98DF\u3044\u9055\u3044\u304C\u4E00\u3064\u3067\u3082\u3042\u308C\u3070\u5F93\u6765\u901A\u308A\u5168\u8D70\u67FB\u3057\u3066\u3001\u8997\u3048\u3066\u3044\u308B\u4F4D\u7F6E\u3082\u4F5C\u308A\u76F4\u3059\u3002
+function buildKingIndex(cells, armies) {
+  if (armies) {
+    const fast = /* @__PURE__ */ new Map();
+    let ok = true;
+    for (const a of armies) {
+      if (!a.alive || a.neutral) continue;
+      const kk = a.kingKey;
+      const p = kk ? cells.get(kk) : null;
+      if (!p || p.t !== "K" || p.owner !== a.id) { ok = false; break; }
+      const ci = kk.indexOf(",");
+      fast.set(a.id, [+kk.slice(0, ci), +kk.slice(ci + 1)]);
+    }
+    if (ok) return fast;
+  }
   const kings = /* @__PURE__ */ new Map();
   for (const [k, p] of cells) {
-    if (p.t === "K") kings.set(p.owner, k.split(",").map(Number));
+    if (p.t !== "K") continue;
+    kings.set(p.owner, k.split(",").map(Number));
+    const oa = armies ? armies[p.owner] : null;
+    if (oa && oa.id === p.owner) oa.kingKey = k;
   }
   return kings;
 }
@@ -448,7 +487,9 @@ function findSpawnSpot(W, facing) {
       const cy = 10 + Math.floor(Math.random() * (MAP_H - 20));
       let clash = false;
       for (const a of live) {
-        const need = (a.kills || 0) >= 20 ? Math.max(clear, 42) : clear;
+        // \u56FA\u5B9A\u8DDD\u96E2\u3067\u306F\u306A\u304F\u3001\u305D\u306E\u8ECD\u306E\u5B9F\u969B\u306E\u7E04\u5F35\u308A\u534A\u5F84\u3092\u57FA\u6E96\u306B\u3059\u308B\u3002
+        // \u3053\u308C\u304C\u306A\u3044\u3068\u3001\u5927\u7269\u306E\u7E04\u5F35\u308A\u304C\u56FA\u5B9A\u8DDD\u96E2(\u6700\u592742)\u3092\u8D85\u3048\u305F\u77AC\u9593\u3001\u65B0\u4EBA\u304C\u305D\u306E\u4E2D\u306B\u751F\u307E\u308C\u3066\u3059\u3050\u306B\u8E0F\u307F\u6F70\u3055\u308C\u308B\u3002
+        const need = Math.max(clear, (a.zone ? a.zone.r : 0) + 6);
         if (Math.abs(cx - a.center[0]) <= need && Math.abs(cy - a.center[1]) <= need) {
           clash = true;
           break;
@@ -465,7 +506,7 @@ function armyHasBoardPieces(W, id) {
   for (const p of W.cells.values()) if (p.owner === id) return true;
   return false;
 }
-function spawnNewArmy(W) {
+function spawnNewArmy(W, onBoardCache) {
   const facing = Math.floor(Math.random() * 4);
   const center = findSpawnSpot(W, facing);
   if (!center) return null;
@@ -474,8 +515,13 @@ function spawnNewArmy(W) {
   const t = now();
   const flankBias = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5));
   const name = generateOneName(existingNames);
-  const onBoard = /* @__PURE__ */ new Set();
-  for (const p of W.cells.values()) onBoard.add(p.owner);
+  // 盤上に駒を残している軍の一覧。まとめて複数軍を湧かせるときは呼び出し側が1回だけ作って渡す
+  // (湧いたばかりの軍は生きているので再利用の対象にはならず、使い回しても結果は同じ)。
+  let onBoard = onBoardCache;
+  if (!onBoard) {
+    onBoard = /* @__PURE__ */ new Set();
+    for (const p of W.cells.values()) onBoard.add(p.owner);
+  }
   const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !onBoard.has(a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
   placeArmyCentered(W.cells, id, center, facing);
@@ -494,7 +540,11 @@ function spawnNewArmy(W) {
     skill: makeSkill(),
     name,
     color: makeColor(id),
-    flankBias
+    flankBias,
+    speedMult: 1,
+    decayNext: 0,
+    decayMult: 1,
+    kingKey: K(center[0], center[1])
   };
   if (reuse) Object.assign(reuse, fresh);
   else W.armies.push(fresh);
@@ -567,22 +617,122 @@ function dropTargets(cells, zoneSet, limit) {
 }
 const AI_SLIDE_CAP = 12;
 const AI_DROP_SPOTS = 40;
-function allActions(cells, armyId, facing, hand, zoneSet, ownPieces) {
+function allActions(cells, armyId, facing, hand, zoneSet, ownPieces, dropSpots) {
   const acts = [];
   for (const [x, y] of ownPieces) {
     for (const [tx, ty] of legalMovesFrom(cells, x, y, facing, zoneSet, AI_SLIDE_CAP)) acts.push({ kind: "move", fx: x, fy: y, tx, ty });
   }
   const keys = Object.keys(hand);
   if (keys.length) {
-    const dts = dropTargets(cells, zoneSet, AI_DROP_SPOTS);
+    const dts = dropSpots || dropTargets(cells, zoneSet, AI_DROP_SPOTS);
     for (const t of keys) for (const [x, y] of dts) acts.push({ kind: "drop", type: t, tx: x, ty: y });
   }
   return acts;
 }
+// AI\u304C\u6301\u3061\u99D2\u3092\u6253\u3064\u5834\u6240\u306E\u5019\u88DC\u3002\u53EF\u52D5\u57DF\u5168\u4F53\u304B\u3089\u7121\u4F5C\u70BA\u306B\u9078\u3076\u3060\u3051\u3060\u3068\u3001\u53EF\u52D5\u57DF\u304C\u5E83\u3044\u5927\u8ECD\u3067\u306F
+// \u81EA\u7389\u306E\u5468\u308A\u3084\u6575\u306E\u3044\u308B\u65B9\u5411\u304C\u307B\u3068\u3093\u3069\u5019\u88DC\u306B\u5165\u3089\u305A\u3001\u6301\u3061\u99D2\u3092\u62B1\u3048\u305F\u307E\u307E\u306B\u306A\u3063\u3066\u3044\u305F\u3002
+// \u81EA\u7389\u306E\u5468\u308A(3\u30DE\u30B9\u4EE5\u5185)\u3068\u3001\u81EA\u7389\u304B\u3089\u6575\u7389\u3078\u5411\u304B\u3046\u524D\u7DDA\u3092\u5FC5\u305A\u5019\u88DC\u306B\u5165\u308C\u308B\u3002
+function aiDropSpots(cells, zoneSet, myKing, enemyKp, extra) {
+  const out = [], seen = /* @__PURE__ */ new Set();
+  const add = (x, y) => {
+    if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) return;
+    const k = K(x, y);
+    if (seen.has(k) || cells.has(k)) return;
+    seen.add(k);
+    out.push([x, y]);
+  };
+  if (myKing) {
+    const kx = myKing[0], ky = myKing[1];
+    for (let r = 1; r <= 3; r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === r) add(kx + dx, ky + dy);
+      }
+    }
+    if (enemyKp) {
+      const vx = Math.sign(enemyKp[0] - kx), vy = Math.sign(enemyKp[1] - ky);
+      for (let d = 2; d <= 6; d++) for (let w = -2; w <= 2; w++) add(kx + vx * d - vy * w, ky + vy * d + vx * w);
+    }
+  }
+  if (extra) for (const p of extra) add(p[0], p[1]);
+  for (const p of dropTargets(cells, zoneSet, 24)) add(p[0], p[1]);
+  return out;
+}
+
+// \u81EA\u9663(\u53EF\u52D5\u57DF)\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u306E\u99D2\u3068\u3001\u5165\u3063\u3066\u304D\u305F\u6575\u7389\u3092\u4FA1\u5024\u9806\u306B\u62FE\u3046\u3002
+function aiIntruders(W, army, piecesByOwner, limit) {
+  const zs = army.zone.set, out = [];
+  for (const oa of W.armies) {
+    if (oa.id === army.id || !oa.alive || !oa.zone) continue;
+    const oz = oa.zone.set;
+    if (oz.x1 < zs.x0 || oz.x0 > zs.x1 || oz.y1 < zs.y0 || oz.y0 > zs.y1) continue;
+    const pieces = piecesByOwner.get(oa.id);
+    if (!pieces) continue;
+    let seen = 0;
+    for (const pos of pieces) {
+      const x = pos[0], y = pos[1];
+      if (x < zs.x0 || x > zs.x1 || y < zs.y0 || y > zs.y1) continue;
+      if (++seen > 24) break;
+      const p = W.cells.get(K(x, y));
+      if (!p || p.owner === army.id) continue;
+      out.push({ x, y, king: p.t === "K", value: p.t === "K" ? 200 : (VAL[p.t] || 1) * 3 });
+    }
+  }
+  out.sort((a, b) => b.value - a.value);
+  if (out.length > limit) out.length = limit;
+  return out;
+}
+
+// \u8FCE\u3048\u6483\u3064\u305F\u3081\u306E\u6253\u3061\u5834\u6240\u3002\u6253\u3063\u305F\u77AC\u9593\u306B\u76EE\u6A19(\u4FB5\u5165\u3057\u3066\u304D\u305F\u99D2\u3084\u6575\u7389)\u3092\u72D9\u3048\u308B\u4F4D\u7F6E\u3092\u96C6\u3081\u308B\u3002
+// \u89D2\u3084\u98DB\u306E\u3088\u3046\u306A\u8D70\u308A\u99D2\u306F\u96E2\u308C\u305F\u4F4D\u7F6E\u304B\u3089\u3067\u3082\u7389\u3092\u72D9\u3048\u308B\u306E\u3067\u3001\u5229\u304D\u7DDA\u4E0A\u306E\u7A7A\u304D\u30DE\u30B9\u3092\u5019\u88DC\u306B\u3059\u308B\u3002
+function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
+  const spots = /* @__PURE__ */ new Map();
+  let n = 0;
+  const addSpot = (x, y, type, value) => {
+    if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) return false;
+    const k = K(x, y);
+    if (cells.has(k)) return false;
+    let e = spots.get(k);
+    if (!e) {
+      if (n >= cap) return true;
+      n++;
+      e = { x, y, best: 0, types: /* @__PURE__ */ new Map() };
+      spots.set(k, e);
+    }
+    const prev = e.types.get(type) || 0;
+    if (value > prev) e.types.set(type, value);
+    if (value > e.best) e.best = value;
+    return true;
+  };
+  for (const type of Object.keys(hand)) {
+    const mv = pieceMoveVectors({ t: type, promoted: false });
+    for (const tg of targets) {
+      for (const st of mv.steps) {
+        const v = rotV(st[0], st[1], facing);
+        addSpot(tg.x - v[0], tg.y - v[1], type, tg.value);
+      }
+      for (const sl of mv.slides) {
+        const v = rotV(sl[0], sl[1], facing);
+        let x = tg.x - v[0], y = tg.y - v[1];
+        for (let d = 0; d < 6; d++) {
+          if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) break;
+          if (cells.has(K(x, y))) break; // \u9014\u4E2D\u306B\u99D2\u304C\u3042\u308C\u3070\u305D\u306E\u5148\u304B\u3089\u306F\u72D9\u3048\u306A\u3044
+          addSpot(x, y, type, tg.value);
+          x -= v[0];
+          y -= v[1];
+        }
+      }
+    }
+  }
+  return spots;
+}
+// \u53EF\u52D5\u57DF\u306F\u6B63\u65B9\u5F62\u306A\u306E\u3067\u3001\u5EA7\u6A19\u306E\u6570\u5024\u6BD4\u8F03\u3060\u3051\u3067\u5224\u5B9A\u3067\u304D\u308B(zone.set.has \u3068\u540C\u3058\u7D50\u679C)\u3002
+// \u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B"x,y"\u306E\u6587\u5B57\u5217\u3092\u4F5C\u3063\u3066\u5206\u89E3\u3057\u3066\u304A\u308A\u3001AI\u306E\u5019\u88DC\u624B1\u3064\u3054\u3068\u306B\u5168\u8ECD\u3076\u3093\u8D70\u3063\u3066\u91CD\u304B\u3063\u305F\u3002
+// armies \u306B\u306F\u3001\u547C\u3073\u51FA\u3057\u5074\u3067\u95A2\u4FC2\u306E\u3042\u308B\u8ECD\u3060\u3051\u306B\u7D5E\u3063\u305F\u30EA\u30B9\u30C8\u3092\u6E21\u3057\u3066\u3082\u3088\u3044\u3002
 function isInHostileZone(tx, ty, ownArmyId, armies) {
   for (const a of armies) {
-    if (a.id === ownArmyId || !a.alive) continue;
-    if (a.zone && a.zone.set.has(K(tx, ty))) return true;
+    if (a.id === ownArmyId || !a.alive || !a.zone) continue;
+    const z = a.zone.set;
+    if (tx >= z.x0 && tx <= z.x1 && ty >= z.y0 && ty <= z.y1) return true;
   }
   return false;
 }
@@ -653,7 +803,7 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
           else dest = [Math.max(0, Math.min(MAP_W - 1, kp[0] + a.flankBias)), kp[1]];
         }
       } else {
-        const loot = nearestLoot(W, a, lootGrid, a.zone.r + 1);
+        const loot = nearestLoot(W, a, typeof lootGrid === "function" ? lootGrid() : lootGrid, a.zone.r + 1);
         if (loot) dest = loot.pos;
         else if (kp) dest = kp;
         else return null;
@@ -677,59 +827,90 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
   }
   return null;
 }
-function resolveSimultaneousMarch(W, movers) {
+function resolveSimultaneousMarch(W, movers, piecesOf) {
   const ev = { collisions: [], trampledTotal: 0, kingsKilled: [] };
-  const byId = new Map(movers.map((m) => [m.army.id, m]));
-  const lifted = [];
-  for (const [k, p] of W.cells) {
-    const m = byId.get(p.owner);
-    if (!m) continue;
-    const ci = k.indexOf(",");
-    lifted.push({ m, x: +k.slice(0, ci), y: +k.slice(ci + 1), p, k });
-  }
-  for (const it of lifted) W.cells.delete(it.k);
-  const byDest = /* @__PURE__ */ new Map();
-  for (const it of lifted) {
-    const dk = K(it.x + it.m.dx, it.y + it.m.dy);
-    if (!byDest.has(dk)) byDest.set(dk, []);
-    byDest.get(dk).push(it);
-  }
-  for (const [dk, list] of byDest) {
-    let survivor = list[0];
-    if (list.length > 1) {
-      let total = 0;
-      const weights = list.map((it) => {
-        const ar = it.m.army;
-        const w = (0.35 + (ar.skill == null ? 0.6 : ar.skill)) * (1 + Math.min(2.5, (ar.kills || 0) * 0.05));
-        total += w;
-        return w;
-      });
-      let pick = Math.random() * total;
-      survivor = list[list.length - 1];
+  const cells = W.cells;
+  // \u6301\u3061\u4E0A\u3052\u305F\u99D2\u3092\u300C\u8ECD\u30FB\u99D2\u30FB\u884C\u304D\u5148\u300D\u306E3\u3064\u306E\u914D\u5217\u3067\u6301\u3064\u3002\u99D2\u30091\u679A\u3054\u3068\u306B\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3084\u914D\u5217\u3092\u4F5C\u3089\u306A\u3044\u3002
+  // (15\u79D2\u3054\u3068\u306E\u4E00\u6589\u9032\u8ECD\u3067\u306F\u76E4\u4E0A\u306E\u7D041\u4E07\u679A\u304C\u4E00\u5EA6\u306B\u52D5\u304F\u306E\u3067\u3001\u3053\u3053\u306E\u5272\u308A\u5F53\u3066\u304C\u305D\u306E\u307E\u307E\u56FA\u307E\u308A\u306B\u306A\u3063\u3066\u3044\u305F)
+  const Lm = [], Lp = [], Ld = [];
+  if (piecesOf) {
+    // \u547C\u3073\u51FA\u3057\u5074\u304C\u540C\u3058\u30D5\u30EC\u30FC\u30E0\u3067\u96C6\u3081\u305F\u99D2\u306E\u5EA7\u6A19\u3092\u4F7F\u3046\u3002\u76E4\u9762\u5168\u4F53(\u6570\u4E07\u30DE\u30B9)\u306E\u8D70\u67FB\u3092\u7701\u304F\u3002
+    for (const m of movers) {
+      const list = piecesOf.get(m.army.id);
+      if (!list) continue;
+      const id = m.army.id, dx = m.dx, dy = m.dy;
       for (let i = 0; i < list.length; i++) {
-        pick -= weights[i];
-        if (pick <= 0) { survivor = list[i]; break; }
+        const x = list[i][0], y = list[i][1];
+        const k = K(x, y);
+        const p = cells.get(k);
+        if (!p || p.owner !== id) continue;
+        cells.delete(k);
+        Lm.push(m); Lp.push(p); Ld.push(K(x + dx, y + dy));
       }
-      for (const loser of list) {
-        if (loser === survivor) continue;
-        ev.collisions.push({ winner: survivor.m.army, loser: loser.m.army, piece: loser.p });
-        if (loser.p.t === "K") {
-          ev.kingsKilled.push({ id: loser.m.army.id, by: survivor.m.army.id });
-          survivor.m.army.kills = (survivor.m.army.kills || 0) + 1;
+    }
+  } else {
+    const byId = new Map(movers.map((m) => [m.army.id, m]));
+    const liftedKeys = [];
+    for (const [k, p] of cells) {
+      const m = byId.get(p.owner);
+      if (!m) continue;
+      const ci = k.indexOf(",");
+      liftedKeys.push(k);
+      Lm.push(m); Lp.push(p); Ld.push(K(+k.slice(0, ci) + m.dx, +k.slice(ci + 1) + m.dy));
+    }
+    for (const k of liftedKeys) cells.delete(k);
+  }
+  // \u884C\u304D\u5148\u3054\u3068\u306B\u307E\u3068\u3081\u308B\u3002\u307B\u3068\u3093\u3069\u306E\u30DE\u30B9\u306F1\u679A\u3057\u304B\u6765\u306A\u3044\u306E\u3067\u756A\u53F7\u3092\u305D\u306E\u307E\u307E\u6301\u3061\u3001\u885D\u7A81\u3057\u305F\u30DE\u30B9\u3060\u3051\u914D\u5217\u306B\u3059\u308B\u3002
+  const byDest = /* @__PURE__ */ new Map();
+  for (let i = 0; i < Ld.length; i++) {
+    const dk = Ld[i];
+    const cur = byDest.get(dk);
+    if (cur === undefined) byDest.set(dk, i);
+    else if (typeof cur === "number") byDest.set(dk, [cur, i]);
+    else cur.push(i);
+  }
+  for (const [dk, v] of byDest) {
+    let si = v;
+    if (typeof v !== "number") {
+      let total = 0;
+      const weights = new Array(v.length);
+      for (let j = 0; j < v.length; j++) {
+        const ar = Lm[v[j]].army;
+        const w = (0.35 + (ar.skill == null ? 0.6 : ar.skill)) * (1 + Math.min(2.5, (ar.kills || 0) * 0.05));
+        weights[j] = w;
+        total += w;
+      }
+      let pick = Math.random() * total;
+      si = v[v.length - 1];
+      for (let j = 0; j < v.length; j++) {
+        pick -= weights[j];
+        if (pick <= 0) { si = v[j]; break; }
+      }
+      const winArmy = Lm[si].army;
+      for (let j = 0; j < v.length; j++) {
+        const li = v[j];
+        if (li === si) continue;
+        const loserArmy = Lm[li].army, lp = Lp[li];
+        ev.collisions.push({ winner: winArmy, loser: loserArmy, piece: lp });
+        if (lp.t === "K") {
+          ev.kingsKilled.push({ id: loserArmy.id, by: winArmy.id });
+          addKillGrowth(winArmy, loserArmy.kills || 0);
         }
       }
     }
-    const occ = W.cells.get(dk);
-    if (occ && occ.owner !== survivor.m.army.id) {
-      if (occ.t !== "K") survivor.m.army.hand[occ.t] = (survivor.m.army.hand[occ.t] || 0) + 1;
+    const army = Lm[si].army, sp = Lp[si];
+    const occ = cells.get(dk);
+    if (occ && occ.owner !== army.id) {
+      if (occ.t !== "K") army.hand[occ.t] = (army.hand[occ.t] || 0) + 1;
       ev.trampledTotal++;
       if (occ.t === "K") {
-        ev.kingsKilled.push({ id: occ.owner, by: survivor.m.army.id });
-        survivor.m.army.kills = (survivor.m.army.kills || 0) + 1;
+        ev.kingsKilled.push({ id: occ.owner, by: army.id });
         const victimArmy = W.armies[occ.owner];
+        addKillGrowth(army, victimArmy ? victimArmy.kills || 0 : 0);
       }
     }
-    W.cells.set(dk, survivor.p);
+    cells.set(dk, sp);
+    if (sp.t === "K") army.kingKey = dk;
   }
   for (const m of movers) {
     m.army.center = [m.army.center[0] + m.dx, m.army.center[1] + m.dy];
@@ -813,6 +994,12 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   }
   const myKing0 = kings.get(army.id);
   let mine = piecesByOwner.get(army.id) || [];
+  // 盤上の配置駒(王以外)が足りているか。可動域の広さと討王数から、これくらいは欲しいという数を決める。
+  // 倍速の減衰や踏み潰しで減ったら、持ち駒を打って立て直す判断に使う。
+  const boardCount = Math.max(0, mine.length - 1);
+  const zs0 = army.zone.set;
+  const boardWant = Math.min(Math.floor((zs0.x1 - zs0.x0 + 1) * (zs0.y1 - zs0.y0 + 1) * 0.3), 16 + (army.kills || 0) * 6);
+  const boardDeficit = boardWant > 0 ? Math.max(0, 1 - boardCount / boardWant) : 0;
   const skill0 = army.skill == null ? 0.6 : army.skill;
   const cap = Math.round((AI_PIECE_CAP + Math.min(120, army.kills || 0)) * (0.45 + skill0 * 0.75));
   if (mine.length > cap) {
@@ -846,7 +1033,19 @@ function aiPickAction(W, army, kings, piecesByOwner) {
     if (picked.length < cap) push(mine.slice(0, cap - picked.length));
     mine = picked;
   }
-  const acts = allActions(W.cells, army.id, army.facing, army.hand, army.zone.set, mine);
+  const handKinds = Object.keys(army.hand).length;
+  // \u81EA\u9663\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u3092\u8FCE\u3048\u6483\u3064\u624B\u3092\u5148\u306B\u63A2\u3059\u3002\u6575\u7389\u304C\u81EA\u9663\u306B\u5165\u3063\u3066\u3044\u308C\u3070\u3001\u305D\u308C\u3092\u72D9\u3046\u4F4D\u7F6E\u304C\u6700\u512A\u5148\u306B\u306A\u308B\u3002
+  let snipe = null, dropSpots = null;
+  if (handKinds) {
+    // \u72D9\u3044\u306F\u300C\u81EA\u9663\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u7389\u300D\u306B\u7D5E\u308B\u3002\u4FB5\u5165\u3057\u3066\u304D\u305F\u666E\u901A\u306E\u99D2\u3092\u72D9\u3046\u52A0\u70B9\u3082\u8A66\u3057\u305F\u304C\u3001
+    // \u738B\u306E\u5B88\u308A\u3092\u56FA\u3081\u308B\u6253\u3061\u624B\u3092\u62BC\u3057\u306E\u3051\u3066\u3057\u307E\u3044\u3001\u5F37\u3055\u306B\u5DEE\u304C\u51FA\u306A\u304B\u3063\u305F\u3002
+    const targets = aiIntruders(W, army, piecesByOwner, 5).filter((tg) => tg.king);
+    if (targets.length) snipe = aiInterceptSpots(W.cells, army.zone.set, army.hand, army.facing, targets, 48);
+    const extra = [];
+    if (snipe) for (const e of snipe.values()) extra.push([e.x, e.y]);
+    dropSpots = aiDropSpots(W.cells, army.zone.set, myKing0, nearestKp, extra);
+  }
+  const acts = allActions(W.cells, army.id, army.facing, army.hand, army.zone.set, mine, dropSpots);
   if (!acts.length) return null;
   const threat = buildThreat(W, army, piecesByOwner);
   const myKing = kings.get(army.id);
@@ -861,6 +1060,21 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   }
   const skill = army.skill == null ? 0.6 : army.skill;
   const noise = (1 - skill) * 120;
+  // \u5019\u88DC\u624B\u304C\u89E6\u308C\u308B\u7BC4\u56F2\u3068\u91CD\u306A\u308B\u4ED6\u8ECD\u306E\u53EF\u52D5\u57DF\u3060\u3051\u3092\u5148\u306B\u7D5E\u3063\u3066\u304A\u304F(\u6210\u308A\u5224\u5B9A\u3067\u6BCE\u56DE\u5168\u8ECD\u3092\u898B\u306A\u3044)\u3002
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const a of acts) {
+    if (a.tx < bx0) bx0 = a.tx;
+    if (a.tx > bx1) bx1 = a.tx;
+    if (a.ty < by0) by0 = a.ty;
+    if (a.ty > by1) by1 = a.ty;
+    if (a.kind === "move") {
+      if (a.fx < bx0) bx0 = a.fx;
+      if (a.fx > bx1) bx1 = a.fx;
+      if (a.fy < by0) by0 = a.fy;
+      if (a.fy > by1) by1 = a.fy;
+    }
+  }
+  const nearZones = W.armies.filter((o) => o.alive && o.id !== army.id && o.zone && o.zone.set.x1 >= bx0 && o.zone.set.x0 <= bx1 && o.zone.set.y1 >= by0 && o.zone.set.y0 <= by1);
   let best = null, bestScore = -Infinity;
   for (const a of acts) {
     let s = Math.random() * (0.3 + noise);
@@ -868,7 +1082,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
       const destK = K(a.tx, a.ty);
       const victim = W.cells.get(destK);
       const mover = W.cells.get(K(a.fx, a.fy));
-      const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(a.tx, a.ty, army.id, W.armies) || isInHostileZone(a.fx, a.fy, army.id, W.armies));
+      const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(a.tx, a.ty, army.id, nearZones) || isInHostileZone(a.fx, a.fy, army.id, nearZones));
       if (victim && victim.t === "K") return { ...a, promote: canPr };
       if (victim) s += VAL[victim.t] * 10 + (victim.promoted ? 20 : 0);
       if (victim && myKing) {
@@ -894,10 +1108,27 @@ function aiPickAction(W, army, kings, piecesByOwner) {
         const d = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
         s += Math.max(0, 6 - d) * 1.2 - VAL[a.type] * 0.3;
       } else s -= 5;
+      let dk = 99;
       if (myKing) {
-        const dk = Math.max(Math.abs(a.tx - myKing[0]), Math.abs(a.ty - myKing[1]));
+        dk = Math.max(Math.abs(a.tx - myKing[0]), Math.abs(a.ty - myKing[1]));
         if (dk <= 3 && guardCount < guardWant) {
           s += (inCheck ? 120 : 30) * (1 - dk / 4) * (1 + (guardWant - guardCount) / guardWant);
+        }
+      }
+      // 配置駒が足りないほど、持ち駒を打って立て直す手を高く評価する(自玉に近いほど優先)。
+      if (boardDeficit > 0) s += boardDeficit * (50 + (dk <= 3 ? 30 * (1 - dk / 4) : 0));
+      // 自玉の近くで、自玉より敵玉寄りのマスに打つ手(壁になる)を少し優先する。
+      if (myKing && nearestKp && dk <= 5) {
+        const dSpot = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
+        const dKing = Math.abs(myKing[0] - nearestKp[0]) + Math.abs(myKing[1] - nearestKp[1]);
+        if (dSpot < dKing) s += 6;
+      }
+      // \u6253\u3063\u305F\u77AC\u9593\u306B\u4FB5\u5165\u8005\u3084\u6575\u7389\u3092\u72D9\u3048\u308B\u4F4D\u7F6E\u306A\u3089\u5927\u304D\u304F\u52A0\u70B9(\u89D2\u3084\u98DB\u3067\u96E2\u308C\u305F\u4F4D\u7F6E\u304B\u3089\u72D9\u3046\u624B\u3092\u542B\u3080)
+      if (snipe) {
+        const e = snipe.get(destK);
+        if (e) {
+          const v = e.types.get(a.type);
+          if (v) s += v;
         }
       }
       if (threat.has(destK)) s -= VAL[a.type] * 1.5;
@@ -926,6 +1157,7 @@ function applyAction(W, army, a) {
   }
   if (a.promote) mover.promoted = true;
   W.cells.set(K(a.tx, a.ty), mover);
+  if (mover.t === "K") army.kingKey = K(a.tx, a.ty);
   return victim;
 }
 const LOOT_KINDS = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
@@ -1063,7 +1295,8 @@ function newWorld(mode, playerName, netOpts) {
       skill: makeSkill(),
       name: isPlayerSlot ? playerName ? playerName + "(\u3042\u306A\u305F)" : names[0] + "(\u3042\u306A\u305F)" : names[id],
       color: isPlayerSlot ? PLAYER_COLOR : makeColor(id),
-      flankBias: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5))
+      flankBias: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5)),
+      kingKey: K(center[0], center[1])
     });
   }
   for (const a of armies) refreshZone(a);
@@ -1144,7 +1377,7 @@ function applyOpenWorldState(W, s, myArmyId) {
   W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
   W.armies = (s.armies || []).map((sa) => ({
     id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null, marchRel: sa.marchRel || null,
-    center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name,
+    center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name, speedMult: sa.speedMult || 1,
     lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)), lastAction: t - (MOVE_COOLDOWN - (sa.cd || 0)),
     zone: null, color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id),
   }));
@@ -1202,12 +1435,7 @@ function OpenWorldShogi() {
   const [showArmyList, setShowArmyList] = useState(false);
   const cdRef = useRef(null);
   const marchRef = useRef(null);
-  const [speed, setSpeed] = useState(1);
   const wakeRef = useRef(null);
-  useEffect(() => {
-    const s = (started && g.current.mode !== "openworld") ? speed : 1;
-    owsSetTimeScale(s);
-  }, [speed, started]);
   useEffect(() => {
     let cancelled = false;
     async function acquire() {
@@ -1307,6 +1535,12 @@ function OpenWorldShogi() {
         if (netRef.current.armyId != null) {
           const mine = g.current.armies.find((a) => a.id === netRef.current.armyId);
           if (!mine || !mine.alive) g.current.myDefeated = true;
+          // \u53C2\u6226\u76F4\u5F8C\u306B1\u56DE\u3060\u3051\u3001\u81EA\u8ECD\u306E\u6B63\u9762\u304C\u4E0A\u306B\u6765\u308B\u3088\u3046\u8996\u70B9\u3092\u5408\u308F\u305B\u308B
+          if (mine && mine.alive && !netRef.current.oriented) {
+            netRef.current.oriented = true;
+            camRef.current.rot = -mine.facing * (Math.PI / 2);
+            camRef.current.manualMode = false;
+          }
         }
         bump();
       }
@@ -1314,6 +1548,7 @@ function OpenWorldShogi() {
   }
   function respawnMine() {
     netRef.current.armyId = null;
+    netRef.current.oriented = false;
     g.current.myDefeated = false;
     netSend({ type: "respawn" });
   }
@@ -1328,7 +1563,7 @@ function OpenWorldShogi() {
       } catch {}
       wsRef.current = null;
     }
-    netRef.current = { armyId: null, name: "" };
+    netRef.current = { armyId: null, name: "", oriented: false };
     setNetMsg(""); setNetPhase(null); setCodeInput(""); setNewRoomCode(""); setRoomList([]); setRoomListMsg("");
   }
   const [, tick] = useState(0);
@@ -1346,19 +1581,23 @@ function OpenWorldShogi() {
       a.lastAction = t - stagger;
     }
     w.lastSpawnCheck = t;
-    w.marchAnchor = t;
+    // \u9032\u8ECD\u306E\u57FA\u6E96\u6642\u523B\u309215\u79D2\u524D\u306B\u3057\u3066\u304A\u304D\u3001\u958B\u59CB\u3057\u305F\u6700\u521D\u306E\u30D5\u30EC\u30FC\u30E0\u30671\u56DE\u76EE\u306E\u4E00\u6589\u9032\u8ECD(\u3068AI\u306E\u500D\u901F\u5224\u65AD)\u3092\u8D70\u3089\u305B\u308B\u3002
+    // \u4EE5\u524D\u306F\u958B\u59CB\u304B\u308915\u79D2\u9593\u3001\u3069\u306E\u8ECD\u3082\u9032\u8ECD\u305B\u305A\u6B62\u307E\u3063\u3066\u898B\u3048\u3066\u3044\u305F\u3002
+    w.marchAnchor = t - MARCH_INTERVAL;
     w.lastMarchTick = 0;
     if (mode === "watch") {
-      w.focusId = w.armies[Math.floor(Math.random() * w.armies.length)].id;
+      const watchable = w.armies.filter((a) => a.alive && !a.neutral);
+      w.focusId = watchable.length ? watchable[Math.floor(Math.random() * watchable.length)].id : 0;
     }
     const startFocus = mode === "watch" ? w.armies.find((a) => a.id === w.focusId) : w.armies[0];
-    const startX = startFocus ? startFocus.center[0] : MAP_W / 2;
-    const startY = startFocus ? startFocus.center[1] : MAP_H / 2;
+    const startX = startFocus ? startFocus.center[0] + 0.5 : MAP_W / 2;
+    const startY = startFocus ? startFocus.center[1] + 0.5 : MAP_H / 2;
     const wrap0 = wrapRef.current;
     const Wd0 = wrap0 ? wrap0.clientWidth : 800, Hd0 = wrap0 ? wrap0.clientHeight : 600;
     const zr0 = (startFocus && startFocus.zone ? startFocus.zone.r : ZONE_R_BASE) + 3;
     const s0 = Math.max(2, Math.min(30, Math.min(Wd0 / (zr0 * 2), Hd0 / (zr0 * 2))));
-    camRef.current = { x: startX, y: startY, s: s0, baseScale: s0, zoom: 1, manualMode: false };
+    // \u958B\u59CB\u6642\u306F\u3001\u898B\u3066\u3044\u308B\u8ECD\u306E\u6B63\u9762(\u9032\u8ECD\u65B9\u5411)\u304C\u753B\u9762\u306E\u4E0A\u306B\u6765\u308B\u3088\u3046\u8996\u70B9\u3092\u56DE\u3057\u3066\u304A\u304F
+    camRef.current = { x: startX, y: startY, s: s0, baseScale: s0, zoom: 1, rot: startFocus ? -startFocus.facing * (Math.PI / 2) : 0, manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
     setStarted(true);
@@ -1399,7 +1638,7 @@ function OpenWorldShogi() {
     W2.handSel = null;
     W2.dropSpots = null;
     W2.myDefeated = false;
-    camRef.current = { x: a.center[0], y: a.center[1], s: 20, zoom: 1, rot: 0, manualMode: false };
+    camRef.current = { x: a.center[0] + 0.5, y: a.center[1] + 0.5, s: 20, zoom: 1, rot: -a.facing * (Math.PI / 2), manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
     bump();
@@ -1531,8 +1770,9 @@ function OpenWorldShogi() {
               cdRef.current.style.color = cd > 0 ? C.danger : "#8fce7a";
             }
             if (marchRef.current) {
-              const mr = Math.max(0, MARCH_INTERVAL - (t2 - W2.marchAnchor) % MARCH_INTERVAL) / 1e3;
+              const mr = marchCountdown(fa, t2, W2.marchAnchor);
               marchRef.current.textContent = `${mr.toFixed(1)}s`;
+              marchRef.current.style.color = (fa && fa.speedMult > 1) ? "#9FD08A" : "";
             }
           }
         } catch (err) {}
@@ -1548,7 +1788,7 @@ function OpenWorldShogi() {
   }, []);
   function updateWorld(W2) {
     const t = now();
-    let kings = buildKingIndex(W2.cells);
+    let kings = buildKingIndex(W2.cells, W2.armies);
     for (const a of W2.armies) {
       if (!a.alive) continue;
       refreshZone(a);
@@ -1567,8 +1807,13 @@ function OpenWorldShogi() {
       const deficit = CAP - aliveCount(W2);
       const toSpawn = Math.min(Math.max(deficit, 0), 6);
       let lastSpawned = null;
+      let onBoardCache = null;
+      if (toSpawn > 0) {
+        onBoardCache = /* @__PURE__ */ new Set();
+        for (const p of W2.cells.values()) onBoardCache.add(p.owner);
+      }
       for (let i = 0; i < toSpawn; i++) {
-        const a = spawnNewArmy(W2);
+        const a = spawnNewArmy(W2, onBoardCache);
         if (!a) break;
         kings.set(a.id, a.center);
         lastSpawned = a;
@@ -1577,10 +1822,17 @@ function OpenWorldShogi() {
         W2.msg = `\u65B0\u624B: ${lastSpawned.name} \u304C\u53C2\u6226!(\u6B8B\u5B58${aliveCount(W2)}/${CAP}\u8ECD)`;
       }
     }
-    const marchTick = Math.floor((t - W2.marchAnchor) / MARCH_INTERVAL);
-    if (marchTick > W2.lastMarchTick) {
-      W2.lastMarchTick = marchTick;
-      const due = W2.armies.filter((a) => a.alive);
+    const uTick = Math.floor((t - W2.marchAnchor) / MARCH_TICK_UNIT);
+    const prevU = W2.lastUTick || 0;
+    if (uTick > prevU) {
+      W2.lastUTick = uTick;
+      // \u524D\u56DE\u51E6\u7406\u3057\u305F\u6642\u70B9\u304B\u3089\u300C\u533A\u5207\u308A\u3092\u307E\u305F\u3044\u3060\u304B\u300D\u3067\u5224\u5B9A\u3059\u308B\u3002\u30D5\u30EC\u30FC\u30E0\u304C\u8A70\u307E\u3063\u3066\u5358\u4F4D\u6642\u9593\u3092\u98DB\u3070\u3057\u3066\u3082
+      // 15\u79D2\u306E\u4E00\u6589\u9032\u8ECD\u3092\u53D6\u308A\u3053\u307C\u3055\u305A\u3001\u9045\u308C\u3092\u53D6\u308A\u623B\u3059\u305F\u3081\u306E\u9023\u7D9A\u9032\u8ECD\u3082\u3057\u306A\u3044\u3002
+      const crossed = (div) => Math.floor(uTick / div) > Math.floor(prevU / div);
+      const isFullTick = crossed(16);
+      // \u7B49\u500D\u306F16\u5358\u4F4D(15\u79D2)\u30014\u500D\u901F\u306F4\u5358\u4F4D(3.75\u79D2)\u300116\u500D\u901F\u306F\u6BCE\u5358\u4F4D(0.9375\u79D2)\u3054\u3068\u306B\u9032\u8ECD\u3002
+      // \u5168\u8ECD\u304C\u540C\u3058marchAnchor\u57FA\u6E96\u306A\u306E\u3067\u3001\u4F55\u500D\u901F\u3067\u3082\u5FC5\u305A15\u79D2\u7D44\u3068\u6B69\u8ABF\u304C\u5408\u3046\u3002
+      const due = W2.armies.filter((a) => a.alive && crossed(16 / (a.speedMult || 1)));
       if (due.length) {
         const byOwner = new Map(due.map((a) => [a.id, []]));
         for (const [k, p] of W2.cells) {
@@ -1589,15 +1841,45 @@ function OpenWorldShogi() {
           const ci = k.indexOf(",");
           list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
         }
-        const lootGrid = buildLootGrid(W2);
+        if (isFullTick && W2.mode !== "openworld") {
+          // AI\u306E\u500D\u901F\u5224\u65AD(15\u79D2\u3054\u3068)\u3002\u5404\u8ECD\u306E\u914D\u7F6E\u99D2\u306E\u6570\u306F\u3001\u76F4\u524D\u306B\u9032\u8ECD\u7528\u306B\u96C6\u3081\u305F\u99D2\u30EA\u30B9\u30C8\u304B\u3089\u6C42\u3081\u308B\u3002
+          // \u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B\u76E4\u9762\u5168\u4F53\u3092\u6570\u3048\u76F4\u3057\u3066\u304A\u308A(\u7D04200\u8ECD\u00D7\u6570\u4E07\u30DE\u30B9)\u300115\u79D2\u3054\u3068\u306B\u5927\u304D\u304F\u56FA\u307E\u3063\u3066\u3044\u305F\u3002
+          for (const a of W2.armies) {
+            if (!a.alive || a.neutral || a.id === W2.playerId) continue;
+            const list = byOwner.get(a.id);
+            const ownCount = list ? Math.max(0, list.length - 1) : 0; // \u738B\u306E\u5206\u3092\u5F15\u304F
+            let dNear = Infinity;
+            for (const [oid, okp] of kings) {
+              if (oid === a.id) continue;
+              const oa2 = W2.armies[oid];
+              if (!oa2 || !oa2.alive) continue;
+              const d = Math.max(Math.abs(okp[0] - a.center[0]), Math.abs(okp[1] - a.center[1]));
+              if (d < dNear) dNear = d;
+            }
+            const nearKing = dNear <= 100;
+            if (dNear <= 35 && ownCount >= 20 && Math.random() < 0.3) a.speedMult = 16;
+            else if (nearKing && ownCount >= 8 && Math.random() < 0.3) a.speedMult = 4;
+            else if ((a.speedMult || 1) !== 1 && (!nearKing || ownCount < 5 || Math.random() < 0.25)) a.speedMult = 1;
+          }
+        }
+        // \u6B8B\u9AB8\u306E\u4F4D\u7F6E\u7D22\u5F15\u306F\u3001\u6B8B\u9AB8\u3092\u63A2\u3059\u8ECD\u304C\u3044\u305F\u3068\u304D\u3060\u3051\u4F5C\u308B(\u6575\u7389\u3092\u8FFD\u3063\u3066\u3044\u308B\u8ECD\u3070\u304B\u308A\u306A\u3089\u4E0D\u8981)\u3002
+        let lootGrid = null;
+        const getLootGrid = () => lootGrid || (lootGrid = buildLootGrid(W2));
         const movers = [];
         for (const a of due) {
-          const d = marchDirFor(W2, a, kings, byOwner.get(a.id) || [], lootGrid);
+          const mine = byOwner.get(a.id) || [];
+          // \u914D\u7F6E\u99D2\u304C\u738B\u3060\u3051\u306B\u306A\u3063\u305F\u8ECD\u306F\u500D\u901F\u3067\u304D\u306A\u3044\u3002\u500D\u901F\u3076\u3093\u306E\u4E00\u6B69\u306F\u53D6\u308A\u6D88\u3057\u3066\u901A\u5E38\u306E\u6B69\u8ABF\u306B\u623B\u3059\u3002
+          if ((a.speedMult || 1) > 1 && mine.length <= 1) {
+            a.speedMult = 1;
+            if (!isFullTick) continue;
+          }
+          const d = marchDirFor(W2, a, kings, mine, getLootGrid);
           if (d) movers.push({ army: a, dx: d[0], dy: d[1] });
+          else if ((a.speedMult || 1) > 1) a.speedMult = 1; // \u9032\u8ECD\u3057\u3066\u3044\u306A\u3044\u8ECD\u306F\u500D\u901F\u3092\u7DAD\u6301\u3057\u306A\u3044
         }
         if (movers.length) {
           const myMover = W2.playerId != null ? movers.find((m) => m.army.id === W2.playerId) : null;
-          const ev = resolveSimultaneousMarch(W2, movers);
+          const ev = resolveSimultaneousMarch(W2, movers, byOwner);
           if (ev.collisions.length) {
             const c = ev.collisions[0];
             W2.msg = `\u6FC0\u7A81! ${c.loser.name}\u306E${kanjiOf(c.piece, W2.playerId)}\u304C\u8E0F\u307F\u8CA0\u3051\u305F(\u885D\u7A81${ev.collisions.length}\u4EF6)`;
@@ -1606,7 +1888,7 @@ function OpenWorldShogi() {
           }
           for (const kk of ev.kingsKilled) handleDefeat(W2, W2.armies.find((x) => x.id === kk.id), W2.armies[kk.by] || null);
           if (W2.over) return;
-          kings = buildKingIndex(W2.cells);
+          kings = buildKingIndex(W2.cells, W2.armies);
           if (myMover) {
             const dx = myMover.dx, dy = myMover.dy;
             const mine = W2.armies.find((a) => a.id === W2.playerId);
@@ -1623,6 +1905,61 @@ function OpenWorldShogi() {
             if (W2.dropSpots && W2.handSel) {
               W2.dropSpots = dropTargets(W2.cells, zoneSet);
             }
+          }
+        }
+      }
+    }
+    if (!W2.over && W2.mode !== "openworld") {
+      // \u500D\u901F\u4E2D\u306E\u8ECD\u306F\u3001\u914D\u7F6E\u3057\u3066\u3044\u308B\u99D2(\u738B\u4EE5\u5916)\u306E\u6570\u30920.9\u500D(\u5C0F\u6570\u5207\u308A\u6368\u3066)\u306B\u6E1B\u3089\u3059\u3002
+      // 4\u500D\u901F\u306F10\u79D2\u3054\u3068\u300116\u500D\u901F\u306F1\u79D2\u3054\u3068\u3002\u6E1B\u3063\u305F\u99D2\u306F\u76E4\u304B\u3089\u6D88\u3048\u308B(\u6B8B\u9AB8\u306B\u3059\u308B\u3068\u81EA\u8ECD\u304C\u3059\u3050\u8E0F\u3093\u3067\u6301\u3061\u99D2\u306B\u56DE\u53CE\u3067\u304D\u3066\u3057\u307E\u3046)\u3002
+      let dueDecay = null;
+      for (const a of W2.armies) {
+        const m = a.speedMult || 1;
+        if (!a.alive || m <= 1) continue;
+        const interval = m >= 16 ? 1000 : 10000;
+        const pending = a.decayNext || 0;
+        if (a.decayMult !== m || pending <= t - interval) {
+          // \u500D\u7387\u3092\u5909\u3048\u305F/\u3057\u3070\u3089\u304F\u7B49\u500D\u3060\u3063\u305F \u2192 1\u9593\u9694\u3076\u3093\u5F85\u3063\u3066\u304B\u3089\u6E1B\u3089\u3057\u59CB\u3081\u308B(\u9045\u308C\u3092\u53D6\u308A\u623B\u3059\u9023\u7D9A\u6E1B\u8870\u306F\u3057\u306A\u3044)\u3002
+          // \u305F\u3060\u3057\u9593\u3082\u306A\u304F\u6765\u308B\u4E88\u5B9A\u304C\u65E2\u306B\u3042\u308C\u3070\u305D\u3061\u3089\u3092\u512A\u5148\u3059\u308B(\u7D30\u304B\u304F\u5207\u308A\u66FF\u3048\u3066\u6E1B\u8870\u3092\u9003\u308C\u308B\u6297\u3051\u9053\u3092\u585E\u3050)\u3002
+          const next = t + interval;
+          a.decayNext = pending > t && pending < next ? pending : next;
+          a.decayMult = m;
+          continue;
+        }
+        if (t < pending) continue;
+        a.decayNext = t + interval;
+        (dueDecay || (dueDecay = /* @__PURE__ */ new Set())).add(a.id);
+      }
+      if (dueDecay) {
+        // \u6E1B\u8870\u3055\u305B\u308B\u8ECD\u306E\u99D2\u3092\u76E4\u97621\u56DE\u306E\u8D70\u67FB\u3067\u307E\u3068\u3081\u3066\u96C6\u3081\u308B(\u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B\u76E4\u9762\u5168\u4F53\u3092\u8D70\u67FB\u3057\u3066\u3044\u305F)\u3002
+        const keysOf = /* @__PURE__ */ new Map();
+        for (const [k, p] of W2.cells) {
+          if (p.t === "K" || !dueDecay.has(p.owner)) continue;
+          let list = keysOf.get(p.owner);
+          if (!list) keysOf.set(p.owner, list = []);
+          list.push(k);
+        }
+        for (const id of dueDecay) {
+          const a = W2.armies[id];
+          const keys = keysOf.get(id) || [];
+          const n = keys.length;
+          const remove = n - Math.floor(n * 0.9);
+          for (let i = 0; i < remove; i++) {
+            const j = i + Math.floor(Math.random() * (n - i));
+            const tmp = keys[i]; keys[i] = keys[j]; keys[j] = tmp;
+            W2.cells.delete(keys[i]);
+          }
+          const left = n - remove;
+          if (left <= 0) {
+            a.speedMult = 1;
+          } else if (id !== W2.playerId) {
+            // AI\u306F\u99D2\u304C\u6E1B\u3063\u3066\u304D\u305F\u3089\u81EA\u5206\u3067\u901F\u5EA6\u3092\u843D\u3068\u3059(\u738B\u3060\u3051\u306B\u306A\u308B\u307E\u3067\u7206\u8D70\u3057\u306A\u3044)
+            if (a.speedMult >= 16 && left < 12) a.speedMult = 4;
+            else if (a.speedMult === 4 && left < 5) a.speedMult = 1;
+          }
+          if (id === W2.playerId) {
+            W2.msg = left <= 0 ? "\u914D\u7F6E\u99D2\u304C\u5C3D\u304D\u305F\u306E\u3067\u7B49\u500D\u306B\u623B\u3063\u305F" : `\u500D\u901F\u3067\u914D\u7F6E\u99D2\u3092${remove}\u679A\u5931\u3063\u305F(\u6B8B\u308A${left}\u679A)`;
+            if (W2.sel && !W2.cells.has(K(W2.sel.x, W2.sel.y))) W2.sel = null;
           }
         }
       }
@@ -1680,8 +2017,8 @@ function OpenWorldShogi() {
             const victim = applyAction(W2, a, act);
             a.lastAction = t;
             if (victim && victim.t === "K") {
-              a.kills = (a.kills || 0) + 1;
               const dead = W2.armies.find((x) => x.id === victim.owner);
+              addKillGrowth(a, dead ? dead.kills || 0 : 0);
               handleDefeat(W2, dead, a);
             }
           }
@@ -1735,6 +2072,7 @@ function OpenWorldShogi() {
           } else {
             W2.focusId = a.id;
             camRef.current.manualMode = false;
+            camRef.current.rot = -a.facing * (Math.PI / 2);
             W2.msg = `\u6CE8\u76EE: ${a.name}`;
           }
           bump();
@@ -1774,8 +2112,8 @@ function OpenWorldShogi() {
       attemptPlayerAction(() => {
         const v = applyAction(W2, player2, { kind: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
         if (v && v.t === "K") {
-          player2.kills = (player2.kills || 0) + 1;
           const dead = W2.armies.find((x) => x.id === v.owner);
+          addKillGrowth(player2, dead ? dead.kills || 0 : 0);
           handleDefeat(W2, dead, player2);
         }
         W2.msg = (v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002") + (canPr ? "\u6210\u3063\u305F\u3002" : "");
@@ -1830,6 +2168,7 @@ function OpenWorldShogi() {
     lastRelRef.current = null;
     W2.armies[W2.playerId].marchRel = null;
     W2.armies[W2.playerId].target = null;
+    W2.armies[W2.playerId].speedMult = 1; // \u9032\u8ECD\u3092\u6B62\u3081\u305F\u3089\u500D\u901F\u3082\u89E3\u9664
     if (W2.sel) {
       const p = W2.cells.get(K(W2.sel.x, W2.sel.y));
       if (!p || p.owner !== W2.playerId) W2.sel = null;
@@ -1844,7 +2183,6 @@ function OpenWorldShogi() {
   function adjustZoom(mult) {
     const cam = camRef.current;
     cam.zoom = Math.max(0.02, Math.min(40, (cam.zoom || 1) * mult));
-    bump();
   }
   function recenterCamera() {
     camRef.current.manualMode = false;
@@ -1914,7 +2252,6 @@ function OpenWorldShogi() {
           const [wdx, wdy] = toWorldDelta(dx, dy, cam);
           cam.x = Math.max(-15, Math.min(MAP_W + 15, gs.dragStart.camX - wdx));
           cam.y = Math.max(-15, Math.min(MAP_H + 15, gs.dragStart.camY - wdy));
-          bump();
         }
         return;
       }
@@ -1933,7 +2270,6 @@ function OpenWorldShogi() {
         const sdx = cx - ps.cx, sdy = cy - ps.cy;
         cam.x = Math.max(-15, Math.min(MAP_W + 15, ps.camX - (sdx * c - sdy * s2) / ps.s));
         cam.y = Math.max(-15, Math.min(MAP_H + 15, ps.camY - (sdx * s2 + sdy * c) / ps.s));
-        bump();
       }
     }
     function onPointerUp(e) {
@@ -1972,7 +2308,6 @@ function OpenWorldShogi() {
       cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x + wdx));
       cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y + wdy));
       wheelDebugLog(e, "PAN", cam, wdx, wdy, bx, by);
-      bump();
     }
     let wdBox = null, wdRows = [], wdAgg = { n: 0, both: 0, clampX: 0, clampY: 0 };
     function wheelDebugLog(e, branch, cam, wdx, wdy, bx, by) {
@@ -2020,7 +2355,6 @@ function OpenWorldShogi() {
       e.preventDefault();
       if (!gestureStart) return;
       camRef.current.zoom = Math.max(0.02, Math.min(40, gestureStart.zoom0 * e.scale));
-      bump();
     }
     function onGestureEnd(e) {
       e.preventDefault();
@@ -2076,8 +2410,8 @@ function OpenWorldShogi() {
       const zr = (focusArmyForCam.zone ? focusArmyForCam.zone.r : ZONE_R_BASE) + 3;
       const cxA = focusArmyForCam.center[0], cyA = focusArmyForCam.center[1];
       tScale = Math.max(2, Math.min(30, Math.min(Wd / (zr * 2), Hd / (zr * 2))));
-      tX = cxA;
-      tY = cyA;
+      tX = cxA + 0.5;
+      tY = cyA + 0.5;
       cam.baseScale = tScale;
     } else {
       tScale = cam.baseScale || cam.s;
@@ -2178,67 +2512,58 @@ function OpenWorldShogi() {
         ctx.restore();
       }
     }
-    for (const [k, p] of W2.cells) {
-      const ci = k.indexOf(",");
-      const x = +k.slice(0, ci);
-      if (x < vx0 || x > vx1) continue;
-      const y = +k.slice(ci + 1);
-      if (y < vy0 || y > vy1) continue;
+    // \u753B\u9762\u306B\u6620\u3063\u3066\u3044\u308B\u7BC4\u56F2\u306E\u30DE\u30B9\u3060\u3051\u3092\u5F15\u3044\u3066\u99D2\u3092\u63CF\u304F\u3002\u62E1\u5927\u8868\u793A\u3067\u306F\u3001\u76E4\u9762\u5168\u4F53(\u6570\u4E07\u679A)\u3092\u6BCE\u30D5\u30EC\u30FC\u30E0\u8D70\u67FB\u3057\u3066
+    // \u5EA7\u6A19\u306E\u6587\u5B57\u5217\u3092\u5206\u89E3\u3059\u308B\u3088\u308A\u6841\u9055\u3044\u306B\u901F\u3044\u3002\u898B\u3048\u308B\u7BC4\u56F2\u306E\u65B9\u304C\u5E83\u3044\u7E2E\u5C0F\u8868\u793A\u3067\u306F\u5168\u99D2\u3092\u8D70\u67FB\u3059\u308B\u3002
+    const px0 = Math.max(0, Math.floor(vx0)), px1 = Math.min(MAP_W - 1, Math.ceil(vx1));
+    const py0 = Math.max(0, Math.floor(vy0)), py1 = Math.min(MAP_H - 1, Math.ceil(vy1));
+    // \u7E2E\u5C0F\u8868\u793A\u306E\u99D2\u306F\u8272\u3054\u3068\u306B\u307E\u3068\u3081\u30661\u56DE\u3067\u5857\u308B(\u99D21\u679A\u3054\u3068\u306B\u5857\u308A\u8272\u3092\u5207\u308A\u66FF\u3048\u308B\u3068\u91CD\u3044)
+    const chipBatch = S < 5 ? /* @__PURE__ */ new Map() : null;
+    // \u99D2\u306E\u5F62\u306F\u540C\u3058\u500D\u7387\u306A\u3089\u5168\u99D2\u5171\u901A\u306A\u306E\u3067\u30011\u30D5\u30EC\u30FC\u30E0\u306B1\u56DE\u3060\u3051\u4F5C\u3063\u3066\u4F7F\u3044\u56DE\u3059
+    const komaPath = chipBatch ? null : makeKomaPath(S);
+    const tNow = now();
+    // \u99D2\u306E\u5F71\u306F shadowBlur(\u307C\u304B\u3057)\u3092\u4F7F\u308F\u305A\u3001\u753B\u9762\u306E\u4E0B\u65B9\u5411\u3078\u5C11\u3057\u305A\u3089\u3057\u305F\u534A\u900F\u660E\u306E\u540C\u3058\u5F62\u3092\u5148\u306B\u5857\u3063\u3066\u8868\u3059\u3002
+    // \u307C\u304B\u3057\u5F71\u306F canvas \u3067\u6700\u3082\u91CD\u3044\u51E6\u7406\u3067\u3001\u62E1\u5927\u8868\u793A\u3067\u306F\u753B\u9762\u5185\u306E\u5168\u99D2\u306B\u6BCE\u30D5\u30EC\u30FC\u30E0\u304B\u304B\u3063\u3066\u3044\u305F\u3002
+    // (\u5143\u306E\u5F71\u306F\u7AEF\u672B\u306E\u753B\u7D20\u5358\u4F4D\u3067\u305A\u308C\u3066\u3044\u305F\u306E\u3067\u3001\u305A\u3089\u3059\u91CF\u3082\u753B\u7D20\u5BC6\u5EA6\u3067\u5272\u3063\u3066\u5408\u308F\u305B\u308B)
+    const shadowOn = S >= 14;
+    const shD = Math.max(1, S * 0.05 / dpr), shX = Math.sin(cam.rot) * shD, shY = Math.cos(cam.rot) * shD;
+    if (!chipBatch && S >= 11) {
+      // \u6587\u5B57\u306E\u66F8\u4F53\u6307\u5B9A\u306F\u6BCE\u56DE\u89E3\u6790\u304C\u8D70\u308B\u306E\u3067\u30011\u30D5\u30EC\u30FC\u30E0\u306B1\u56DE\u3060\u3051\u8A2D\u5B9A\u3059\u308B
+      ctx.font = `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+    }
+    const drawPieceAt = (x, y, p) => {
       const army = W2.armies[p.owner];
       const col = (W2.playerId != null && army.id === W2.playerId) ? PLAYER_COLOR : army.color;
       const cx = sx(x + 0.5), cy = sy(y + 0.5);
-      if (S < 5) {
-        ctx.fillStyle = col.chip;
-        ctx.fillRect(cx - S * 0.35, cy - S * 0.35, S * 0.7, S * 0.7);
-        continue;
+      if (chipBatch) {
+        let list = chipBatch.get(col.chip);
+        if (!list) chipBatch.set(col.chip, list = []);
+        list.push(cx - S * 0.35, cy - S * 0.35);
+        return;
       }
       const selected = W2.sel && W2.sel.x === x && W2.sel.y === y;
+      const pr = army.facing * Math.PI / 2;
+      if (shadowOn) {
+        ctx.save();
+        ctx.translate(cx + shX, cy + shY);
+        ctx.rotate(pr);
+        ctx.fillStyle = "rgba(20,12,4,0.35)";
+        ctx.fill(komaPath);
+        ctx.restore();
+      }
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(army.facing * Math.PI / 2);
-      const w = S * 0.86, h = S * 0.92;
-      const pts = [
-        [0, -h * 0.52],
-        [w * 0.44, -h * 0.16],
-        [w * 0.37, h * 0.48],
-        [-w * 0.37, h * 0.48],
-        [-w * 0.44, -h * 0.16]
-      ];
-      roundedPolyPath(ctx, pts, Math.max(1, S * 0.05));
-      const shadowOn = S >= 14;
-      if (shadowOn) {
-        ctx.shadowColor = "rgba(20,12,4,0.45)";
-        ctx.shadowBlur = S * 0.14;
-        ctx.shadowOffsetY = S * 0.05;
-      }
+      ctx.rotate(pr);
       ctx.fillStyle = col.fill;
-      ctx.fill();
-      if (shadowOn) {
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      const canAct = now() - army.lastAction >= MOVE_COOLDOWN;
+      ctx.fill(komaPath);
+      const canAct = tNow - army.lastAction >= MOVE_COOLDOWN;
       ctx.lineWidth = selected ? 2.8 : 1.8;
       ctx.strokeStyle = selected ? (canAct ? "#9FD08A" : C.danger) : col.edge;
-      ctx.stroke();
+      ctx.stroke(komaPath);
       if (S >= 11) {
         ctx.fillStyle = p.promoted ? col.prom : col.text;
-        ctx.font = `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const kShadow = S >= 16;
-        if (kShadow) {
-          ctx.shadowColor = "rgba(0,0,0,0.45)";
-          ctx.shadowBlur = 1.5;
-          ctx.shadowOffsetY = S * 0.03;
-        }
         ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.06);
-        if (kShadow) {
-          ctx.shadowColor = "transparent";
-          ctx.shadowBlur = 0;
-          ctx.shadowOffsetY = 0;
-        }
       }
       ctx.restore();
       if (!army.alive && S >= 10) {
@@ -2248,6 +2573,30 @@ function OpenWorldShogi() {
         ctx.moveTo(cx - S * 0.3, cy - S * 0.3);
         ctx.lineTo(cx + S * 0.3, cy + S * 0.3);
         ctx.stroke();
+      }
+    };
+    if ((px1 - px0 + 1) * (py1 - py0 + 1) < W2.cells.size) {
+      for (let y = py0; y <= py1; y++) for (let x = px0; x <= px1; x++) {
+        const p = W2.cells.get(K(x, y));
+        if (p) drawPieceAt(x, y, p);
+      }
+    } else {
+      for (const [k, p] of W2.cells) {
+        const ci = k.indexOf(",");
+        const x = +k.slice(0, ci);
+        if (x < vx0 || x > vx1) continue;
+        const y = +k.slice(ci + 1);
+        if (y < vy0 || y > vy1) continue;
+        drawPieceAt(x, y, p);
+      }
+    }
+    if (chipBatch) {
+      const cw = S * 0.7;
+      for (const [color, list] of chipBatch) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        for (let i = 0; i < list.length; i += 2) ctx.rect(list[i], list[i + 1], cw, cw);
+        ctx.fill();
       }
     }
     if (W2.playerId !== null) {
@@ -2294,9 +2643,11 @@ function OpenWorldShogi() {
   const player = player0;
   const focusArmy = isPlay ? player : W.armies[W.focusId] || null;
   const cdRemain = focusArmy ? Math.max(0, MOVE_COOLDOWN - (now() - focusArmy.lastMove)) / 1e3 : 0;
-  const marchRemain = Math.max(0, MARCH_INTERVAL - (now() - W.marchAnchor) % MARCH_INTERVAL) / 1e3;
+  const marchRemain = marchCountdown(focusArmy, now(), W.marchAnchor);
   const remaining = W.armies.filter((a) => a.alive && a.id !== W.playerId).length;
   const hand = player ? player.hand || {} : {};
+  let myPieceCount = 0;
+  if (isPlay) for (const p of W.cells.values()) if (p.owner === W.playerId && p.t !== "K") myPieceCount++;
   const leader = W.armies.reduce((b, a) => a.kills > (b ? b.kills : 0) ? a : b, null);
   let marchStatus = null, marching = false;
   if (isPlay && player && player.alive) {
@@ -2307,7 +2658,7 @@ function OpenWorldShogi() {
       marchStatus = "\u505C\u6B62";
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap", minWidth: 0 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 0, color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "AI\u5BFE\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setShowArmyList((v) => !v), title: "\u8ECD\u4E00\u89A7", style: { fontSize: 9, padding: "3px 7px", borderRadius: 8, background: showArmyList ? "rgba(201,169,106,0.28)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${C.gold}55`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3, display: "inline-flex", alignItems: "center", gap: 3 } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 8, rotate: showArmyList ? 0 : 180 })), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), title: "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B", style: { fontSize: 11, width: 26, height: 24, padding: 0, borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 } }, "\u2715")), started && /* @__PURE__ */ React.createElement("div", { style: { maxHeight: showArmyList ? 52 : 0, overflow: "hidden", transition: "max-height 220ms ease", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id).map((a, i) => {
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap", minWidth: 0 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 0, color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "AI\u5BFE\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setShowArmyList((v) => !v), title: "\u8ECD\u4E00\u89A7", style: { fontSize: 9, padding: "3px 7px", borderRadius: 8, background: showArmyList ? "rgba(201,169,106,0.28)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${C.gold}55`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3, display: "inline-flex", alignItems: "center", gap: 3 } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 8, rotate: showArmyList ? 0 : 180 })), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), title: "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B", style: { fontSize: 11, width: 26, height: 24, padding: 0, borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 } }, "\u2715")), started && /* @__PURE__ */ React.createElement("div", { style: { maxHeight: showArmyList ? 52 : 0, overflow: "hidden", transition: "max-height 220ms ease", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, (showArmyList ? [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id) : []).map((a, i) => {
     const isSelf = isPlay && a.id === W.playerId;
     const isFocus = !isPlay && a.id === W.focusId;
     return /* @__PURE__ */ React.createElement(
@@ -2325,11 +2676,12 @@ function OpenWorldShogi() {
             } else {
               w.focusId = a.id;
               camRef.current.manualMode = false;
+              camRef.current.rot = -a.facing * (Math.PI / 2);
               w.msg = `\u6CE8\u76EE: ${a.name}`;
             }
           } else {
-            camRef.current.x = a.center[0];
-            camRef.current.y = a.center[1];
+            camRef.current.x = a.center[0] + 0.5;
+            camRef.current.y = a.center[1] + 0.5;
             camRef.current.manualMode = true;
             w.msg = `\u6CE8\u76EE: ${a.name}`;
           }
@@ -2377,7 +2729,21 @@ function OpenWorldShogi() {
     gridTemplateColumns: "46px 46px 46px",
     gridTemplateRows: "46px 46px 46px",
     gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), started && W.mode !== "openworld" && /* @__PURE__ */ React.createElement("button", { onClick: () => setSpeed((v) => v === 1 ? 4 : v === 4 ? 16 : 1), title: "\u65E9\u9001\u308A(\u653E\u7F6E\u7528)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: speed > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: speed > 1 ? "#9FD08A" : C.sub, border: `1px solid ${speed > 1 ? "#9FD08A66" : C.panelEdge}` } }, "\u00D7", speed), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u4E00\u624B: ", /* @__PURE__ */ React.createElement("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", /* @__PURE__ */ React.createElement("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
+  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), isPlay && player && player.alive && /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    const cur = player.speedMult || 1;
+    if (cur === 1 && !player.marchRel) return; // \u505C\u6B62\u4E2D\u306F\u500D\u901F\u3067\u304D\u306A\u3044
+    if (cur === 1) {
+      let n = 0;
+      for (const p of g.current.cells.values()) if (p.owner === player.id && p.t !== "K") n++;
+      if (n <= 0) { g.current.msg = "\u914D\u7F6E\u99D2\u304C\u306A\u3044\u306E\u3067\u500D\u901F\u3067\u304D\u306A\u3044\u3002"; bump(); return; }
+    }
+    const next = cur === 1 ? 4 : cur === 4 ? 16 : 1;
+    player.speedMult = next;
+    // \u30CD\u30C3\u30C8\u5BFE\u6226\u3067\u306F\u30B5\u30FC\u30D0\u30FC\u304C\u9032\u884C\u3092\u6301\u3063\u3066\u3044\u308B\u306E\u3067\u3001\u500D\u7387\u3082\u30B5\u30FC\u30D0\u30FC\u306B\u4F1D\u3048\u308B
+    // (\u8868\u793A\u306F\u5148\u306B\u5207\u308A\u66FF\u3048\u3001\u30B5\u30FC\u30D0\u30FC\u304C\u62D2\u5426\u3057\u305F\u5834\u5408\u306F\u6B21\u306E\u72B6\u614B\u53D7\u4FE1\u3067\u623B\u308B)
+    if (isNetGuest()) netSend({ type: "speed", mult: next });
+    bump();
+  }, disabled: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1, title: "\u9032\u8ECD\u500D\u7387(4\u500D:10\u79D2\u3054\u3068\u300116\u500D:1\u79D2\u3054\u3068\u306B\u914D\u7F6E\u99D2\u304C0.9\u500D\u3002\u738B\u306F\u6E1B\u3089\u306A\u3044\u3002\u914D\u7F6E\u99D2\u304C\u306A\u3044\u6642\u3084\u9032\u8ECD\u3092\u6B62\u3081\u3066\u3044\u308B\u6642\u306F\u4F7F\u3048\u306A\u3044)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: player.speedMult > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: player.speedMult > 1 ? "#9FD08A" : C.sub, border: `1px solid ${player.speedMult > 1 ? "#9FD08A66" : C.panelEdge}`, opacity: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1 ? 0.45 : 1 } }, "\u00D7", player.speedMult || 1), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u4E00\u624B: ", /* @__PURE__ */ React.createElement("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", /* @__PURE__ */ React.createElement("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
     width: 32,
     height: 30,
     padding: 0,
@@ -2403,6 +2769,7 @@ function OpenWorldShogi() {
     ["\u4E16\u754C", "480\xD7480\u306E\u5927\u5730\u306B\u3001\u4E8C\u3064\u540D\u3092\u6301\u3064\u6700\u5927200\u8ECD\u3002\u5168\u8ECD\u304C\u4E92\u3044\u306B\u6575\u3002"],
     ["\u53EF\u52D5\u57DF", "\u99D2\u304C\u52D5\u3051\u308B\u306E\u306F\u738B\u3092\u4E2D\u5FC3\u3068\u3057\u305F9\xD79\u3002\u6575\u738B\u3092\u8A0E\u3064\u305F\u3073\u7E26\u6A2A+2\u30DE\u30B9\u62E1\u5927\u3002"],
     ["\u9032\u8ECD", "\u5341\u5B57\u30DC\u30BF\u30F3\u3067\u65B9\u5411\u3092\u6307\u5B9A\u3002\u5168\u8ECD\u304C15\u79D2\u3054\u3068\u306B\u4E00\u6589\u524D\u9032\u3057\u3001\u6B62\u307E\u3063\u305F\u6575\u99D2\u306F\u8E0F\u307F\u6F70\u3057\u3066\u6355\u7372\u3002", "\u540C\u3058\u30DE\u30B9\u306B\u885D\u7A81\u3057\u305F\u3089\u3001\u751F\u304D\u6B8B\u308B\u306E\u306F\u4E00\u65B9\u3060\u3051\u3002\u738B\u3082\u4F8B\u5916\u306A\u3057\u3002"],
+    ["\u500D\u901F", "\u9032\u8ECD\u3092\u500D\u901F\u306B\u3067\u304D\u308B\u30024\u500D\u306F10\u79D2\u3054\u3068\u300116\u500D\u306F1\u79D2\u3054\u3068\u306B\u3001\u76E4\u4E0A\u306E\u914D\u7F6E\u99D2\u304C0.9\u500D\u306B\u6E1B\u308B(\u738B\u306F\u6E1B\u3089\u306A\u3044)\u3002\u914D\u7F6E\u99D2\u304C\u306A\u3044\u3068\u4F7F\u3048\u305A\u3001\u9032\u8ECD\u3092\u6B62\u3081\u308B\u3068\u7B49\u500D\u306B\u623B\u308B\u3002", "\u6575\u3082\u540C\u3058\u3088\u3046\u306B\u500D\u901F\u3067\u653B\u3081\u3066\u304F\u308B\u3002"],
     ["\u6307\u3057\u624B", "\u79FB\u52D5\u30FB\u6253\u3061\u30FB\u56DE\u8EE2\u306F5\u79D2\u306B1\u56DE\u3002\u6575\u3082\u5074\u9762\u3078\u306E\u56DE\u308A\u8FBC\u307F\u3092\u4ED5\u639B\u3051\u3066\u304F\u308B\u3002"],
     ["\u30CD\u30C3\u30C8\u5BFE\u6226", "\u540C\u3058\u4E16\u754C\u306B\u6700\u592760\u8ECD\u3067\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u53C2\u52A0\u3002\u8AB0\u3082\u3044\u306A\u304F\u3066\u3082\u5373\u53C2\u6226\u3067\u304D\u3001\u5F8C\u304B\u3089\u5408\u6D41\u3082\u3067\u304D\u308B\u3002\u96E2\u8131\u3059\u308B\u3068\u7389\u306F\u6D88\u3048\u3001\u6B8B\u308A\u306E\u99D2\u306F\u6B8B\u9AB8\u3068\u3057\u3066\u6B8B\u308B\u3002"]
   ].map(([label, body, warn]) => /* @__PURE__ */ React.createElement("div", { key: label, style: { display: "flex", gap: 8, padding: "clamp(4px,0.9vw,10px) 2px", borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: "clamp(11.5px,1.6vw,17px)", fontWeight: 700, color: C.gold, width: "clamp(56px,8vw,92px)", flexShrink: 0, letterSpacing: 0, whiteSpace: "nowrap" } }, label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: "clamp(11px,1.5vw,16px)", lineHeight: 1.55, color: C.text } }, body, warn && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: C.danger } }, warn)))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", background: C.gold, color: "#1a1408", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(Icon, { name: "piece", size: 16 }), "AI\u5BFE\u6226"), /* @__PURE__ */ React.createElement("button", { onClick: () => begin("watch"), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(Icon, { name: "eye", size: 16 }), "AI\u89B3\u6226"), hasNet() && /* @__PURE__ */ React.createElement(
@@ -2517,6 +2884,26 @@ function roundedPolyPath(ctx, pts, r) {
     ctx.arcTo(cur[0], cur[1], next[0], next[1], r);
   }
   ctx.closePath();
+}
+// \u99D2\u306E\u5F62(\u89D2\u3092\u4E38\u3081\u305F\u4E94\u89D2\u5F62)\u3002\u500D\u7387S\u304C\u540C\u3058\u306A\u3089\u5168\u99D2\u5171\u901A\u306A\u306E\u3067\u3001\u63CF\u753B\u306E\u305F\u3073\u306B\u4F5C\u308A\u76F4\u3055\u305A\u4F7F\u3044\u56DE\u3059\u3002
+function makeKomaPath(S) {
+  const w = S * 0.86, h = S * 0.92, r = Math.max(1, S * 0.05);
+  const pts = [
+    [0, -h * 0.52],
+    [w * 0.44, -h * 0.16],
+    [w * 0.37, h * 0.48],
+    [-w * 0.37, h * 0.48],
+    [-w * 0.44, -h * 0.16]
+  ];
+  const n = pts.length;
+  const path = new Path2D();
+  path.moveTo((pts[0][0] + pts[n - 1][0]) / 2, (pts[0][1] + pts[n - 1][1]) / 2);
+  for (let i = 0; i < n; i++) {
+    const cur = pts[i], next = pts[(i + 1) % n];
+    path.arcTo(cur[0], cur[1], next[0], next[1], r);
+  }
+  path.closePath();
+  return path;
 }
 function Icon({ name, size, rotate, style }) {
   size = size || 18;
