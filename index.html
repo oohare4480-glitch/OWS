@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>オープンワールド将棋【OpenWorldShogi】</title>
-<meta name="description" content="オープンワールド将棋 — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル将棋。ブラウザですぐ遊べる無料オンライン対戦ゲーム。 | Open World Shogi — A battle-royale shogi game where up to 200 armies fight simultaneously on a massive 480x480 board. Free to play in your browser.">
-<meta property="og:title" content="オープンワールド将棋 | Open World Shogi">
-<meta property="og:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル将棋。 A battle-royale shogi game with up to 200 armies on a massive board. Free to play.">
+<title>オープンワールド将棋&amp;チェス【OpenWorldShogi&amp;Chess】</title>
+<meta name="description" content="オープンワールド将棋&チェス — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Shogi & Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
+<meta property="og:title" content="オープンワールド将棋&チェス | Open World Shogi & Chess">
+<meta property="og:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋でもチェスでも遊べる。 A battle-royale with up to 200 armies on a massive board, in shogi or chess. Free to play.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://openworldshogi.com/">
 <meta property="og:image" content="https://openworldshogi.com/favicon-512x512.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="オープンワールド将棋 | Open World Shogi">
-<meta name="twitter:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル将棋。A battle-royale shogi game with up to 200 armies. Free to play.">
+<meta name="twitter:title" content="オープンワールド将棋&チェス | Open World Shogi & Chess">
+<meta name="twitter:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋でもチェスでも遊べる。A battle-royale with up to 200 armies, in shogi or chess. Free to play.">
 <meta name="twitter:image" content="https://openworldshogi.com/favicon-512x512.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512x512.png">
@@ -93,9 +93,6 @@
 <!-- React (UMD builds, no bundler needed) -->
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-<!-- Babel standalone: lets the browser transpile the JSX below on the fly -->
-<!-- Firebase compat SDK (only used for the optional "ネット対戦" feature; -->
-<!-- harmless if you never fill in FIREBASE_CONFIG below) -->
 
 <script>
 const { useRef, useState, useEffect, useCallback } = React;
@@ -104,7 +101,7 @@ const MAP_W = 480, MAP_H = 480;
 const ZONE_R_BASE = 4;
 const MOVE_COOLDOWN = 5e3;
 const MARCH_INTERVAL = 15e3;
-const MARCH_TICK_UNIT = MARCH_INTERVAL / 16; // \u6700\u5C0F\u5237\u65B0\u5358\u4F4D(0.9375\u79D2)\u3002\u901A\u5E38\u306F16\u30E6\u30CB\u30C3\u30C8\u306716\u500D\u901F\u306F1\u30E6\u30CB\u30C3\u30C8\u3054\u3068\u306B\u9032\u8ECD\u3002
+const MARCH_TICK_UNIT = MARCH_INTERVAL / 16; // 最小刻み(0.9375秒)。通常は16単位、16倍速は1単位ごとに進軍。
 function marchCountdown(army, t, anchor) {
   const interval = MARCH_INTERVAL / (army && army.speedMult ? army.speedMult : 1);
   return Math.max(0, interval - (t - anchor) % interval) / 1e3;
@@ -127,10 +124,28 @@ const rotV = (dx, dy, f) => {
   return [dx, dy];
 };
 const K = (x, y) => x + "," + y;
+
+// ===== ワールドの種類 =====
+// "shogi" = 将棋ワールド / "chess" = チェスワールド。同時に動くワールドは1つだけなので、
+// 今のワールドの種類をここに持ち、駒の動き・見た目・可動域の形を切り替える。
+let owsVariant = "shogi";
+const isChess = () => owsVariant === "chess";
+const kingWord = () => isChess() ? tr("キング", "king") : tr("玉", "king");
+// ===== 表示言語 =====
+// "ja" = 日本語 / "en" = English。タイトル画面で切り替え、端末に覚えておく。
+let owsLang = (() => {
+  try {
+    const saved = localStorage.getItem("owsLang");
+    if (saved === "ja" || saved === "en") return saved;
+  } catch (e) {}
+  return (navigator.language || "ja").toLowerCase().startsWith("ja") ? "ja" : "en";
+})();
+const tr = (ja, en) => owsLang === "en" ? en : ja;
+
 // シミュレーション用の仮想時計。倍率を変えても、それまでに進んだ仮想時間は
 // そのまま引き継ぐ(rebase する)ので、時間が飛んだり巻き戻ったりしない。
 // now() を使っている処理(進軍間隔・一手クールダウン・残骸の補充など)は
-// すべて自動的に同じ倍率で動く。
+// すべて自動的に同じ倍率で動く。倍率0にすると全体が止まる(一時停止)。
 let owsTimeScale = 1;
 let owsVirtBase = Date.now();
 let owsRealBase = Date.now();
@@ -143,14 +158,18 @@ function owsSetTimeScale(s) {
 function zoneRadiusFor(army) {
   return ZONE_R_BASE + Math.floor(army.growth != null ? army.growth : (army.kills || 0));
 }
-// \u81EA\u5206\u3088\u308A\u683C\u4E0A\u3092\u5012\u3059\u3068\u591A\u3081\u306B\u3001\u683C\u4E0B\u3092\u72E9\u3046\u3068\u4E0B\u9650(0.15)\u307E\u3067\u8584\u304F\u306A\u308B\u4F38\u3073\u4FC2\u6570\u3002
-// \u3053\u308C\u306B\u3088\u308A\u300C\u30D3\u30AE\u30CA\u30FC\u3092\u5927\u91CF\u306B\u98DF\u3079\u3066\u98A8\u8239\u306B\u306A\u308B\u300D\u3060\u3051\u3067\u306F\u7E04\u5F35\u308A\u304C\u4F38\u3073\u306A\u304F\u306A\u308A\u3001\u5927\u7269\u540C\u58EB\u304C\u3076\u3064\u304B\u308A\u5408\u308F\u306A\u3044\u3068\u5927\u304D\u304F\u306A\u308C\u306A\u3044\u3002
+// 可動域の一辺のマス数(将棋は 9,11,13… / チェスは 8,10,12…)
+function zoneSideFor(army) {
+  const r = Math.min(zoneRadiusFor(army), ZONE_R_MAX);
+  return isChess() ? 2 * r : 2 * r + 1;
+}
+// 自分より格上を倒すと多めに、格下を狩ると下限(0.15)まで薄くなる伸び係数。
 function killGain(myKills, victimKills) {
   const diff = (victimKills || 0) - (myKills || 0);
   if (diff >= 0) return 1 + Math.min(1, diff * 0.05);
   return Math.max(0.15, 1 + diff * 0.03);
 }
-// \u8A0E\u738B\u6570(\u8868\u793A\u7528\u30C8\u30ED\u30D5\u30A3\u30FC)\u306F\u5F93\u6765\u901A\u308A+1\u3059\u308B\u304C\u3001\u7E04\u5F35\u308A\u62E1\u5927(growth)\u306F\u76F8\u624B\u306E\u5F37\u3055\u306B\u5FDC\u3058\u3066\u5225\u679A\u3067\u52A0\u7B97\u3059\u308B\u3002
+// 討王数(表示用)は+1、縄張り拡大(growth)は相手の強さに応じて別枠で加算する。
 function addKillGrowth(army, victimKills) {
   const myKills = army.kills || 0;
   if (army.growth == null) army.growth = myKills;
@@ -165,21 +184,47 @@ const STEPS = {
   K: [[0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0], [0, 1], [-1, 1], [1, 1]]
 };
 const SLIDES = { L: [[0, -1]], B: [[1, 1], [1, -1], [-1, 1], [-1, -1]], R: [[0, -1], [0, 1], [1, 0], [-1, 0]] };
+// チェスの駒。キング(K)・ルーク(R)・ビショップ(B)は将棋の玉・飛・角(成る前)と同じ動きなので記号を共用する。
+// クイーン(Q)・ナイト(CN)・ポーン(CP)はチェス専用。
+const CHESS_QUEEN_SLIDES = [[0, -1], [0, 1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+const CHESS_KNIGHT_STEPS = [[-1, -2], [1, -2], [-2, -1], [2, -1], [-2, 1], [2, 1], [-1, 2], [1, 2]];
 const GOLDLIKE = { P: 1, L: 1, N: 1, S: 1 };
 const PROMOTABLE = { P: 1, L: 1, N: 1, S: 1, B: 1, R: 1 };
-const VAL = { P: 1, L: 3, N: 3, S: 5, G: 6, B: 8, R: 10, K: 1e3 };
-const KANJI = { P: "\u6B69", L: "\u9999", N: "\u6842", S: "\u9280", G: "\u91D1", B: "\u89D2", R: "\u98DB" };
-const PKANJI = { P: "\u3068", L: "\u674F", N: "\u572D", S: "\u5168", B: "\u99AC", R: "\u7ADC" };
-const kanjiOf = (p, playerId) => p.t === "K" ? p.owner === playerId ? "\u7389" : "\u738B" : (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
+const VAL = { P: 1, L: 3, N: 3, S: 5, G: 6, B: 8, R: 10, K: 1e3, Q: 9, CN: 3, CP: 1 };
+const KANJI = { P: "歩", L: "香", N: "桂", S: "銀", G: "金", B: "角", R: "飛" };
+const PKANJI = { P: "と", L: "杏", N: "圭", S: "全", B: "馬", R: "竜" };
+// \uFE0E を付けて、iPhone などで絵文字ではなく文字として描かせる
+const CHESS_GLYPH = { K: "\u265A\uFE0E", Q: "\u265B\uFE0E", R: "\u265C\uFE0E", B: "\u265D\uFE0E", CN: "\u265E\uFE0E", CP: "\u265F\uFE0E" };
+const CHESS_JA = { K: "キング", Q: "クイーン", R: "ルーク", B: "ビショップ", CN: "ナイト", CP: "ポーン" };
+const kanjiOf = (p, playerId) => {
+  if (isChess()) return CHESS_GLYPH[p.t] || "?";
+  return p.t === "K" ? p.owner === playerId ? "玉" : "王" : (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
+};
+// メッセージ用の駒の呼び名
+const CHESS_EN = { K: "king", Q: "queen", R: "rook", B: "bishop", CN: "knight", CP: "pawn" };
+const pieceWord = (p, playerId) => isChess() ? (owsLang === "en" ? CHESS_EN[p.t] || "piece" : CHESS_JA[p.t] || "駒") : kanjiOf(p, playerId);
+// 持ち駒ボタンの表示
+const handLabel = (t) => isChess() ? (CHESS_GLYPH[t] || "?") : (KANJI[t] || "?");
+// 取られた駒が持ち駒になるときの種類(ポーンから昇格したクイーンはポーンに戻る)
+const handTypeOf = (p) => p.fromPawn ? "CP" : p.t;
+function isPromotable(t) {
+  return isChess() ? t === "CP" : !!PROMOTABLE[t];
+}
+// 成れるかどうか。将棋: 駒を取る/敵の可動域に入る・出る。チェス: ポーンが敵の可動域に入るとクイーンに昇格。
+function promoCheck(mover, victim, fx, fy, tx, ty, armyId, zones) {
+  if (!mover || !isPromotable(mover.t) || mover.promoted) return false;
+  if (isChess()) return isInHostileZone(tx, ty, armyId, zones);
+  return !!victim || isInHostileZone(tx, ty, armyId, zones) || isInHostileZone(fx, fy, armyId, zones);
+}
 const NAME_POOLS = [
-  { cjk: true, pre: ["\u30EC\u30C3\u30C9", "\u30D6\u30EB\u30FC", "\u30B4\u30FC\u30EB\u30C7\u30F3", "\u30B7\u30EB\u30D0\u30FC", "\u30D6\u30E9\u30C3\u30AF", "\u30AF\u30EA\u30E0\u30BE\u30F3", "\u30A2\u30BA\u30FC\u30EB", "\u30B7\u30E3\u30C9\u30A6", "\u30B5\u30F3\u30C0\u30FC", "\u30AA\u30FC\u30ED\u30E9"], suf: ["\u30A6\u30A3\u30F3\u30B0", "\u30D5\u30A1\u30F3\u30B0", "\u30D6\u30EC\u30FC\u30C9", "\u30AF\u30ED\u30FC", "\u30DB\u30FC\u30AF", "\u30A6\u30EB\u30D5", "\u30E9\u30A4\u30AA\u30F3", "\u30BF\u30A4\u30AC\u30FC", "\u30AC\u30FC\u30C9", "\u30D5\u30EA\u30FC\u30C8"] },
+  { cjk: true, pre: ["レッド", "ブルー", "ゴールデン", "シルバー", "ブラック", "クリムゾン", "アズール", "シャドウ", "サンダー", "オーロラ"], suf: ["ウィング", "ファング", "ブレード", "クロー", "ホーク", "ウルフ", "ライオン", "タイガー", "ガード", "フリート"] },
   { cjk: false, pre: ["Red", "Blue", "Golden", "Silver", "Black", "Crimson", "Azure", "Shadow", "Thunder", "Storm"], suf: ["Wing", "Fang", "Blade", "Claw", "Hawk", "Wolf", "Lion", "Tiger", "Guard", "Fleet"] },
-  { cjk: false, pre: ["Rouge", "Bleu", "Dor\xE9", "Argent", "Noir", "Cramoisi", "Azur", "Ombre", "Tonnerre", "Orage"], suf: ["Aile", "Croc", "Lame", "Griffe", "Faucon", "Loup", "Lion", "Tigre", "Garde", "Flotte"] },
-  { cjk: false, pre: ["Rojo", "Azul", "Dorado", "Plata", "Negro", "Carmes\xED", "Celeste", "Sombra", "Trueno", "Tormenta"], suf: ["Ala", "Colmillo", "Espada", "Garra", "Halc\xF3n", "Lobo", "Le\xF3n", "Tigre", "Guardia", "Flota"] },
-  { cjk: false, pre: ["Rot", "Blau", "Gold", "Silber", "Schwarz", "Karmesin", "Azur", "Schatten", "Donner", "Sturm"], suf: ["Schwinge", "Fang", "Klinge", "Kralle", "Falke", "Wolf", "L\xF6we", "Tiger", "Wache", "Flotte"] },
-  { cjk: true, pre: ["\u8D64", "\u84BC", "\u91D1", "\u9280", "\u9ED2", "\u7D05", "\u78A7", "\u5F71", "\u96F7", "\u5D50"], suf: ["\u7FFC", "\u7259", "\u5203", "\u722A", "\u9DF9", "\u72FC", "\u7345", "\u864E", "\u885B", "\u968A"] },
-  { cjk: false, pre: ["\u041A\u0440\u0430\u0441\u043D\u044B\u0439", "\u0421\u0438\u043D\u0438\u0439", "\u0417\u043E\u043B\u043E\u0442\u043E\u0439", "\u0421\u0435\u0440\u0435\u0431\u0440\u044F\u043D\u044B\u0439", "\u0427\u0451\u0440\u043D\u044B\u0439", "\u0411\u0430\u0433\u0440\u043E\u0432\u044B\u0439", "\u041B\u0430\u0437\u0443\u0440\u043D\u044B\u0439", "\u0422\u0451\u043C\u043D\u044B\u0439", "\u0413\u0440\u043E\u043C\u043E\u0432\u043E\u0439", "\u0428\u0442\u043E\u0440\u043C\u043E\u0432\u043E\u0439"], suf: ["\u041A\u0440\u044B\u043B\u043E", "\u041A\u043B\u044B\u043A", "\u041A\u043B\u0438\u043D\u043E\u043A", "\u041A\u043E\u0433\u043E\u0442\u044C", "\u042F\u0441\u0442\u0440\u0435\u0431", "\u0412\u043E\u043B\u043A", "\u041B\u0435\u0432", "\u0422\u0438\u0433\u0440", "\u0421\u0442\u0440\u0430\u0436", "\u0424\u043B\u043E\u0442"] },
-  { cjk: false, pre: ["\u0623\u062D\u0645\u0631", "\u0623\u0632\u0631\u0642", "\u0630\u0647\u0628\u064A", "\u0641\u0636\u064A", "\u0623\u0633\u0648\u062F", "\u0642\u0631\u0645\u0632\u064A", "\u0633\u0645\u0627\u0648\u064A", "\u0638\u0644", "\u0631\u0639\u062F", "\u0639\u0627\u0635\u0641\u0629"], suf: ["\u062C\u0646\u0627\u062D", "\u0646\u0627\u0628", "\u0646\u0635\u0644", "\u0645\u062E\u0644\u0628", "\u0635\u0642\u0631", "\u0630\u0626\u0628", "\u0623\u0633\u062F", "\u0646\u0645\u0631", "\u062D\u0627\u0631\u0633", "\u0623\u0633\u0637\u0648\u0644"] }
+  { cjk: false, pre: ["Rouge", "Bleu", "Doré", "Argent", "Noir", "Cramoisi", "Azur", "Ombre", "Tonnerre", "Orage"], suf: ["Aile", "Croc", "Lame", "Griffe", "Faucon", "Loup", "Lion", "Tigre", "Garde", "Flotte"] },
+  { cjk: false, pre: ["Rojo", "Azul", "Dorado", "Plata", "Negro", "Carmesí", "Celeste", "Sombra", "Trueno", "Tormenta"], suf: ["Ala", "Colmillo", "Espada", "Garra", "Halcón", "Lobo", "León", "Tigre", "Guardia", "Flota"] },
+  { cjk: false, pre: ["Rot", "Blau", "Gold", "Silber", "Schwarz", "Karmesin", "Azur", "Schatten", "Donner", "Sturm"], suf: ["Schwinge", "Fang", "Klinge", "Kralle", "Falke", "Wolf", "Löwe", "Tiger", "Wache", "Flotte"] },
+  { cjk: true, pre: ["赤", "蒼", "金", "銀", "黒", "紅", "碧", "影", "雷", "嵐"], suf: ["翼", "牙", "刃", "爪", "鷹", "狼", "獅", "虎", "衛", "隊"] },
+  { cjk: false, pre: ["Красный", "Синий", "Золотой", "Серебряный", "Чёрный", "Багровый", "Лазурный", "Тёмный", "Громовой", "Штормовой"], suf: ["Крыло", "Клык", "Клинок", "Коготь", "Ястреб", "Волк", "Лев", "Тигр", "Страж", "Флот"] },
+  { cjk: false, pre: ["أحمر", "أزرق", "ذهبي", "فضي", "أسود", "قرمزي", "سماوي", "ظل", "رعد", "عاصفة"], suf: ["جناح", "ناب", "نصل", "مخلب", "صقر", "ذئب", "أسد", "نمر", "حارس", "أسطول"] }
 ];
 function pickName() {
   const pool = NAME_POOLS[Math.floor(Math.random() * NAME_POOLS.length)];
@@ -189,7 +234,7 @@ function pickName() {
   return raw.length > NAME_MAX_LEN ? raw.slice(0, NAME_MAX_LEN) : raw;
 }
 function generateNames(n) {
-  const used = /* @__PURE__ */ new Set(), out = [];
+  const used = new Set(), out = [];
   while (out.length < n) {
     const name = generateOneName(used);
     used.add(name);
@@ -213,43 +258,10 @@ function generateOneName(existingNames) {
   return base.slice(0, Math.max(1, NAME_MAX_LEN - 4)) + Math.random().toString(36).slice(2, 6);
 }
 const BAD_WORDS = [
-  "fuck",
-  "shit",
-  "bitch",
-  "asshole",
-  "cunt",
-  "nigger",
-  "faggot",
-  "\u99AC\u9E7F",
-  "\u3070\u304B",
-  "\u30D0\u30AB",
-  "\u963F\u5446",
-  "\u30A2\u30DB",
-  "\u3042\u307B",
-  "\u30AF\u30BD",
-  "\u304F\u305D",
-  "\u7CDE",
-  "\u6B7B\u306D",
-  "\u3057\u306D",
-  "\u6BBA\u3059",
-  "\u3053\u308D\u3059",
-  "\u304D\u3082\u3044",
-  "\u30AD\u30E2\u3044",
-  "\u6C17\u6301\u3061\u60AA\u3044",
-  "\u3046\u3056\u3044",
-  "\u30A6\u30B6\u3044",
-  "\u3076\u3059",
-  "\u30D6\u30B9",
-  "\u30C7\u30D6",
-  "\u3067\u3076",
-  "\u3084\u308D\u3046",
-  "\u91CE\u90CE",
-  "\u3066\u3081\u3048",
-  "\u30C6\u30E1\u30A8",
-  "\u3054\u307F",
-  "\u30B4\u30DF",
-  "\u30AB\u30B9",
-  "\u304B\u3059"
+  "fuck", "shit", "bitch", "asshole", "cunt", "nigger", "faggot",
+  "馬鹿", "ばか", "バカ", "阿呆", "アホ", "あほ", "クソ", "くそ", "糞", "死ね", "しね", "殺す", "ころす",
+  "きもい", "キモい", "気持ち悪い", "うざい", "ウザい", "ぶす", "ブス", "デブ", "でぶ", "やろう", "野郎",
+  "てめえ", "テメエ", "ごみ", "ゴミ", "カス", "かす"
 ];
 function filterProfanity(text) {
   let out = text;
@@ -258,7 +270,6 @@ function filterProfanity(text) {
 }
 const PLAYER_COLOR = { fill: "#DEC48A", edge: "#4a3417", text: "#241a0e", prom: "#B3392B", zone: "rgba(233,208,150,0.13)", zoneEdge: "rgba(201,169,106,0.6)", chip: "#C9A96A" };
 // 腕前の分布。大半は平凡で、一握りだけ飛び抜けて上手い。
-// これが無いと全員横並びで、誰も大きくなれない。
 function makeSkill() {
   const u = Math.random();
   if (u < 0.55) return 0.25 + Math.random() * 0.25;  // 平凡  0.25〜0.50
@@ -297,8 +308,12 @@ if (typeof document !== "undefined" && !window.__owsGuardInstalled) {
   document.addEventListener("touchstart", guard, { passive: false });
   document.addEventListener("touchmove", guard, { passive: false });
 }
+// moveOnly: 空きマスにだけ動ける / capOnly: 敵駒を取るときだけ動ける(チェスのポーン)
 function pieceMoveVectors(p) {
   const t = p.t, pr = p.promoted;
+  if (t === "Q") return { steps: [], slides: CHESS_QUEEN_SLIDES };
+  if (t === "CN") return { steps: CHESS_KNIGHT_STEPS, slides: [] };
+  if (t === "CP") return { steps: [], slides: [], moveOnly: [[0, -1]], capOnly: [[-1, -1], [1, -1]] };
   if (t === "K") return { steps: STEPS.K, slides: [] };
   if (t === "G") return { steps: STEPS.G, slides: [] };
   if (pr) {
@@ -311,11 +326,22 @@ function pieceMoveVectors(p) {
   if (t === "S") return { steps: STEPS.S, slides: [] };
   return { steps: [], slides: SLIDES[t] || [] };
 }
+// 初期配置。将棋は3段×9筋、チェスは2段×8列(キングとクイーンが中央)。
+// どちらも配列の x=4 が王/キングで、そこが軍の中心になる。
+const SHOGI_BACK = ["L", "N", "S", "G", "K", "G", "S", "N", "L"];
+const CHESS_BACK = ["R", "CN", "B", "Q", "K", "B", "CN", "R"];
 function makeGrid(owner) {
-  const back = ["L", "N", "S", "G", "K", "G", "S", "N", "L"];
+  if (isChess()) {
+    const g = [[], []];
+    for (let x = 0; x < 8; x++) {
+      g[0][x] = { t: CHESS_BACK[x], promoted: false, owner };
+      g[1][x] = { t: "CP", promoted: false, owner };
+    }
+    return g;
+  }
   const g = [[], [], []];
   for (let x = 0; x < 9; x++) {
-    g[0][x] = { t: back[x], promoted: false, owner };
+    g[0][x] = { t: SHOGI_BACK[x], promoted: false, owner };
     g[1][x] = null;
     g[2][x] = { t: "P", promoted: false, owner };
   }
@@ -328,7 +354,7 @@ function armyFootprint(center, facing) {
   const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
   const out = [];
   const grid = makeGrid(0);
-  for (let y = 0; y < 3; y++) for (let x = 0; x < 9; x++) {
+  for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[y].length; x++) {
     if (!grid[y][x]) continue;
     out.push(K(anchor[0] + r[0] * x + f[0] * y, anchor[1] + r[1] * x + f[1] * y));
   }
@@ -347,7 +373,7 @@ function placeArmyCentered(cells, armyId, center, facing) {
   const f = F[facing], r = RV[facing];
   const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
   const grid = makeGrid(armyId);
-  for (let y = 0; y < 3; y++) for (let x = 0; x < 9; x++) {
+  for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[y].length; x++) {
     const p = grid[y][x];
     if (!p) continue;
     cells.set(K(anchor[0] + r[0] * x + f[0] * y, anchor[1] + r[1] * x + f[1] * y), p);
@@ -364,12 +390,10 @@ function relocateArmy(W, a, center, facing) {
   a.zone = null;
   refreshZone(a);
 }
-// \u5404\u8ECD\u304C\u8997\u3048\u3066\u3044\u308B\u7389\u306E\u4F4D\u7F6E(kingKey)\u3092\u78BA\u304B\u3081\u308B\u3060\u3051\u3067\u6E08\u3081\u3070\u3001\u76E4\u9762\u5168\u4F53\u3092\u8D70\u67FB\u3057\u306A\u3044\u3002
-// \u6BCE\u30D5\u30EC\u30FC\u30E0\u547C\u3070\u308C\u308B\u306E\u3067\u3001\u6570\u4E07\u30DE\u30B9\u306E\u8D70\u67FB\u3092\u8EE2\u306E\u6570(\u6570\u767E)\u3060\u3051\u306E\u78BA\u8A8D\u306B\u6E1B\u3089\u3059\u3002
-// \u98DF\u3044\u9055\u3044\u304C\u4E00\u3064\u3067\u3082\u3042\u308C\u3070\u5F93\u6765\u901A\u308A\u5168\u8D70\u67FB\u3057\u3066\u3001\u8997\u3048\u3066\u3044\u308B\u4F4D\u7F6E\u3082\u4F5C\u308A\u76F4\u3059\u3002
+// 各軍が覚えている玉の位置(kingKey)を確かめるだけで済めば、盤面全体を走査しない。
 function buildKingIndex(cells, armies) {
   if (armies) {
-    const fast = /* @__PURE__ */ new Map();
+    const fast = new Map();
     let ok = true;
     for (const a of armies) {
       if (!a.alive || a.neutral) continue;
@@ -381,7 +405,7 @@ function buildKingIndex(cells, armies) {
     }
     if (ok) return fast;
   }
-  const kings = /* @__PURE__ */ new Map();
+  const kings = new Map();
   for (const [k, p] of cells) {
     if (p.t !== "K") continue;
     kings.set(p.owner, k.split(",").map(Number));
@@ -439,10 +463,28 @@ function nearestLoot(W, a, grid, minDist) {
   }
   return best ? { pos: best, dist: bd } : null;
 }
-function zoneAt(center, r) {
+// 可動域の範囲を、中心からのずれ [x最小, x最大, y最小, y最大] で返す。
+// 将棋は中心を真ん中にした奇数マス(9×9から)。チェスは偶数マス(8×8から)なので真ん中が取れず、
+// 軍の向きに合わせて「横は左に1マス多く、縦は前に1マス多く」とる(初期配置の8列がちょうど収まる)。
+// 討王で広がる量は将棋と同じ(縦横+2マスずつ)。
+function zoneOffsets(facing, r) {
+  if (!isChess()) return [-r, r, -r, r];
+  const rv = RV[facing || 0], fv = F[facing || 0];
+  let xl = Infinity, xh = -Infinity, yl = Infinity, yh = -Infinity;
+  for (const a of [-r, r - 1]) for (const b of [-(r - 1), r]) {
+    const x = rv[0] * a + fv[0] * b, y = rv[1] * a + fv[1] * b;
+    if (x < xl) xl = x;
+    if (x > xh) xh = x;
+    if (y < yl) yl = y;
+    if (y > yh) yh = y;
+  }
+  return [xl, xh, yl, yh];
+}
+function zoneAt(center, r, off) {
   const [cx, cy] = center;
-  const x0 = cx - r, x1 = cx + r;
-  const y0 = cy - r, y1 = cy + r;
+  const o = off || [-r, r, -r, r];
+  const x0 = cx + o[0], x1 = cx + o[1];
+  const y0 = cy + o[2], y1 = cy + o[3];
   const set = {
     x0, y0, x1, y1,
     get size() { return (x1 - x0 + 1) * (y1 - y0 + 1); },
@@ -466,16 +508,20 @@ function isCommanding(W) {
 function focusOwnerOf(W) {
   return isCommanding(W) ? W.playerId : W.focusId;
 }
-function zoneFits(cx, cy, r) {
-  return cx - r >= 0 && cy - r >= 0 && cx + r <= MAP_W - 1 && cy + r <= MAP_H - 1;
+function zoneFits(cx, cy, r, facing) {
+  const o = zoneOffsets(facing, r);
+  return cx + o[0] >= 0 && cy + o[2] >= 0 && cx + o[1] <= MAP_W - 1 && cy + o[3] <= MAP_H - 1;
 }
 function refreshZone(a) {
   const zr = Math.min(zoneRadiusFor(a), ZONE_R_MAX);
-  const cx = Math.max(zr, Math.min(MAP_W - 1 - zr, a.center[0]));
-  const cy = Math.max(zr, Math.min(MAP_H - 1 - zr, a.center[1]));
+  const f = a.facing || 0;
+  const o = zoneOffsets(f, zr);
+  const cx = Math.max(-o[0], Math.min(MAP_W - 1 - o[1], a.center[0]));
+  const cy = Math.max(-o[2], Math.min(MAP_H - 1 - o[3], a.center[1]));
   if (cx !== a.center[0] || cy !== a.center[1]) a.center = [cx, cy];
-  if (!a.zone || a.zone.cx !== cx || a.zone.cy !== cy || a.zone.r !== zr) {
-    a.zone = zoneAt([cx, cy], zr);
+  if (!a.zone || a.zone.cx !== cx || a.zone.cy !== cy || a.zone.r !== zr || a.zone.f !== f) {
+    a.zone = zoneAt([cx, cy], zr, o);
+    a.zone.f = f;
   }
 }
 function findSpawnSpot(W, facing) {
@@ -488,8 +534,7 @@ function findSpawnSpot(W, facing) {
       const cy = 10 + Math.floor(Math.random() * (MAP_H - 20));
       let clash = false;
       for (const a of live) {
-        // \u56FA\u5B9A\u8DDD\u96E2\u3067\u306F\u306A\u304F\u3001\u305D\u306E\u8ECD\u306E\u5B9F\u969B\u306E\u7E04\u5F35\u308A\u534A\u5F84\u3092\u57FA\u6E96\u306B\u3059\u308B\u3002
-        // \u3053\u308C\u304C\u306A\u3044\u3068\u3001\u5927\u7269\u306E\u7E04\u5F35\u308A\u304C\u56FA\u5B9A\u8DDD\u96E2(\u6700\u592742)\u3092\u8D85\u3048\u305F\u77AC\u9593\u3001\u65B0\u4EBA\u304C\u305D\u306E\u4E2D\u306B\u751F\u307E\u308C\u3066\u3059\u3050\u306B\u8E0F\u307F\u6F70\u3055\u308C\u308B\u3002
+        // その軍の実際の縄張り半径を基準にする(大物の縄張りの中に新人が生まれて即潰されるのを防ぐ)
         const need = Math.max(clear, (a.zone ? a.zone.r : 0) + 6);
         if (Math.abs(cx - a.center[0]) <= need && Math.abs(cy - a.center[1]) <= need) {
           clash = true;
@@ -511,16 +556,14 @@ function spawnNewArmy(W, onBoardCache) {
   const facing = Math.floor(Math.random() * 4);
   const center = findSpawnSpot(W, facing);
   if (!center) return null;
-  const existingNames = /* @__PURE__ */ new Set();
+  const existingNames = new Set();
   for (const x of W.armies) if (x.alive) existingNames.add(x.name);
   const t = now();
   const flankBias = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5));
   const name = generateOneName(existingNames);
-  // 盤上に駒を残している軍の一覧。まとめて複数軍を湧かせるときは呼び出し側が1回だけ作って渡す
-  // (湧いたばかりの軍は生きているので再利用の対象にはならず、使い回しても結果は同じ)。
   let onBoard = onBoardCache;
   if (!onBoard) {
-    onBoard = /* @__PURE__ */ new Set();
+    onBoard = new Set();
     for (const p of W.cells.values()) onBoard.add(p.owner);
   }
   const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !onBoard.has(a2.id) && !(W.myDefeated && a2.id === W.playerId));
@@ -538,6 +581,7 @@ function spawnNewArmy(W, onBoardCache) {
     center,
     zone: null,
     kills: 0,
+    growth: null,
     skill: makeSkill(),
     name,
     color: makeColor(id),
@@ -556,12 +600,22 @@ function spawnNewArmy(W, onBoardCache) {
 function legalMovesFrom(cells, x, y, facing, zoneSet, maxSlide) {
   const p = cells.get(K(x, y));
   if (!p) return [];
-  const { steps, slides } = pieceMoveVectors(p), out = [];
+  const { steps, slides, moveOnly, capOnly } = pieceMoveVectors(p), out = [];
   for (const [dx, dy] of steps) {
     const [rx, ry] = rotV(dx, dy, facing), nk = K(x + rx, y + ry);
     if (!zoneSet.has(nk)) continue;
     const q = cells.get(nk);
     if (!q || q.owner !== p.owner) out.push([x + rx, y + ry]);
+  }
+  if (moveOnly) for (const [dx, dy] of moveOnly) {
+    const [rx, ry] = rotV(dx, dy, facing), nk = K(x + rx, y + ry);
+    if (zoneSet.has(nk) && !cells.has(nk)) out.push([x + rx, y + ry]);
+  }
+  if (capOnly) for (const [dx, dy] of capOnly) {
+    const [rx, ry] = rotV(dx, dy, facing), nk = K(x + rx, y + ry);
+    if (!zoneSet.has(nk)) continue;
+    const q = cells.get(nk);
+    if (q && q.owner !== p.owner) out.push([x + rx, y + ry]);
   }
   for (const [dx, dy] of slides) {
     const [rx, ry] = rotV(dx, dy, facing);
@@ -605,7 +659,7 @@ function dropTargets(cells, zoneSet, limit) {
     }
     return out;
   }
-  const seen = /* @__PURE__ */ new Set();
+  const seen = new Set();
   for (let i = 0; i < cap * 8 && out.length < cap; i++) {
     const x = x0 + Math.floor(Math.random() * w);
     const y = y0 + Math.floor(Math.random() * h);
@@ -630,11 +684,9 @@ function allActions(cells, armyId, facing, hand, zoneSet, ownPieces, dropSpots) 
   }
   return acts;
 }
-// AI\u304C\u6301\u3061\u99D2\u3092\u6253\u3064\u5834\u6240\u306E\u5019\u88DC\u3002\u53EF\u52D5\u57DF\u5168\u4F53\u304B\u3089\u7121\u4F5C\u70BA\u306B\u9078\u3076\u3060\u3051\u3060\u3068\u3001\u53EF\u52D5\u57DF\u304C\u5E83\u3044\u5927\u8ECD\u3067\u306F
-// \u81EA\u7389\u306E\u5468\u308A\u3084\u6575\u306E\u3044\u308B\u65B9\u5411\u304C\u307B\u3068\u3093\u3069\u5019\u88DC\u306B\u5165\u3089\u305A\u3001\u6301\u3061\u99D2\u3092\u62B1\u3048\u305F\u307E\u307E\u306B\u306A\u3063\u3066\u3044\u305F\u3002
-// \u81EA\u7389\u306E\u5468\u308A(3\u30DE\u30B9\u4EE5\u5185)\u3068\u3001\u81EA\u7389\u304B\u3089\u6575\u7389\u3078\u5411\u304B\u3046\u524D\u7DDA\u3092\u5FC5\u305A\u5019\u88DC\u306B\u5165\u308C\u308B\u3002
+// AIが持ち駒を打つ場所の候補。自玉の周り(3マス以内)と、自玉から敵玉へ向かう前線を必ず候補に入れる。
 function aiDropSpots(cells, zoneSet, myKing, enemyKp, extra) {
-  const out = [], seen = /* @__PURE__ */ new Set();
+  const out = [], seen = new Set();
   const add = (x, y) => {
     if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) return;
     const k = K(x, y);
@@ -658,8 +710,7 @@ function aiDropSpots(cells, zoneSet, myKing, enemyKp, extra) {
   for (const p of dropTargets(cells, zoneSet, 24)) add(p[0], p[1]);
   return out;
 }
-
-// \u81EA\u9663(\u53EF\u52D5\u57DF)\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u306E\u99D2\u3068\u3001\u5165\u3063\u3066\u304D\u305F\u6575\u7389\u3092\u4FA1\u5024\u9806\u306B\u62FE\u3046\u3002
+// 自陣(可動域)に入ってきた敵の駒と、入ってきた敵玉を価値順に拾う。
 function aiIntruders(W, army, piecesByOwner, limit) {
   const zs = army.zone.set, out = [];
   for (const oa of W.armies) {
@@ -682,11 +733,9 @@ function aiIntruders(W, army, piecesByOwner, limit) {
   if (out.length > limit) out.length = limit;
   return out;
 }
-
-// \u8FCE\u3048\u6483\u3064\u305F\u3081\u306E\u6253\u3061\u5834\u6240\u3002\u6253\u3063\u305F\u77AC\u9593\u306B\u76EE\u6A19(\u4FB5\u5165\u3057\u3066\u304D\u305F\u99D2\u3084\u6575\u7389)\u3092\u72D9\u3048\u308B\u4F4D\u7F6E\u3092\u96C6\u3081\u308B\u3002
-// \u89D2\u3084\u98DB\u306E\u3088\u3046\u306A\u8D70\u308A\u99D2\u306F\u96E2\u308C\u305F\u4F4D\u7F6E\u304B\u3089\u3067\u3082\u7389\u3092\u72D9\u3048\u308B\u306E\u3067\u3001\u5229\u304D\u7DDA\u4E0A\u306E\u7A7A\u304D\u30DE\u30B9\u3092\u5019\u88DC\u306B\u3059\u308B\u3002
+// 迎え撃つための打ち場所。打った瞬間に目標を狙える位置を集める(走り駒は利き線上の空きマスも)。
 function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
-  const spots = /* @__PURE__ */ new Map();
+  const spots = new Map();
   let n = 0;
   const addSpot = (x, y, type, value) => {
     if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) return false;
@@ -696,7 +745,7 @@ function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
     if (!e) {
       if (n >= cap) return true;
       n++;
-      e = { x, y, best: 0, types: /* @__PURE__ */ new Map() };
+      e = { x, y, best: 0, types: new Map() };
       spots.set(k, e);
     }
     const prev = e.types.get(type) || 0;
@@ -706,8 +755,9 @@ function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
   };
   for (const type of Object.keys(hand)) {
     const mv = pieceMoveVectors({ t: type, promoted: false });
+    const stepsAll = mv.capOnly ? mv.steps.concat(mv.capOnly) : mv.steps;
     for (const tg of targets) {
-      for (const st of mv.steps) {
+      for (const st of stepsAll) {
         const v = rotV(st[0], st[1], facing);
         addSpot(tg.x - v[0], tg.y - v[1], type, tg.value);
       }
@@ -716,7 +766,7 @@ function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
         let x = tg.x - v[0], y = tg.y - v[1];
         for (let d = 0; d < 6; d++) {
           if (x < zoneSet.x0 || x > zoneSet.x1 || y < zoneSet.y0 || y > zoneSet.y1) break;
-          if (cells.has(K(x, y))) break; // \u9014\u4E2D\u306B\u99D2\u304C\u3042\u308C\u3070\u305D\u306E\u5148\u304B\u3089\u306F\u72D9\u3048\u306A\u3044
+          if (cells.has(K(x, y))) break;
           addSpot(x, y, type, tg.value);
           x -= v[0];
           y -= v[1];
@@ -726,9 +776,7 @@ function aiInterceptSpots(cells, zoneSet, hand, facing, targets, cap) {
   }
   return spots;
 }
-// \u53EF\u52D5\u57DF\u306F\u6B63\u65B9\u5F62\u306A\u306E\u3067\u3001\u5EA7\u6A19\u306E\u6570\u5024\u6BD4\u8F03\u3060\u3051\u3067\u5224\u5B9A\u3067\u304D\u308B(zone.set.has \u3068\u540C\u3058\u7D50\u679C)\u3002
-// \u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B"x,y"\u306E\u6587\u5B57\u5217\u3092\u4F5C\u3063\u3066\u5206\u89E3\u3057\u3066\u304A\u308A\u3001AI\u306E\u5019\u88DC\u624B1\u3064\u3054\u3068\u306B\u5168\u8ECD\u3076\u3093\u8D70\u3063\u3066\u91CD\u304B\u3063\u305F\u3002
-// armies \u306B\u306F\u3001\u547C\u3073\u51FA\u3057\u5074\u3067\u95A2\u4FC2\u306E\u3042\u308B\u8ECD\u3060\u3051\u306B\u7D5E\u3063\u305F\u30EA\u30B9\u30C8\u3092\u6E21\u3057\u3066\u3082\u3088\u3044\u3002
+// 可動域は長方形なので、座標の数値比較だけで判定できる。
 function isInHostileZone(tx, ty, ownArmyId, armies) {
   for (const a of armies) {
     if (a.id === ownArmyId || !a.alive || !a.zone) continue;
@@ -823,7 +871,7 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
   for (const [mx, my] of attempts) {
     if (!(mx || my)) continue;
     if (!marchInBounds(myPieces, mx, my)) continue;
-    if (!zoneFits(a.center[0] + mx, a.center[1] + my, zr)) continue;
+    if (!zoneFits(a.center[0] + mx, a.center[1] + my, zr, a.facing)) continue;
     return [mx, my];
   }
   return null;
@@ -831,11 +879,9 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
 function resolveSimultaneousMarch(W, movers, piecesOf) {
   const ev = { collisions: [], trampledTotal: 0, kingsKilled: [] };
   const cells = W.cells;
-  // \u6301\u3061\u4E0A\u3052\u305F\u99D2\u3092\u300C\u8ECD\u30FB\u99D2\u30FB\u884C\u304D\u5148\u300D\u306E3\u3064\u306E\u914D\u5217\u3067\u6301\u3064\u3002\u99D2\u30091\u679A\u3054\u3068\u306B\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3084\u914D\u5217\u3092\u4F5C\u3089\u306A\u3044\u3002
-  // (15\u79D2\u3054\u3068\u306E\u4E00\u6589\u9032\u8ECD\u3067\u306F\u76E4\u4E0A\u306E\u7D041\u4E07\u679A\u304C\u4E00\u5EA6\u306B\u52D5\u304F\u306E\u3067\u3001\u3053\u3053\u306E\u5272\u308A\u5F53\u3066\u304C\u305D\u306E\u307E\u307E\u56FA\u307E\u308A\u306B\u306A\u3063\u3066\u3044\u305F)
+  // 持ち上げた駒を「軍・駒・行き先」の3つの配列で持つ(駒ごとにオブジェクトを作らない)
   const Lm = [], Lp = [], Ld = [];
   if (piecesOf) {
-    // \u547C\u3073\u51FA\u3057\u5074\u304C\u540C\u3058\u30D5\u30EC\u30FC\u30E0\u3067\u96C6\u3081\u305F\u99D2\u306E\u5EA7\u6A19\u3092\u4F7F\u3046\u3002\u76E4\u9762\u5168\u4F53(\u6570\u4E07\u30DE\u30B9)\u306E\u8D70\u67FB\u3092\u7701\u304F\u3002
     for (const m of movers) {
       const list = piecesOf.get(m.army.id);
       if (!list) continue;
@@ -861,8 +907,8 @@ function resolveSimultaneousMarch(W, movers, piecesOf) {
     }
     for (const k of liftedKeys) cells.delete(k);
   }
-  // \u884C\u304D\u5148\u3054\u3068\u306B\u307E\u3068\u3081\u308B\u3002\u307B\u3068\u3093\u3069\u306E\u30DE\u30B9\u306F1\u679A\u3057\u304B\u6765\u306A\u3044\u306E\u3067\u756A\u53F7\u3092\u305D\u306E\u307E\u307E\u6301\u3061\u3001\u885D\u7A81\u3057\u305F\u30DE\u30B9\u3060\u3051\u914D\u5217\u306B\u3059\u308B\u3002
-  const byDest = /* @__PURE__ */ new Map();
+  // 行き先ごとにまとめる。衝突したマスだけ配列にする。
+  const byDest = new Map();
   for (let i = 0; i < Ld.length; i++) {
     const dk = Ld[i];
     const cur = byDest.get(dk);
@@ -902,7 +948,7 @@ function resolveSimultaneousMarch(W, movers, piecesOf) {
     const army = Lm[si].army, sp = Lp[si];
     const occ = cells.get(dk);
     if (occ && occ.owner !== army.id) {
-      if (occ.t !== "K") army.hand[occ.t] = (army.hand[occ.t] || 0) + 1;
+      if (occ.t !== "K") army.hand[handTypeOf(occ)] = (army.hand[handTypeOf(occ)] || 0) + 1;
       ev.trampledTotal++;
       if (occ.t === "K") {
         ev.kingsKilled.push({ id: occ.owner, by: army.id });
@@ -939,7 +985,7 @@ function aiWantRotation(W, a, kings) {
   return diff === 3 ? -1 : 1;
 }
 function buildThreat(W, army, piecesByOwner) {
-  const set = /* @__PURE__ */ new Set();
+  const set = new Set();
   const zr = army.zone.r + 2;
   const cx = army.center[0], cy = army.center[1];
   for (const oa of W.armies) {
@@ -953,6 +999,14 @@ function buildThreat(W, army, piecesByOwner) {
       if (Math.abs(x - cx) > zr || Math.abs(y - cy) > zr) continue;
       if (++seen > AI_THREAT_PIECES) break;
       for (const [tx, ty] of legalMovesFrom(W.cells, x, y, oa.facing, oa.zone.set, AI_SLIDE_CAP)) set.add(K(tx, ty));
+      // チェスのポーンは「取るときだけ斜め前」なので、空きマスへの利きも危険地帯として足す
+      const p = W.cells.get(K(x, y));
+      if (p && p.t === "CP") {
+        for (const [dx, dy] of [[-1, -1], [1, -1]]) {
+          const [rx, ry] = rotV(dx, dy, oa.facing);
+          set.add(K(x + rx, y + ry));
+        }
+      }
     }
   }
   return set;
@@ -995,8 +1049,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   }
   const myKing0 = kings.get(army.id);
   let mine = piecesByOwner.get(army.id) || [];
-  // 盤上の配置駒(王以外)が足りているか。可動域の広さと討王数から、これくらいは欲しいという数を決める。
-  // 倍速の減衰や踏み潰しで減ったら、持ち駒を打って立て直す判断に使う。
+  // 盤上の配置駒(王以外)が足りているか。減ったら持ち駒を打って立て直す判断に使う。
   const boardCount = Math.max(0, mine.length - 1);
   const zs0 = army.zone.set;
   const boardWant = Math.min(Math.floor((zs0.x1 - zs0.x0 + 1) * (zs0.y1 - zs0.y0 + 1) * 0.3), 16 + (army.kills || 0) * 6);
@@ -1020,7 +1073,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
     };
     const half = Math.floor(cap / 2);
     const picked = [];
-    const seen = /* @__PURE__ */ new Set();
+    const seen = new Set();
     const push = (arr) => {
       for (const p of arr) {
         const k = p[0] * 4096 + p[1];
@@ -1035,11 +1088,9 @@ function aiPickAction(W, army, kings, piecesByOwner) {
     mine = picked;
   }
   const handKinds = Object.keys(army.hand).length;
-  // \u81EA\u9663\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u3092\u8FCE\u3048\u6483\u3064\u624B\u3092\u5148\u306B\u63A2\u3059\u3002\u6575\u7389\u304C\u81EA\u9663\u306B\u5165\u3063\u3066\u3044\u308C\u3070\u3001\u305D\u308C\u3092\u72D9\u3046\u4F4D\u7F6E\u304C\u6700\u512A\u5148\u306B\u306A\u308B\u3002
+  // 自陣に入ってきた敵玉を迎え撃つ手を先に探す。
   let snipe = null, dropSpots = null;
   if (handKinds) {
-    // \u72D9\u3044\u306F\u300C\u81EA\u9663\u306B\u5165\u3063\u3066\u304D\u305F\u6575\u7389\u300D\u306B\u7D5E\u308B\u3002\u4FB5\u5165\u3057\u3066\u304D\u305F\u666E\u901A\u306E\u99D2\u3092\u72D9\u3046\u52A0\u70B9\u3082\u8A66\u3057\u305F\u304C\u3001
-    // \u738B\u306E\u5B88\u308A\u3092\u56FA\u3081\u308B\u6253\u3061\u624B\u3092\u62BC\u3057\u306E\u3051\u3066\u3057\u307E\u3044\u3001\u5F37\u3055\u306B\u5DEE\u304C\u51FA\u306A\u304B\u3063\u305F\u3002
     const targets = aiIntruders(W, army, piecesByOwner, 5).filter((tg) => tg.king);
     if (targets.length) snipe = aiInterceptSpots(W.cells, army.zone.set, army.hand, army.facing, targets, 48);
     const extra = [];
@@ -1061,7 +1112,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
   }
   const skill = army.skill == null ? 0.6 : army.skill;
   const noise = (1 - skill) * 120;
-  // \u5019\u88DC\u624B\u304C\u89E6\u308C\u308B\u7BC4\u56F2\u3068\u91CD\u306A\u308B\u4ED6\u8ECD\u306E\u53EF\u52D5\u57DF\u3060\u3051\u3092\u5148\u306B\u7D5E\u3063\u3066\u304A\u304F(\u6210\u308A\u5224\u5B9A\u3067\u6BCE\u56DE\u5168\u8ECD\u3092\u898B\u306A\u3044)\u3002
+  // 候補手が触れる範囲と重なる他軍の可動域だけを先に絞っておく。
   let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
   for (const a of acts) {
     if (a.tx < bx0) bx0 = a.tx;
@@ -1083,14 +1134,14 @@ function aiPickAction(W, army, kings, piecesByOwner) {
       const destK = K(a.tx, a.ty);
       const victim = W.cells.get(destK);
       const mover = W.cells.get(K(a.fx, a.fy));
-      const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(a.tx, a.ty, army.id, nearZones) || isInHostileZone(a.fx, a.fy, army.id, nearZones));
+      const canPr = promoCheck(mover, victim, a.fx, a.fy, a.tx, a.ty, army.id, nearZones);
       if (victim && victim.t === "K") return { ...a, promote: canPr };
-      if (victim) s += VAL[victim.t] * 10 + (victim.promoted ? 20 : 0);
+      if (victim) s += (VAL[victim.t] || 1) * 10 + (victim.promoted ? 20 : 0);
       if (victim && myKing) {
         const dk = Math.max(Math.abs(a.tx - myKing[0]), Math.abs(a.ty - myKing[1]));
         if (dk <= 4) s += (inCheck ? 400 : 80) * (1 - dk / 5);
       }
-      if (canPr) s += 4;
+      if (canPr) s += isChess() ? 30 : 4;
       if (nearestKp) {
         const d0 = Math.abs(a.fx - nearestKp[0]) + Math.abs(a.fy - nearestKp[1]);
         const d1 = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
@@ -1100,14 +1151,14 @@ function aiPickAction(W, army, kings, piecesByOwner) {
         if (threat.has(destK)) s -= 800;
         else if (inCheck) s += 40;
       } else if (threat.has(destK)) {
-        s -= VAL[mover.t] * (victim ? 3 : 2);
+        s -= (VAL[mover.t] || 1) * (victim ? 3 : 2);
       }
       a.promote = canPr;
     } else {
       const destK = K(a.tx, a.ty);
       if (nearestKp) {
         const d = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
-        s += Math.max(0, 6 - d) * 1.2 - VAL[a.type] * 0.3;
+        s += Math.max(0, 6 - d) * 1.2 - (VAL[a.type] || 1) * 0.3;
       } else s -= 5;
       let dk = 99;
       if (myKing) {
@@ -1116,15 +1167,12 @@ function aiPickAction(W, army, kings, piecesByOwner) {
           s += (inCheck ? 120 : 30) * (1 - dk / 4) * (1 + (guardWant - guardCount) / guardWant);
         }
       }
-      // 配置駒が足りないほど、持ち駒を打って立て直す手を高く評価する(自玉に近いほど優先)。
       if (boardDeficit > 0) s += boardDeficit * (50 + (dk <= 3 ? 30 * (1 - dk / 4) : 0));
-      // 自玉の近くで、自玉より敵玉寄りのマスに打つ手(壁になる)を少し優先する。
       if (myKing && nearestKp && dk <= 5) {
         const dSpot = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
         const dKing = Math.abs(myKing[0] - nearestKp[0]) + Math.abs(myKing[1] - nearestKp[1]);
         if (dSpot < dKing) s += 6;
       }
-      // \u6253\u3063\u305F\u77AC\u9593\u306B\u4FB5\u5165\u8005\u3084\u6575\u7389\u3092\u72D9\u3048\u308B\u4F4D\u7F6E\u306A\u3089\u5927\u304D\u304F\u52A0\u70B9(\u89D2\u3084\u98DB\u3067\u96E2\u308C\u305F\u4F4D\u7F6E\u304B\u3089\u72D9\u3046\u624B\u3092\u542B\u3080)
       if (snipe) {
         const e = snipe.get(destK);
         if (e) {
@@ -1132,7 +1180,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
           if (v) s += v;
         }
       }
-      if (threat.has(destK)) s -= VAL[a.type] * 1.5;
+      if (threat.has(destK)) s -= (VAL[a.type] || 1) * 1.5;
       s += Math.min(4, (army.hand[a.type] || 1) - 1) * 1.5;
     }
     if (s > bestScore) {
@@ -1154,15 +1202,21 @@ function applyAction(W, army, a) {
   const victim = W.cells.get(K(a.tx, a.ty));
   W.cells.delete(K(a.fx, a.fy));
   if (victim && victim.t !== "K") {
-    army.hand[victim.t] = (army.hand[victim.t] || 0) + 1;
+    const ht = handTypeOf(victim);
+    army.hand[ht] = (army.hand[ht] || 0) + 1;
   }
-  if (a.promote) mover.promoted = true;
+  if (a.promote) {
+    if (mover.t === "CP") { mover.t = "Q"; mover.fromPawn = true; }
+    else mover.promoted = true;
+  }
   W.cells.set(K(a.tx, a.ty), mover);
   if (mover.t === "K") army.kingKey = K(a.tx, a.ty);
   return victim;
 }
-const LOOT_KINDS = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
+const LOOT_KINDS_SHOGI = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
+const LOOT_KINDS_CHESS = ["CP", "CP", "CP", "CP", "CN", "CN", "B", "B", "R", "Q"];
 function scatterLoot(cells, armies, neutralId, count) {
+  const kinds = isChess() ? LOOT_KINDS_CHESS : LOOT_KINDS_SHOGI;
   let placed = 0;
   for (let attempt = 0; attempt < count * 14 && placed < count; attempt++) {
     const x = 2 + Math.floor(Math.random() * (MAP_W - 4));
@@ -1175,7 +1229,7 @@ function scatterLoot(cells, armies, neutralId, count) {
       if (Math.abs(x - a.center[0]) <= 10 && Math.abs(y - a.center[1]) <= 10) { tooClose = true; break; }
     }
     if (tooClose) continue;
-    cells.set(k, { t: LOOT_KINDS[Math.floor(Math.random() * LOOT_KINDS.length)], promoted: false, owner: neutralId });
+    cells.set(k, { t: kinds[Math.floor(Math.random() * kinds.length)], promoted: false, owner: neutralId });
     placed++;
   }
   return placed;
@@ -1187,7 +1241,7 @@ const INIT_TIERS = [
   [1, 39, 60]
 ];
 function seedInitialProgress(W, skipId) {
-  const TYPES = ["P", "P", "P", "L", "N", "S", "G", "B", "R"];
+  const TYPES = isChess() ? ["CP", "CP", "CP", "CN", "B", "R", "Q"] : ["P", "P", "P", "L", "N", "S", "G", "B", "R"];
   const pool = W.armies.filter((a) => a.alive && a.id !== skipId);
   const taken = [];
   const assign = [];
@@ -1215,11 +1269,13 @@ function seedInitialProgress(W, skipId) {
       assign.push([best, kills]);
     }
   }
+  const canPromoteRandomly = (t) => !isChess() && !!PROMOTABLE[t] && Math.random() < 0.3;
   for (const [a, kills] of assign) {
     delete a.__seeded;
     a.kills = kills;
     if (kills > 0) a.skill = Math.max(a.skill || 0, Math.min(0.98, 0.5 + kills * 0.012));
     refreshZone(a);
+    const zs = a.zone.set;
     const r = a.zone.r;
     const cx = a.center[0], cy = a.center[1];
     const extra = Math.round(kills * 30);
@@ -1230,23 +1286,24 @@ function seedInitialProgress(W, skipId) {
         for (let dy = -d; dy <= d && placed < guardN; dy++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
           const x = cx + dx, y = cy + dy;
-          if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+          if (x < zs.x0 || y < zs.y0 || x > zs.x1 || y > zs.y1) continue;
           const k = K(x, y);
           if (W.cells.has(k)) continue;
           const t = TYPES[Math.floor(Math.random() * TYPES.length)];
-          W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
+          W.cells.set(k, { t, promoted: canPromoteRandomly(t), owner: a.id });
           placed++;
         }
       }
     }
+    const zw = zs.x1 - zs.x0 + 1, zh = zs.y1 - zs.y0 + 1;
     for (let n = 0; n < extra * 30 && placed < extra; n++) {
-      const x = cx - r + Math.floor(Math.random() * (2 * r + 1));
-      const y = cy - r + Math.floor(Math.random() * (2 * r + 1));
+      const x = zs.x0 + Math.floor(Math.random() * zw);
+      const y = zs.y0 + Math.floor(Math.random() * zh);
       if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
       const k = K(x, y);
       if (W.cells.has(k)) continue;
       const t = TYPES[Math.floor(Math.random() * TYPES.length)];
-      W.cells.set(k, { t, promoted: !!PROMOTABLE[t] && Math.random() < 0.3, owner: a.id });
+      W.cells.set(k, { t, promoted: canPromoteRandomly(t), owner: a.id });
       placed++;
     }
     const handTotal = Math.round(kills * 6);
@@ -1256,9 +1313,11 @@ function seedInitialProgress(W, skipId) {
     }
   }
 }
-function newWorld(mode, playerName, netOpts) {
+function newWorld(mode, playerName, netOpts, variant) {
+  // ワールドの種類はここで決まり、このワールドが続く間は変わらない(将棋とチェスは混ざらない)
+  owsVariant = variant === "chess" ? "chess" : "shogi";
   const total = CAP;
-  const cells = /* @__PURE__ */ new Map();
+  const cells = new Map();
   const names = generateNames(total);
   const cols = Math.ceil(Math.sqrt(total));
   const cell = Math.floor(Math.min(MAP_W, MAP_H) / cols);
@@ -1294,7 +1353,7 @@ function newWorld(mode, playerName, netOpts) {
       zone: null,
       kills: 0,
       skill: makeSkill(),
-      name: isPlayerSlot ? playerName ? playerName + "(\u3042\u306A\u305F)" : names[0] + "(\u3042\u306A\u305F)" : names[id],
+      name: isPlayerSlot ? playerName ? playerName + tr("(あなた)", " (You)") : names[0] + tr("(あなた)", " (You)") : names[id],
       color: isPlayerSlot ? PLAYER_COLOR : makeColor(id),
       flankBias: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 5)),
       kingKey: K(center[0], center[1])
@@ -1319,16 +1378,14 @@ function newWorld(mode, playerName, netOpts) {
       center: [Math.floor(MAP_W / 2), Math.floor(MAP_H / 2)],
       zone: null,
       kills: 0,
-      name: "\u6B8B\u9AB8",
+      name: "残骸",
       color: { fill: "#9A9384", edge: "#2b2721", text: "#1d1a15", prom: "#C08A3E", zone: "rgba(0,0,0,0)", zoneEdge: "rgba(0,0,0,0)", chip: "#9A9384" },
       flankBias: 0
     });
     lootTarget = Math.floor(MAP_W * MAP_H * 0.017);
     scatterLoot(cells, armies, neutralId, lootTarget);
     if (mode === "play") {
-      // \u30D7\u30EC\u30A4\u30E4\u30FC\u306E\u8ECD\u3060\u3051\u306F\u683C\u5B50\u72B6\u306E\u521D\u671F\u914D\u7F6E\u306E\u307E\u307E\u3060\u3068\u3001\u5927\u8ECD\u306E\u53EF\u52D5\u57DF\u306E\u4E2D\u3084
-      // \u6575\u99D2\u306E\u771F\u96A3\u306B\u7F6E\u304B\u308C\u308B\u3053\u3068\u304C\u3042\u308A\u3001\u958B\u59CB\u76F4\u5F8C\u306E\u4E00\u6589\u9032\u8ECD\u3067\u8E0F\u307F\u6F70\u3055\u308C\u3066\u3044\u305F\u3002
-      // \u9014\u4E2D\u53C2\u6226\u3068\u540C\u3058\u57FA\u6E96(\u4ED6\u8ECD\u306E\u53EF\u52D5\u57DF\u304B\u3089\u96E2\u308C\u305F\u5834\u6240)\u3078\u79FB\u3057\u76F4\u3059\u3002
+      // プレイヤーの軍は、途中参加と同じ基準(他軍の可動域から離れた場所)へ移し直す。
       const W0 = { cells, armies };
       const pf = armies[0].facing;
       const spot = findSpawnSpot(W0, pf);
@@ -1337,6 +1394,7 @@ function newWorld(mode, playerName, netOpts) {
   }
   return {
     mode,
+    variant: owsVariant,
     playerId: mode === "play" ? 0 : null,
     cells,
     armies,
@@ -1345,7 +1403,7 @@ function newWorld(mode, playerName, netOpts) {
     lastLootSpawn: 0,
     focusId: 0,
     banner: null,
-    msg: mode === "play" ? "\u5341\u5B57\u30AD\u30FC\u3067\u9032\u8ECD\u3001\u99D2\u30BF\u30C3\u30D7\u3067\u500B\u5225\u79FB\u52D5" : "\u89B3\u6226\u30E2\u30FC\u30C9: \u30BF\u30C3\u30D7\u3067\u8ECD\u306B\u30D5\u30A9\u30FC\u30AB\u30B9",
+    msg: mode === "play" ? "十字キーで進軍、駒タップで個別移動" : "観戦モード: タップで軍にフォーカス",
     sel: null,
     handSel: null,
     dropSpots: null,
@@ -1364,8 +1422,8 @@ function newWorld(mode, playerName, netOpts) {
 const SERIF = '"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
 const ENFONT = '"Playfair Display","Georgia",serif';
 const KOMAFONT = '"Yuji Syuku","Shippori Mincho B1","Hiragino Mincho ProN",serif';
-// \u753B\u50CF\u304C\u5C4A\u304F\u307E\u3067\u306E\u9593\u3082\u6728\u76EE\u3068\u307B\u307C\u540C\u3058\u6FC3\u3044\u8336\u8272\u306B\u898B\u3048\u308B\u3088\u3046\u3001\u6700\u5F8C\u306E url \u306B\u4E0B\u5730\u8272\u3092\u6DFB\u3048\u308B\u3002
-// (\u4EE5\u524D\u306F\u660E\u308B\u3044\u8336\u8272\u304B\u3089\u6FC3\u3044\u8336\u8272\u3078\u5207\u308A\u66FF\u308F\u308B\u77AC\u9593\u304C\u898B\u3048\u3066\u3044\u305F)
+const CHESSFONT = '"Apple Symbols","Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif';
+// 画像が届くまでの間も木目とほぼ同じ濃い茶色に見えるよう、最後の url に下地色を添える。
 const WOOD_BASE = "#1a0906";
 const WOOD_GRAIN = `linear-gradient(rgba(20,10,4,0.12), rgba(20,10,4,0.12)), url('/wood-grain.jpeg') ${WOOD_BASE}`;
 const C = {
@@ -1380,8 +1438,126 @@ const C = {
   cap: "rgba(232,96,76,0.9)",
   selGlow: "#FFD866",
   board: "#EAD9A8",
-  boardEdge: "#8B6F3E"
+  boardEdge: "#8B6F3E",
+  // チェス盤(写真のような明るい木色と濃い木色の市松模様)
+  chessLight: "#DCDCD9",
+  chessDark: "#A3A3A0",
+  chessMid: "#BFBFBC",
+  chessEdge: "#3f3f3d"
 };
+// チェスの駒(スタントン型)を100×100の座標で描いた形。base=台座、body=本体、line=飾り線
+const CHESS_SHAPES = {
+  CP: {
+    body: "M50 16 C58 16 63 22 63 29 C63 34 60 38 56 40 L61 43 L57 46 C58 56 63 63 69 70 L71 76 L29 76 L31 70 C37 63 42 56 43 46 L39 43 L44 40 C40 38 37 34 37 29 C37 22 42 16 50 16 Z",
+    line: "M41 43 L59 43"
+  },
+  R: {
+    body: "M29 22 L38 22 L38 29 L45 29 L45 22 L55 22 L55 29 L62 29 L62 22 L71 22 L71 40 L65 45 L67 70 L70 76 L30 76 L33 70 L35 45 L29 40 Z",
+    line: "M29 40 L71 40 M35 45 L65 45 M33 70 L67 70"
+  },
+  CN: {
+    body: "M33 76 C33 66 37 59 45 53 C47 51 48 49 47 47 C43 49 39 50 35 53 C31 56 26 56 23 52 C20 48 22 43 27 39 C32 35 36 31 38 26 L37 17 L44 22 L48 14 L52 21 C65 24 74 36 73 52 C72 62 70 69 70 76 Z",
+    line: "M52 21 C62 27 68 38 68 52 M27 47 L29 46",
+    eye: [41, 31, 2.6]
+  },
+  B: {
+    body: "M50 18 C60 26 66 35 63 46 C62 50 58 53 56 54 L62 56 L59 61 L57 61 C57 67 63 71 68 76 L32 76 C37 71 43 67 43 61 L41 61 L38 56 L44 54 C42 53 38 50 37 46 C34 35 40 26 50 18 Z",
+    line: "M54 30 L47 42 M38 56 L62 56",
+    ball: [50, 14, 5]
+  },
+  Q: {
+    body: "M31 76 C33 67 35 60 34 54 L25 32 L37 45 L38 26 L46 43 L50 22 L54 43 L62 26 L63 45 L75 32 L66 54 C65 60 67 67 69 76 Z",
+    line: "M34 54 C44 51 56 51 66 54 M33 63 C44 60 56 60 67 63",
+    balls: [[25, 29, 4], [38, 23, 4], [50, 18, 4.5], [62, 23, 4], [75, 29, 4]]
+  },
+  K: {
+    body: "M50 30 C57 30 60 35 57 41 C66 35 77 38 76 48 C75 56 68 60 67 64 L69 76 L31 76 L33 64 C32 60 25 56 24 48 C23 38 34 35 43 41 C40 35 43 30 50 30 Z",
+    line: "M33 64 C44 61 56 61 67 64",
+    cross: "M47 9 L53 9 L53 15 L59 15 L59 21 L53 21 L53 28 L47 28 L47 21 L41 21 L41 15 L47 15 Z"
+  }
+};
+const CHESS_BASE = "M22 77 L78 77 Q81 77 81 80 L81 87 Q81 90 78 90 L22 90 Q19 90 19 87 L19 80 Q19 77 22 77 Z";
+let chessPathCache = null;
+function chessPaths() {
+  if (chessPathCache) return chessPathCache;
+  const out = {};
+  for (const k in CHESS_SHAPES) {
+    const s = CHESS_SHAPES[k];
+    const body = new Path2D(s.body);
+    if (s.cross) body.addPath(new Path2D(s.cross));
+    const circ = (c) => { const p = new Path2D(); p.arc(c[0], c[1], c[2], 0, Math.PI * 2); return p; };
+    if (s.ball) body.addPath(circ(s.ball));
+    if (s.balls) for (const b of s.balls) body.addPath(circ(b));
+    out[k] = { body, line: s.line ? new Path2D(s.line) : null, eye: s.eye ? circ(s.eye) : null };
+  }
+  out.base = new Path2D(CHESS_BASE);
+  chessPathCache = out;
+  return out;
+}
+// 駒1枚を描く。ctx はマスの中心に移動済み・回転済みで、1単位=1マス/100。
+// light=白駒(自軍)、それ以外は黒駒。accent は台座の帯の色(どの軍か見分ける印)。
+function drawChessPiece(ctx, t, light, accent, grads, detail) {
+  const P = chessPaths();
+  const sh = P[t];
+  if (!sh) return;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  // 台座
+  ctx.fillStyle = light ? grads.lightFill : grads.darkFill;
+  ctx.fill(P.base);
+  ctx.lineWidth = 3.2;
+  ctx.strokeStyle = light ? "#1b1b1b" : "#050505";
+  ctx.stroke(P.base);
+  ctx.fillStyle = accent;
+  ctx.fillRect(23, 81.5, 54, 4);
+  // 本体
+  ctx.fillStyle = light ? grads.lightFill : grads.darkFill;
+  ctx.fill(sh.body);
+  ctx.stroke(sh.body);
+  if (detail && sh.line) {
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = light ? "#2a2a2a" : "rgba(235,235,235,0.75)";
+    ctx.stroke(sh.line);
+  }
+  if (detail && sh.eye) {
+    ctx.fillStyle = light ? "#1b1b1b" : "#e8e8e8";
+    ctx.fill(sh.eye);
+  }
+}
+function makeChessGrads(ctx) {
+  const lg = ctx.createLinearGradient(25, 0, 75, 0);
+  lg.addColorStop(0, "#ffffff");
+  lg.addColorStop(0.55, "#f1f1ee");
+  lg.addColorStop(1, "#c9c9c4");
+  const dg = ctx.createLinearGradient(25, 0, 75, 0);
+  dg.addColorStop(0, "#4a4a4a");
+  dg.addColorStop(0.45, "#1d1d1d");
+  dg.addColorStop(1, "#0b0b0b");
+  return { lightFill: lg, darkFill: dg };
+}
+
+// 盤の金属っぽいヘアライン(縦の細い筋)。1回だけ作り、盤全体に薄く重ねる。
+let brushTileSrc = null;
+function brushPattern(ctx) {
+  if (!brushTileSrc) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d");
+    for (let i = 0; i < 1400; i++) {
+      const px = Math.random() * 256, py = Math.random() * 256, len = 20 + Math.random() * 120;
+      x.strokeStyle = Math.random() < 0.5 ? `rgba(255,255,255,${0.03 + Math.random() * 0.07})` : `rgba(0,0,0,${0.02 + Math.random() * 0.04})`;
+      x.lineWidth = 0.6 + Math.random() * 0.9;
+      x.beginPath();
+      x.moveTo(px, py);
+      x.lineTo(px + (Math.random() - 0.5) * 2, py + len);
+      x.stroke();
+      if (py + len > 256) { x.beginPath(); x.moveTo(px, py - 256); x.lineTo(px, py + len - 256); x.stroke(); }
+    }
+    brushTileSrc = c;
+  }
+  if (!ctx.__owsBrushPat) ctx.__owsBrushPat = ctx.createPattern(brushTileSrc, "repeat");
+  return ctx.__owsBrushPat;
+}
 const OWS_SERVER_URL = "wss://ows-server-zibw.onrender.com";
 function applyOpenWorldState(W, s, myArmyId) {
   const t = now();
@@ -1421,8 +1597,9 @@ function applyOpenWorldState(W, s, myArmyId) {
   W.playerId = myArmyId;
 }
 function newOpenWorld(myArmyId) {
+  owsVariant = "shogi"; // ネット対戦は将棋ワールドのみ
   return {
-    mode: "openworld", playerId: myArmyId, cells: /* @__PURE__ */ new Map(), armies: [],
+    mode: "openworld", variant: "shogi", playerId: myArmyId, cells: new Map(), armies: [],
     focusId: myArmyId, banner: null, msg: "オープンワールド: 王を守れ",
     sel: null, handSel: null, dropSpots: null, promo: null,
     over: false, myDefeated: false, winner: null, winnerName: "", reason: "",
@@ -1446,6 +1623,33 @@ function OpenWorldShogi() {
   const [nameInput, setNameInput] = useState("");
   const [dpadLeft, setDpadLeft] = useState(false);
   const [showArmyList, setShowArmyList] = useState(false);
+  // タイトル画面で選ぶワールドの種類("shogi" / "chess")
+  const [variant, setVariant] = useState("shogi");
+  const [lang, setLangState] = useState(owsLang);
+  owsLang = lang;
+  function setLang(l) {
+    owsLang = l;
+    try { localStorage.setItem("owsLang", l); } catch (e) {}
+    try { document.documentElement.lang = l; } catch (e) {}
+    setLangState(l);
+  }
+  useEffect(() => { try { document.documentElement.lang = lang; document.title = lang === "en" ? "Open World Shogi & Chess" : "オープンワールド将棋&チェス【OpenWorldShogi&Chess】"; } catch (e) {} }, [lang]);
+  // 一時停止中かどうか。止めている間は仮想時計(now)の進みを0にし、世界の更新も止める。
+  const pausedRef = useRef(false);
+  function setPaused(p) {
+    if (pausedRef.current === p) return;
+    pausedRef.current = p;
+    owsSetTimeScale(p ? 0 : 1);
+  }
+  function openMenu() {
+    // ネット対戦はサーバー側で進むので止められない。AI対戦・観戦だけ一時停止する。
+    if (g.current.mode !== "openworld") setPaused(true);
+    setConfirmExit(true);
+  }
+  function closeMenu() {
+    setPaused(false);
+    setConfirmExit(false);
+  }
   const cdRef = useRef(null);
   const marchRef = useRef(null);
   const wakeRef = useRef(null);
@@ -1489,14 +1693,14 @@ function OpenWorldShogi() {
   async function fetchRoomList() {
     if (!hasNet()) return;
     setRoomListLoading(true);
-    setRoomListMsg("\u53D6\u5F97\u4E2D\u2026");
+    setRoomListMsg(tr("取得中…", "Loading…"));
     try {
       const r = await fetch(httpServerUrl() + "/api/rooms");
       const data = await r.json();
       setRoomList(data.rooms || []);
-      setRoomListMsg((data.rooms || []).length ? "" : "\u73FE\u5728\u958B\u3044\u3066\u3044\u308B\u90E8\u5C4B\u306F\u3042\u308A\u307E\u305B\u3093\u3002\u300C\u53C2\u52A0\u3059\u308B\u300D\u3067\u65B0\u3057\u3044\u90E8\u5C4B\u304C\u4F5C\u3089\u308C\u307E\u3059\u3002");
+      setRoomListMsg((data.rooms || []).length ? "" : tr("現在開いている部屋はありません。「参加する」で新しい部屋が作られます。", "No rooms are open right now. Quick match will create a new one."));
     } catch (e) {
-      setRoomListMsg("\u90E8\u5C4B\u4E00\u89A7\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
+      setRoomListMsg(tr("部屋一覧の取得に失敗しました。", "Couldn't load the room list."));
     } finally {
       setRoomListLoading(false);
     }
@@ -1506,11 +1710,12 @@ function OpenWorldShogi() {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(item));
   }
   function joinOpenWorld(code, forceCreate) {
-    if (!hasNet()) { setNetMsg("サーバーが未設定です。"); return; }
+    if (!hasNet()) { setNetMsg(tr("サーバーが未設定です。", "No server is configured.")); return; }
     const nm = filterProfanity(netName.trim()).slice(0, NAME_MAX_LEN) || "名無し";
     netRef.current.name = nm;
-    setNetMsg(forceCreate ? "新しい部屋を作っています…" : code ? `部屋 ${code} に接続しています…` : "接続しています…");
+    setNetMsg(forceCreate ? tr("新しい部屋を作っています…", "Creating a new room…") : code ? tr(`部屋 ${code} に接続しています…`, `Connecting to room ${code}…`) : tr("接続しています…", "Connecting…"));
     setNetPhase("connecting");
+    setPaused(false);
     g.current = newOpenWorld(null);
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 8, zoom: 1, manualMode: false };
     const ws = new WebSocket(OWS_SERVER_URL);
@@ -1520,8 +1725,8 @@ function OpenWorldShogi() {
       const pingIv = setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ type: "ping" })); else clearInterval(pingIv); }, 5000);
       ws._pingIv = pingIv;
     };
-    ws.onclose = () => { if (netPhase !== null) { setNetMsg("サーバーとの接続が切れました。"); setNetPhase(null); setStarted(false); } };
-    ws.onerror = () => { setNetMsg("接続に失敗しました。"); };
+    ws.onclose = () => { if (netPhase !== null) { setNetMsg(tr("サーバーとの接続が切れました。", "Lost connection to the server.")); setNetPhase(null); setStarted(false); } };
+    ws.onerror = () => { setNetMsg(tr("接続に失敗しました。", "Couldn't connect.")); };
     ws.onmessage = (ev) => {
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (msg.type === "joined") {
@@ -1532,15 +1737,15 @@ function OpenWorldShogi() {
         setNetPhase("playing");
         setStarted(true);
       } else if (msg.type === "full") {
-        setNetMsg("この部屋は満員です。別の部屋を選ぶか、しばらくしてから再度お試しください。");
+        setNetMsg(tr("この部屋は満員です。別の部屋を選ぶか、しばらくしてから再度お試しください。", "This room is full. Pick another room or try again later."));
         setNetPhase("nameEntry");
       } else if (msg.type === "error") {
-        const reasonMsg = msg.reason === "not_found" ? "その合言葉の部屋は見つかりませんでした。"
-          : msg.reason === "server_full" ? "サーバー全体が満員です。しばらくしてから再度お試しください。"
-          : msg.reason === "code_taken" ? "その合言葉はすでに使われています。別のものを選んでください。"
-          : msg.reason === "code_required" ? "部屋を作るには合言葉の入力が必要です。"
-          : msg.reason === "invalid_code" ? "合言葉は英数字3〜5文字で入力してください。"
-          : "接続できませんでした。";
+        const reasonMsg = msg.reason === "not_found" ? tr("その合言葉の部屋は見つかりませんでした。", "No room has that code.")
+          : msg.reason === "server_full" ? tr("サーバー全体が満員です。しばらくしてから再度お試しください。", "The server is full. Try again later.")
+          : msg.reason === "code_taken" ? tr("その合言葉はすでに使われています。別のものを選んでください。", "That code is already taken. Choose another.")
+          : msg.reason === "code_required" ? tr("部屋を作るには合言葉の入力が必要です。", "Enter a code to create a room.")
+          : msg.reason === "invalid_code" ? tr("合言葉は英数字3〜5文字で入力してください。", "Codes are 3–5 letters or digits.")
+          : tr("接続できませんでした。", "Couldn't connect.");
         setNetMsg(reasonMsg);
         setNetPhase("nameEntry");
       } else if (msg.type === "state") {
@@ -1548,7 +1753,7 @@ function OpenWorldShogi() {
         if (netRef.current.armyId != null) {
           const mine = g.current.armies.find((a) => a.id === netRef.current.armyId);
           if (!mine || !mine.alive) g.current.myDefeated = true;
-          // \u53C2\u6226\u76F4\u5F8C\u306B1\u56DE\u3060\u3051\u3001\u81EA\u8ECD\u306E\u6B63\u9762\u304C\u4E0A\u306B\u6765\u308B\u3088\u3046\u8996\u70B9\u3092\u5408\u308F\u305B\u308B
+          // 参戦直後に1回だけ、自軍の正面が上に来るよう視点を合わせる
           if (mine && mine.alive && !netRef.current.oriented) {
             netRef.current.oriented = true;
             camRef.current.rot = -mine.facing * (Math.PI / 2);
@@ -1585,7 +1790,8 @@ function OpenWorldShogi() {
     g.current.banner = { text, sub, tone, until: Date.now() + 2600 };
   }
   function begin(mode, playerName, netOpts) {
-    g.current = newWorld(mode, playerName, netOpts);
+    setPaused(false);
+    g.current = newWorld(mode, playerName, netOpts, variant);
     const w = g.current;
     const t = now();
     for (const a of w.armies) {
@@ -1594,8 +1800,7 @@ function OpenWorldShogi() {
       a.lastAction = t - stagger;
     }
     w.lastSpawnCheck = t;
-    // \u9032\u8ECD\u306E\u57FA\u6E96\u6642\u523B\u309215\u79D2\u524D\u306B\u3057\u3066\u304A\u304D\u3001\u958B\u59CB\u3057\u305F\u6700\u521D\u306E\u30D5\u30EC\u30FC\u30E0\u30671\u56DE\u76EE\u306E\u4E00\u6589\u9032\u8ECD(\u3068AI\u306E\u500D\u901F\u5224\u65AD)\u3092\u8D70\u3089\u305B\u308B\u3002
-    // \u4EE5\u524D\u306F\u958B\u59CB\u304B\u308915\u79D2\u9593\u3001\u3069\u306E\u8ECD\u3082\u9032\u8ECD\u305B\u305A\u6B62\u307E\u3063\u3066\u898B\u3048\u3066\u3044\u305F\u3002
+    // 開始した最初のフレームで1回目の一斉進軍を走らせる(開始から15秒止まって見えないように)
     w.marchAnchor = t - MARCH_INTERVAL;
     w.lastMarchTick = 0;
     if (mode === "watch") {
@@ -1609,7 +1814,7 @@ function OpenWorldShogi() {
     const Wd0 = wrap0 ? wrap0.clientWidth : 800, Hd0 = wrap0 ? wrap0.clientHeight : 600;
     const zr0 = (startFocus && startFocus.zone ? startFocus.zone.r : ZONE_R_BASE) + 3;
     const s0 = Math.max(2, Math.min(30, Math.min(Wd0 / (zr0 * 2), Hd0 / (zr0 * 2))));
-    // \u958B\u59CB\u6642\u306F\u3001\u898B\u3066\u3044\u308B\u8ECD\u306E\u6B63\u9762(\u9032\u8ECD\u65B9\u5411)\u304C\u753B\u9762\u306E\u4E0A\u306B\u6765\u308B\u3088\u3046\u8996\u70B9\u3092\u56DE\u3057\u3066\u304A\u304F
+    // 開始時は、見ている軍の正面(進軍方向)が画面の上に来るよう視点を回しておく
     camRef.current = { x: startX, y: startY, s: s0, baseScale: s0, zoom: 1, rot: startFocus ? -startFocus.facing * (Math.PI / 2) : 0, manualMode: false };
     setConfirmExit(false);
     setDefeatAck(false);
@@ -1632,6 +1837,7 @@ function OpenWorldShogi() {
     W2.dropSpots = null;
     W2.myDefeated = false;
     camRef.current.manualMode = false;
+    setPaused(false);
     setConfirmExit(false);
     setDefeatAck(false);
     bump();
@@ -1642,7 +1848,7 @@ function OpenWorldShogi() {
     const cur = W2.playerId !== null ? W2.armies[W2.playerId] : null;
     if (cur && cur.alive && !W2.myDefeated) return;
     const a = spawnNewArmy(W2);
-    if (!a) { W2.msg = "\u53C2\u6226\u3067\u304D\u308B\u5834\u6240\u304C\u3042\u308A\u307E\u305B\u3093"; bump(); return; }
+    if (!a) { W2.msg = "参戦できる場所がありません"; bump(); return; }
     a.name = filterProfanity((nameInput || "").trim()).slice(0, NAME_MAX_LEN) || a.name;
     W2.playerId = a.id;
     W2.focusId = a.id;
@@ -1652,12 +1858,14 @@ function OpenWorldShogi() {
     W2.dropSpots = null;
     W2.myDefeated = false;
     camRef.current = { x: a.center[0] + 0.5, y: a.center[1] + 0.5, s: 20, zoom: 1, rot: -a.facing * (Math.PI / 2), manualMode: false };
+    setPaused(false);
     setConfirmExit(false);
     setDefeatAck(false);
     bump();
   }
   function backToTitle() {
     if (wsRef.current || netRef.current.armyId != null || netPhase !== null) leaveOpenWorld();
+    setPaused(false);
     g.current = newWorld("play");
     camRef.current = { x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, manualMode: false };
     setConfirmExit(false);
@@ -1676,7 +1884,7 @@ function OpenWorldShogi() {
         W2.sel = null;
         W2.handSel = null;
         W2.dropSpots = null;
-        banner("\u6557\u5317", "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F\u2026\u518D\u6311\u6226\u3067\u304D\u307E\u3059", "bad");
+        banner(tr("敗北", "Defeat"), tr("自軍の玉が討たれた…再挑戦できます", "Your king has fallen. You can try again."), "bad");
       }
       return;
     }
@@ -1697,29 +1905,29 @@ function OpenWorldShogi() {
         }
         if (watch) W2.focusId = watch.id;
         banner(
-          "\u6557\u5317",
+          tr("敗北", "Defeat"),
           watch === killer && killer
-            ? `${killer.name} \u306B\u8A0E\u305F\u308C\u305F\u2026\u3053\u306E\u307E\u307E\u89B3\u6226\u3059\u308B\u304B\u9078\u3079\u308B`
-            : "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F\u2026\u3053\u306E\u307E\u307E\u89B3\u6226\u3059\u308B\u304B\u9078\u3079\u308B",
+            ? tr(`${killer.name} に討たれた…このまま観戦するか選べる`, `Defeated by ${killer.name}. You can keep watching.`)
+            : tr(`自軍の${kingWord()}が討たれた…このまま観戦するか選べる`, `Your king has fallen. You can keep watching.`),
           "bad"
         );
       }
       return;
     }
     const left = aliveCount(W2);
-    W2.msg = `${army.name} \u58CA\u6EC5(\u6B8B\u308A${left}\u8ECD)`;
+    W2.msg = `${army.name} 壊滅(残り${left}軍)`;
     if (W2.playerId !== null && !W2.myDefeated) {
       if (W2.armies.filter((a) => a.id !== W2.playerId && a.alive).length === 0) {
         W2.over = true;
         W2.winner = 0;
-        W2.reason = "\u5168\u3066\u306E\u6575\u8ECD\u3092\u6483\u7834\u3057\u305F";
+        W2.reason = tr("全ての敵軍を撃破した", "You defeated every enemy army");
       }
     } else if (W2.playerId === null && left <= 1) {
       const last = W2.armies.find((a) => a.alive);
       W2.over = true;
       W2.winner = 0;
       W2.winnerName = last ? last.name : "-";
-      W2.reason = `${W2.winnerName} \u304C\u5929\u4E0B\u7D71\u4E00`;
+      W2.reason = tr(`${W2.winnerName} が天下統一`, `${W2.winnerName} rules the world`);
     }
   }
   function focusNext(W2) {
@@ -1729,33 +1937,6 @@ function OpenWorldShogi() {
     W2.focusId = alive[(idx + 1) % alive.length].id;
     camRef.current.manualMode = false;
   }
-  function applyGuestAction(W2, army, action) {
-    if (!army || !army.alive) return;
-    const t = now();
-    if ((action.type === "move" || action.type === "drop" || action.type === "rotate") && t - army.lastMove < MOVE_COOLDOWN) return;
-    if (action.type === "move") {
-      const v = applyAction(W2, army, { kind: "move", fx: action.fx, fy: action.fy, tx: action.tx, ty: action.ty, promote: !!action.promote });
-      army.lastMove = t;
-      army.lastAction = t;
-      if (v && v.t === "K") {
-        army.kills = (army.kills || 0) + 1;
-        const dead = W2.armies.find((x) => x.id === v.owner);
-        handleDefeat(W2, dead, army);
-      }
-    } else if (action.type === "drop") {
-      applyAction(W2, army, { kind: "drop", type: action.dropType, tx: action.tx, ty: action.ty });
-      army.lastMove = t;
-      army.lastAction = t;
-    } else if (action.type === "rotate") {
-      army.facing = (army.facing + (action.dir > 0 ? 1 : 3)) % 4;
-      army.lastMove = t;
-      army.lastAction = t;
-    } else if (action.type === "target") {
-      army.target = [action.tx, action.ty];
-    } else if (action.type === "stopTarget") {
-      army.target = null;
-    }
-  }
   useEffect(() => {
     let raf;
     const loop = () => {
@@ -1763,7 +1944,7 @@ function OpenWorldShogi() {
       if (cv && wrap) {
         const W2 = g.current;
         try {
-          if (started && !W2.over && !isNetGuest()) updateWorld(W2);
+          if (started && !W2.over && !isNetGuest() && !pausedRef.current) updateWorld(W2);
         } catch (err) {
           console.error("updateWorld error", err);
         }
@@ -1822,7 +2003,7 @@ function OpenWorldShogi() {
       let lastSpawned = null;
       let onBoardCache = null;
       if (toSpawn > 0) {
-        onBoardCache = /* @__PURE__ */ new Set();
+        onBoardCache = new Set();
         for (const p of W2.cells.values()) onBoardCache.add(p.owner);
       }
       for (let i = 0; i < toSpawn; i++) {
@@ -1832,19 +2013,17 @@ function OpenWorldShogi() {
         lastSpawned = a;
       }
       if (lastSpawned) {
-        W2.msg = `\u65B0\u624B: ${lastSpawned.name} \u304C\u53C2\u6226!(\u6B8B\u5B58${aliveCount(W2)}/${CAP}\u8ECD)`;
+        W2.msg = `新手: ${lastSpawned.name} が参戦!(残存${aliveCount(W2)}/${CAP}軍)`;
       }
     }
     const uTick = Math.floor((t - W2.marchAnchor) / MARCH_TICK_UNIT);
     const prevU = W2.lastUTick || 0;
     if (uTick > prevU) {
       W2.lastUTick = uTick;
-      // \u524D\u56DE\u51E6\u7406\u3057\u305F\u6642\u70B9\u304B\u3089\u300C\u533A\u5207\u308A\u3092\u307E\u305F\u3044\u3060\u304B\u300D\u3067\u5224\u5B9A\u3059\u308B\u3002\u30D5\u30EC\u30FC\u30E0\u304C\u8A70\u307E\u3063\u3066\u5358\u4F4D\u6642\u9593\u3092\u98DB\u3070\u3057\u3066\u3082
-      // 15\u79D2\u306E\u4E00\u6589\u9032\u8ECD\u3092\u53D6\u308A\u3053\u307C\u3055\u305A\u3001\u9045\u308C\u3092\u53D6\u308A\u623B\u3059\u305F\u3081\u306E\u9023\u7D9A\u9032\u8ECD\u3082\u3057\u306A\u3044\u3002
+      // 前回処理した時点から「区切りをまたいだか」で判定する(取りこぼさず、遅れの連続進軍もしない)
       const crossed = (div) => Math.floor(uTick / div) > Math.floor(prevU / div);
       const isFullTick = crossed(16);
-      // \u7B49\u500D\u306F16\u5358\u4F4D(15\u79D2)\u30014\u500D\u901F\u306F4\u5358\u4F4D(3.75\u79D2)\u300116\u500D\u901F\u306F\u6BCE\u5358\u4F4D(0.9375\u79D2)\u3054\u3068\u306B\u9032\u8ECD\u3002
-      // \u5168\u8ECD\u304C\u540C\u3058marchAnchor\u57FA\u6E96\u306A\u306E\u3067\u3001\u4F55\u500D\u901F\u3067\u3082\u5FC5\u305A15\u79D2\u7D44\u3068\u6B69\u8ABF\u304C\u5408\u3046\u3002
+      // 等倍は16単位(15秒)、4倍速は4単位、16倍速は毎単位ごとに進軍。
       const due = W2.armies.filter((a) => a.alive && crossed(16 / (a.speedMult || 1)));
       if (due.length) {
         const byOwner = new Map(due.map((a) => [a.id, []]));
@@ -1855,12 +2034,11 @@ function OpenWorldShogi() {
           list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
         }
         if (isFullTick && W2.mode !== "openworld") {
-          // AI\u306E\u500D\u901F\u5224\u65AD(15\u79D2\u3054\u3068)\u3002\u5404\u8ECD\u306E\u914D\u7F6E\u99D2\u306E\u6570\u306F\u3001\u76F4\u524D\u306B\u9032\u8ECD\u7528\u306B\u96C6\u3081\u305F\u99D2\u30EA\u30B9\u30C8\u304B\u3089\u6C42\u3081\u308B\u3002
-          // \u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B\u76E4\u9762\u5168\u4F53\u3092\u6570\u3048\u76F4\u3057\u3066\u304A\u308A(\u7D04200\u8ECD\u00D7\u6570\u4E07\u30DE\u30B9)\u300115\u79D2\u3054\u3068\u306B\u5927\u304D\u304F\u56FA\u307E\u3063\u3066\u3044\u305F\u3002
+          // AIの倍速判断(15秒ごと)
           for (const a of W2.armies) {
             if (!a.alive || a.neutral || a.id === W2.playerId) continue;
             const list = byOwner.get(a.id);
-            const ownCount = list ? Math.max(0, list.length - 1) : 0; // \u738B\u306E\u5206\u3092\u5F15\u304F
+            const ownCount = list ? Math.max(0, list.length - 1) : 0; // 王の分を引く
             let dNear = Infinity;
             for (const [oid, okp] of kings) {
               if (oid === a.id) continue;
@@ -1875,29 +2053,29 @@ function OpenWorldShogi() {
             else if ((a.speedMult || 1) !== 1 && (!nearKing || ownCount < 5 || Math.random() < 0.25)) a.speedMult = 1;
           }
         }
-        // \u6B8B\u9AB8\u306E\u4F4D\u7F6E\u7D22\u5F15\u306F\u3001\u6B8B\u9AB8\u3092\u63A2\u3059\u8ECD\u304C\u3044\u305F\u3068\u304D\u3060\u3051\u4F5C\u308B(\u6575\u7389\u3092\u8FFD\u3063\u3066\u3044\u308B\u8ECD\u3070\u304B\u308A\u306A\u3089\u4E0D\u8981)\u3002
+        // 残骸の位置索引は、残骸を探す軍がいたときだけ作る
         let lootGrid = null;
         const getLootGrid = () => lootGrid || (lootGrid = buildLootGrid(W2));
         const movers = [];
         for (const a of due) {
           const mine = byOwner.get(a.id) || [];
-          // \u914D\u7F6E\u99D2\u304C\u738B\u3060\u3051\u306B\u306A\u3063\u305F\u8ECD\u306F\u500D\u901F\u3067\u304D\u306A\u3044\u3002\u500D\u901F\u3076\u3093\u306E\u4E00\u6B69\u306F\u53D6\u308A\u6D88\u3057\u3066\u901A\u5E38\u306E\u6B69\u8ABF\u306B\u623B\u3059\u3002
+          // 配置駒が王だけになった軍は倍速できない
           if ((a.speedMult || 1) > 1 && mine.length <= 1) {
             a.speedMult = 1;
             if (!isFullTick) continue;
           }
           const d = marchDirFor(W2, a, kings, mine, getLootGrid);
           if (d) movers.push({ army: a, dx: d[0], dy: d[1] });
-          else if ((a.speedMult || 1) > 1) a.speedMult = 1; // \u9032\u8ECD\u3057\u3066\u3044\u306A\u3044\u8ECD\u306F\u500D\u901F\u3092\u7DAD\u6301\u3057\u306A\u3044
+          else if ((a.speedMult || 1) > 1) a.speedMult = 1; // 進軍していない軍は倍速を維持しない
         }
         if (movers.length) {
           const myMover = W2.playerId != null ? movers.find((m) => m.army.id === W2.playerId) : null;
           const ev = resolveSimultaneousMarch(W2, movers, byOwner);
           if (ev.collisions.length) {
             const c = ev.collisions[0];
-            W2.msg = `\u6FC0\u7A81! ${c.loser.name}\u306E${kanjiOf(c.piece, W2.playerId)}\u304C\u8E0F\u307F\u8CA0\u3051\u305F(\u885D\u7A81${ev.collisions.length}\u4EF6)`;
+            W2.msg = `激突! ${c.loser.name}の${pieceWord(c.piece, W2.playerId)}が踏み負けた(衝突${ev.collisions.length}件)`;
           } else if (ev.trampledTotal) {
-            W2.msg = `\u9032\u8ECD\u3067${ev.trampledTotal}\u679A\u304C\u8E0F\u307F\u6F70\u3055\u308C\u305F`;
+            W2.msg = `進軍で${ev.trampledTotal}枚が踏み潰された`;
           }
           for (const kk of ev.kingsKilled) handleDefeat(W2, W2.armies.find((x) => x.id === kk.id), W2.armies[kk.by] || null);
           if (W2.over) return;
@@ -1923,8 +2101,8 @@ function OpenWorldShogi() {
       }
     }
     if (!W2.over && W2.mode !== "openworld") {
-      // \u500D\u901F\u4E2D\u306E\u8ECD\u306F\u3001\u914D\u7F6E\u3057\u3066\u3044\u308B\u99D2(\u738B\u4EE5\u5916)\u306E\u6570\u30920.9\u500D(\u5C0F\u6570\u5207\u308A\u6368\u3066)\u306B\u6E1B\u3089\u3059\u3002
-      // 4\u500D\u901F\u306F10\u79D2\u3054\u3068\u300116\u500D\u901F\u306F1\u79D2\u3054\u3068\u3002\u6E1B\u3063\u305F\u99D2\u306F\u76E4\u304B\u3089\u6D88\u3048\u308B(\u6B8B\u9AB8\u306B\u3059\u308B\u3068\u81EA\u8ECD\u304C\u3059\u3050\u8E0F\u3093\u3067\u6301\u3061\u99D2\u306B\u56DE\u53CE\u3067\u304D\u3066\u3057\u307E\u3046)\u3002
+      // 倍速中の軍は、配置している駒(王以外)の数を0.9倍(小数切り捨て)に減らす。
+      // 4倍速は10秒ごと、16倍速は1秒ごと。減った駒は盤から消える。
       let dueDecay = null;
       for (const a of W2.armies) {
         const m = a.speedMult || 1;
@@ -1932,8 +2110,6 @@ function OpenWorldShogi() {
         const interval = m >= 16 ? 1000 : 10000;
         const pending = a.decayNext || 0;
         if (a.decayMult !== m || pending <= t - interval) {
-          // \u500D\u7387\u3092\u5909\u3048\u305F/\u3057\u3070\u3089\u304F\u7B49\u500D\u3060\u3063\u305F \u2192 1\u9593\u9694\u3076\u3093\u5F85\u3063\u3066\u304B\u3089\u6E1B\u3089\u3057\u59CB\u3081\u308B(\u9045\u308C\u3092\u53D6\u308A\u623B\u3059\u9023\u7D9A\u6E1B\u8870\u306F\u3057\u306A\u3044)\u3002
-          // \u305F\u3060\u3057\u9593\u3082\u306A\u304F\u6765\u308B\u4E88\u5B9A\u304C\u65E2\u306B\u3042\u308C\u3070\u305D\u3061\u3089\u3092\u512A\u5148\u3059\u308B(\u7D30\u304B\u304F\u5207\u308A\u66FF\u3048\u3066\u6E1B\u8870\u3092\u9003\u308C\u308B\u6297\u3051\u9053\u3092\u585E\u3050)\u3002
           const next = t + interval;
           a.decayNext = pending > t && pending < next ? pending : next;
           a.decayMult = m;
@@ -1941,11 +2117,10 @@ function OpenWorldShogi() {
         }
         if (t < pending) continue;
         a.decayNext = t + interval;
-        (dueDecay || (dueDecay = /* @__PURE__ */ new Set())).add(a.id);
+        (dueDecay || (dueDecay = new Set())).add(a.id);
       }
       if (dueDecay) {
-        // \u6E1B\u8870\u3055\u305B\u308B\u8ECD\u306E\u99D2\u3092\u76E4\u97621\u56DE\u306E\u8D70\u67FB\u3067\u307E\u3068\u3081\u3066\u96C6\u3081\u308B(\u4EE5\u524D\u306F\u8ECD\u3054\u3068\u306B\u76E4\u9762\u5168\u4F53\u3092\u8D70\u67FB\u3057\u3066\u3044\u305F)\u3002
-        const keysOf = /* @__PURE__ */ new Map();
+        const keysOf = new Map();
         for (const [k, p] of W2.cells) {
           if (p.t === "K" || !dueDecay.has(p.owner)) continue;
           let list = keysOf.get(p.owner);
@@ -1966,12 +2141,11 @@ function OpenWorldShogi() {
           if (left <= 0) {
             a.speedMult = 1;
           } else if (id !== W2.playerId) {
-            // AI\u306F\u99D2\u304C\u6E1B\u3063\u3066\u304D\u305F\u3089\u81EA\u5206\u3067\u901F\u5EA6\u3092\u843D\u3068\u3059(\u738B\u3060\u3051\u306B\u306A\u308B\u307E\u3067\u7206\u8D70\u3057\u306A\u3044)
             if (a.speedMult >= 16 && left < 12) a.speedMult = 4;
             else if (a.speedMult === 4 && left < 5) a.speedMult = 1;
           }
           if (id === W2.playerId) {
-            W2.msg = left <= 0 ? "\u914D\u7F6E\u99D2\u304C\u5C3D\u304D\u305F\u306E\u3067\u7B49\u500D\u306B\u623B\u3063\u305F" : `\u500D\u901F\u3067\u914D\u7F6E\u99D2\u3092${remove}\u679A\u5931\u3063\u305F(\u6B8B\u308A${left}\u679A)`;
+            W2.msg = left <= 0 ? "配置駒が尽きたので等倍に戻った" : `倍速で配置駒を${remove}枚失った(残り${left}枚)`;
             if (W2.sel && !W2.cells.has(K(W2.sel.x, W2.sel.y))) W2.sel = null;
           }
         }
@@ -1988,7 +2162,7 @@ function OpenWorldShogi() {
     const dueThisFrame = aiDue.slice(0, aiBudget);
     let piecesByOwner = null;
     if (dueThisFrame.length) {
-      const need = /* @__PURE__ */ new Set();
+      const need = new Set();
       for (const a of dueThisFrame) {
         need.add(a.id);
         const zr = (a.zone ? a.zone.r : 0) + 2;
@@ -2000,7 +2174,7 @@ function OpenWorldShogi() {
           need.add(oa.id);
         }
       }
-      piecesByOwner = /* @__PURE__ */ new Map();
+      piecesByOwner = new Map();
       for (const [k, p] of W2.cells) {
         if (!need.has(p.owner)) continue;
         let list = piecesByOwner.get(p.owner);
@@ -2023,6 +2197,7 @@ function OpenWorldShogi() {
         const rot = aiWantRotation(W2, a, kings);
         if (rot !== 0 && Math.random() < 0.7) {
           a.facing = (a.facing + (rot > 0 ? 1 : 3)) % 4;
+          refreshZone(a);
           a.lastAction = t;
         } else {
           const act = aiPickAction(W2, a, kings, piecesByOwner);
@@ -2044,16 +2219,16 @@ function OpenWorldShogi() {
   }
   function attemptPlayerAction(fn, netPayload) {
     const W2 = g.current;
-    if (W2.playerId === null) return;
+    if (W2.playerId === null || pausedRef.current) return;
     const player2 = W2.armies[W2.playerId];
     if (!player2.alive) {
-      W2.msg = "\u7389\u304C\u8A0E\u305F\u308C\u3066\u3044\u308B\u3002\u6307\u305B\u306A\u3044\u3002";
+      W2.msg = `${kingWord()}が討たれている。指せない。`;
       bump();
       return;
     }
     const remain = MOVE_COOLDOWN - (now() - player2.lastMove);
     if (remain > 0) {
-      W2.msg = `\u30AF\u30FC\u30EB\u30C0\u30A6\u30F3\u4E2D(\u3042\u3068${(remain / 1e3).toFixed(1)}s)`;
+      W2.msg = `クールダウン中(あと${(remain / 1e3).toFixed(1)}s)`;
       bump();
       return;
     }
@@ -2065,7 +2240,7 @@ function OpenWorldShogi() {
   }
   function handleTapAt(clientX, clientY) {
     const W2 = g.current;
-    if (!started || W2.over) return;
+    if (!started || W2.over || pausedRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const px = clientX - rect.left, py = clientY - rect.top;
     const cam = camRef.current;
@@ -2081,12 +2256,12 @@ function OpenWorldShogi() {
         if (a.zone.set.has(K(wx, wy))) {
           if (W2.focusId === a.id) {
             W2.focusId = null;
-            W2.msg = "\u9078\u629E\u89E3\u9664";
+            W2.msg = "選択解除";
           } else {
             W2.focusId = a.id;
             camRef.current.manualMode = false;
             camRef.current.rot = -a.facing * (Math.PI / 2);
-            W2.msg = `\u6CE8\u76EE: ${a.name}`;
+            W2.msg = `注目: ${a.name}`;
           }
           bump();
           return;
@@ -2096,13 +2271,13 @@ function OpenWorldShogi() {
     }
     const player2 = W2.armies[W2.playerId];
     if (!player2.alive) return;
-    const zoneSet = player2.zone ? player2.zone.set : /* @__PURE__ */ new Set();
+    const zoneSet = player2.zone ? player2.zone.set : new Set();
     const k = K(wx, wy), p = W2.cells.get(k);
     if (W2.handSel) {
       if (zoneSet.has(k) && !p) {
         attemptPlayerAction(() => {
           applyAction(W2, player2, { kind: "drop", type: W2.handSel, tx: wx, ty: wy });
-          W2.msg = "\u99D2\u3092\u6253\u3063\u305F\u3002";
+          W2.msg = "駒を打った。";
         }, { type: "drop", dropType: W2.handSel, tx: wx, ty: wy });
         W2.handSel = null;
         W2.dropSpots = null;
@@ -2120,8 +2295,8 @@ function OpenWorldShogi() {
         return;
       }
       const victim = W2.cells.get(k);
-      const canPr = PROMOTABLE[mover.t] && !mover.promoted && (!!victim || isInHostileZone(wx, wy, W2.playerId, W2.armies) || isInHostileZone(W2.sel.x, W2.sel.y, W2.playerId, W2.armies));
       const fx = W2.sel.x, fy = W2.sel.y;
+      const canPr = promoCheck(mover, victim, fx, fy, wx, wy, W2.playerId, W2.armies);
       attemptPlayerAction(() => {
         const v = applyAction(W2, player2, { kind: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
         if (v && v.t === "K") {
@@ -2129,7 +2304,8 @@ function OpenWorldShogi() {
           addKillGrowth(player2, dead ? dead.kills || 0 : 0);
           handleDefeat(W2, dead, player2);
         }
-        W2.msg = (v ? `${KANJI[v.t] || "\u7389"}\u3092\u53D6\u3063\u305F\u3002` : "\u79FB\u52D5\u3057\u305F\u3002") + (canPr ? "\u6210\u3063\u305F\u3002" : "");
+        const promoMsg = canPr ? (isChess() ? "クイーンに昇格!" : "成った。") : "";
+        W2.msg = (v ? `${v.t === "K" ? (isChess() ? "キング" : "玉") : pieceWord(v, W2.playerId)}を取った。` : "移動した。") + promoMsg;
       }, { type: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
       W2.sel = null;
       bump();
@@ -2137,7 +2313,7 @@ function OpenWorldShogi() {
     }
     if (p && p.owner === W2.playerId) {
       W2.sel = { x: wx, y: wy, moves: legalMovesFrom(W2.cells, wx, wy, player2.facing, zoneSet) };
-      W2.msg = "\u79FB\u52D5\u5148(\u7DD1\u4E38/\u8D64\u67A0)\u3092\u30BF\u30C3\u30D7\u3002";
+      W2.msg = "移動先(緑丸/赤枠)をタップ。";
       bump();
       return;
     }
@@ -2152,25 +2328,27 @@ function OpenWorldShogi() {
     const player2 = W2.armies[W2.playerId];
     attemptPlayerAction(() => {
       player2.facing = (player2.facing + (dir > 0 ? 1 : 3)) % 4;
-      W2.msg = "\u9663\u5F62\u3092\u56DE\u8EE2\u3057\u305F\u3002";
+      refreshZone(player2);
+      W2.msg = "陣形を回転した。";
+      const zoneSet = player2.zone ? player2.zone.set : new Set();
       if (W2.sel) {
-        const zoneSet = player2.zone ? player2.zone.set : new Set();
         W2.sel = { x: W2.sel.x, y: W2.sel.y, moves: legalMovesFrom(W2.cells, W2.sel.x, W2.sel.y, player2.facing, zoneSet) };
       }
       if (W2.dropSpots && W2.handSel) {
-        const zoneSet = player2.zone ? player2.zone.set : new Set();
         W2.dropSpots = dropTargets(W2.cells, zoneSet);
       }
     }, { type: "rotate", dir });
   }
-  const REL_LABEL = { front: "\u524D", back: "\u5F8C", left: "\u5DE6", right: "\u53F3", frontLeft: "\u659C\u3081\u5DE6\u524D", frontRight: "\u659C\u3081\u53F3\u524D", backLeft: "\u659C\u3081\u5DE6\u5F8C", backRight: "\u659C\u3081\u53F3\u5F8C" };
+  const REL_LABEL_EN = { front: "Forward", back: "Back", left: "Left", right: "Right", frontLeft: "Fwd-left", frontRight: "Fwd-right", backLeft: "Back-left", backRight: "Back-right" };
+  const relLabel = (k) => owsLang === "en" ? REL_LABEL_EN[k] : REL_LABEL[k];
+  const REL_LABEL = { front: "前", back: "後", left: "左", right: "右", frontLeft: "斜め左前", frontRight: "斜め右前", backLeft: "斜め左後", backRight: "斜め右後" };
   function setMarchDirection(rel) {
     const W2 = g.current;
     if (W2.playerId === null) return;
     const player2 = W2.armies[W2.playerId];
     if (!player2.alive) return;
     lastRelRef.current = rel;
-    W2.msg = `\u9032\u8ECD: ${REL_LABEL[rel]}\u3078`;
+    W2.msg = `進軍: ${REL_LABEL[rel]}へ`;
     player2.marchRel = rel;
     if (isNetGuest()) netSend({ type: "targetRel", rel });
     bump();
@@ -2181,18 +2359,18 @@ function OpenWorldShogi() {
     lastRelRef.current = null;
     W2.armies[W2.playerId].marchRel = null;
     W2.armies[W2.playerId].target = null;
-    W2.armies[W2.playerId].speedMult = 1; // \u9032\u8ECD\u3092\u6B62\u3081\u305F\u3089\u500D\u901F\u3082\u89E3\u9664
+    W2.armies[W2.playerId].speedMult = 1; // 進軍を止めたら倍速も解除
     if (W2.sel) {
       const p = W2.cells.get(K(W2.sel.x, W2.sel.y));
       if (!p || p.owner !== W2.playerId) W2.sel = null;
     }
-    W2.msg = "\u9032\u8ECD\u3092\u505C\u6B62\u3057\u305F\u3002";
+    W2.msg = "進軍を停止した。";
     if (isNetGuest()) netSend({ type: "stopTarget" });
     bump();
   }
   const tapRef = useRef(null);
   tapRef.current = handleTapAt;
-  const gestureRef = useRef({ pointers: /* @__PURE__ */ new Map(), dragStart: null, pinchStart: null, moved: false, tapCandidate: false });
+  const gestureRef = useRef({ pointers: new Map(), dragStart: null, pinchStart: null, moved: false, tapCandidate: false });
   function adjustZoom(mult) {
     const cam = camRef.current;
     cam.zoom = Math.max(0.02, Math.min(40, (cam.zoom || 1) * mult));
@@ -2335,7 +2513,7 @@ function OpenWorldShogi() {
       const r = (v) => (Math.round(v * 1e3) / 1e3).toFixed(3).padStart(9);
       wdRows.unshift(
         "dx=" + r(e.deltaX) + " dy=" + r(e.deltaY) + " | " + branch +
-        " rot=" + (Math.round(cam.rot * 57.3) || 0) + "\xB0 s=" + (Math.round(cam.s * 10) / 10) +
+        " rot=" + (Math.round(cam.rot * 57.3) || 0) + "° s=" + (Math.round(cam.s * 10) / 10) +
         " | movedX=" + r(movedX) + (clampedX ? "!" : " ") +
         " movedY=" + r(movedY) + (clampedY ? "!" : " ")
       );
@@ -2348,8 +2526,8 @@ function OpenWorldShogi() {
         document.body.appendChild(wdBox);
       }
       wdBox.textContent =
-        "n=" + wdAgg.n + "  \u4E21\u8EF8\u540C\u6642=" + wdAgg.both +
-        "  X\u30AF\u30E9\u30F3\u30D7=" + wdAgg.clampX + "  Y\u30AF\u30E9\u30F3\u30D7=" + wdAgg.clampY +
+        "n=" + wdAgg.n + "  両軸同時=" + wdAgg.both +
+        "  Xクランプ=" + wdAgg.clampX + "  Yクランプ=" + wdAgg.clampY +
         "  cam=(" + (Math.round(cam.x * 10) / 10) + "," + (Math.round(cam.y * 10) / 10) + ")\n" +
         wdRows.join("\n");
     }
@@ -2399,11 +2577,12 @@ function OpenWorldShogi() {
       W2.handSel = t;
       W2.sel = null;
       W2.dropSpots = player2.zone ? dropTargets(W2.cells, player2.zone.set) : [];
-      W2.msg = "\u81EA\u9663\u306E\u53EF\u52D5\u57DF\u5185\u306E\u7A7A\u304D\u30DE\u30B9\u306B\u6253\u3066\u308B\u3002";
+      W2.msg = "自陣の可動域内の空きマスに打てる。";
     }
     bump();
   }
   function draw(cv, wrap, W2) {
+    const chess = W2.variant === "chess";
     const dpr = window.devicePixelRatio || 1;
     const Wd = wrap.clientWidth, Hd = wrap.clientHeight;
     if (cv.width !== Wd * dpr || cv.height !== Hd * dpr) {
@@ -2421,10 +2600,11 @@ function OpenWorldShogi() {
     let tX, tY, tScale;
     if (focusArmyForCam) {
       const zr = (focusArmyForCam.zone ? focusArmyForCam.zone.r : ZONE_R_BASE) + 3;
-      const cxA = focusArmyForCam.center[0], cyA = focusArmyForCam.center[1];
+      const zs = focusArmyForCam.zone ? focusArmyForCam.zone.set : null;
       tScale = Math.max(2, Math.min(30, Math.min(Wd / (zr * 2), Hd / (zr * 2))));
-      tX = cxA + 0.5;
-      tY = cyA + 0.5;
+      // 可動域の真ん中にカメラを合わせる(チェスは偶数マスなので王の位置から半マスずれる)
+      tX = zs ? (zs.x0 + zs.x1 + 1) / 2 : focusArmyForCam.center[0] + 0.5;
+      tY = zs ? (zs.y0 + zs.y1 + 1) / 2 : focusArmyForCam.center[1] + 0.5;
       cam.baseScale = tScale;
     } else {
       tScale = cam.baseScale || cam.s;
@@ -2450,18 +2630,49 @@ function OpenWorldShogi() {
     ctx.translate(Wd / 2, Hd / 2);
     ctx.rotate(cam.rot);
     ctx.translate(-Wd / 2, -Hd / 2);
-    ctx.fillStyle = C.board;
-    ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
+    if (chess) {
+      // チェス盤: 明るい灰色と濃い灰色の市松模様に、金属のような縦の筋を重ねる。
+      // マスは見えている範囲だけ1回の塗りでまとめて描く(拡大縮小してもぼやけない)。
+      ctx.fillStyle = S >= 4 ? C.chessLight : C.chessMid;
+      ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
+      if (S >= 4) {
+        const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W - 1, Math.ceil(vx1));
+        const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H - 1, Math.ceil(vy1));
+        ctx.fillStyle = C.chessDark;
+        ctx.beginPath();
+        for (let y = gy0; y <= gy1; y++) for (let x = gx0 + ((gx0 + y + 1) & 1); x <= gx1; x += 2) ctx.rect(sx(x), sy(y), S, S);
+        ctx.fill();
+        const bp = brushPattern(ctx);
+        if (bp && bp.setTransform && typeof DOMMatrix !== "undefined") {
+          const k = S / 128; // 筋の模様1枚 = 2マス分
+          bp.setTransform(new DOMMatrix([k, 0, 0, k, sx(0), sy(0)]));
+          ctx.fillStyle = bp;
+          ctx.fillRect(sx(gx0), sy(gy0), (gx1 - gx0 + 1) * S, (gy1 - gy0 + 1) * S);
+        }
+        if (S >= 18) {
+          // マスの境目にごく細い影を入れて、1マスずつの板に見せる
+          ctx.strokeStyle = "rgba(0,0,0,0.10)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let x = gx0; x <= gx1 + 1; x++) { ctx.moveTo(sx(x), sy(gy0)); ctx.lineTo(sx(x), sy(gy1 + 1)); }
+          for (let y = gy0; y <= gy1 + 1; y++) { ctx.moveTo(sx(gx0), sy(y)); ctx.lineTo(sx(gx1 + 1), sy(y)); }
+          ctx.stroke();
+        }
+      }
+    } else {
+      ctx.fillStyle = C.board;
+      ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
+    }
     ctx.strokeStyle = "rgba(74,52,26,0.35)";
     ctx.lineWidth = 8;
     ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
-    ctx.strokeStyle = C.boardEdge;
+    ctx.strokeStyle = chess ? C.chessEdge : C.boardEdge;
     ctx.lineWidth = 3;
     ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
     ctx.strokeStyle = "rgba(255,235,190,0.35)";
     ctx.lineWidth = 1;
     ctx.strokeRect(sx(0) + 4, sy(0) + 4, MAP_W * S - 8, MAP_H * S - 8);
-    if (S >= 4) {
+    if (!chess && S >= 4) {
       ctx.fillStyle = "rgba(139,111,62,0.14)";
       for (const [x, y, r] of W2.speckles) {
         if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
@@ -2470,7 +2681,7 @@ function OpenWorldShogi() {
         ctx.fill();
       }
     }
-    if (S >= 6) {
+    if (!chess && S >= 6) {
       const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W, Math.ceil(vx1));
       const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H, Math.ceil(vy1));
       ctx.strokeStyle = "rgba(74,52,26,0.22)";
@@ -2489,8 +2700,9 @@ function OpenWorldShogi() {
     for (const a of W2.armies) {
       if (!a.alive || !a.zone) continue;
       const zr = a.zone.r;
-      const x0 = Math.max(0, a.center[0] - zr), x1 = Math.min(MAP_W - 1, a.center[0] + zr);
-      const y0 = Math.max(0, a.center[1] - zr), y1 = Math.min(MAP_H - 1, a.center[1] + zr);
+      const zs = a.zone.set;
+      const x0 = Math.max(0, zs.x0), x1 = Math.min(MAP_W - 1, zs.x1);
+      const y0 = Math.max(0, zs.y0), y1 = Math.min(MAP_H - 1, zs.y1);
       if (x1 < vx0 || x0 > vx1 || y1 < vy0 || y0 > vy1) continue;
       const col = (W2.playerId != null && a.id === W2.playerId) ? PLAYER_COLOR : a.color;
       ctx.fillStyle = col.zone;
@@ -2525,25 +2737,23 @@ function OpenWorldShogi() {
         ctx.restore();
       }
     }
-    // \u753B\u9762\u306B\u6620\u3063\u3066\u3044\u308B\u7BC4\u56F2\u306E\u30DE\u30B9\u3060\u3051\u3092\u5F15\u3044\u3066\u99D2\u3092\u63CF\u304F\u3002\u62E1\u5927\u8868\u793A\u3067\u306F\u3001\u76E4\u9762\u5168\u4F53(\u6570\u4E07\u679A)\u3092\u6BCE\u30D5\u30EC\u30FC\u30E0\u8D70\u67FB\u3057\u3066
-    // \u5EA7\u6A19\u306E\u6587\u5B57\u5217\u3092\u5206\u89E3\u3059\u308B\u3088\u308A\u6841\u9055\u3044\u306B\u901F\u3044\u3002\u898B\u3048\u308B\u7BC4\u56F2\u306E\u65B9\u304C\u5E83\u3044\u7E2E\u5C0F\u8868\u793A\u3067\u306F\u5168\u99D2\u3092\u8D70\u67FB\u3059\u308B\u3002
+    // 画面に映っている範囲のマスだけを引いて駒を描く。
     const px0 = Math.max(0, Math.floor(vx0)), px1 = Math.min(MAP_W - 1, Math.ceil(vx1));
     const py0 = Math.max(0, Math.floor(vy0)), py1 = Math.min(MAP_H - 1, Math.ceil(vy1));
-    // \u7E2E\u5C0F\u8868\u793A\u306E\u99D2\u306F\u8272\u3054\u3068\u306B\u307E\u3068\u3081\u30661\u56DE\u3067\u5857\u308B(\u99D21\u679A\u3054\u3068\u306B\u5857\u308A\u8272\u3092\u5207\u308A\u66FF\u3048\u308B\u3068\u91CD\u3044)
-    const chipBatch = S < 5 ? /* @__PURE__ */ new Map() : null;
-    // \u99D2\u306E\u5F62\u306F\u540C\u3058\u500D\u7387\u306A\u3089\u5168\u99D2\u5171\u901A\u306A\u306E\u3067\u30011\u30D5\u30EC\u30FC\u30E0\u306B1\u56DE\u3060\u3051\u4F5C\u3063\u3066\u4F7F\u3044\u56DE\u3059
-    const komaPath = chipBatch ? null : makeKomaPath(S);
+    // 縮小表示の駒は色ごとにまとめて1回で塗る
+    const chipBatch = S < 5 ? new Map() : null;
+    // 駒の形は同じ倍率なら全駒共通なので、1フレームに1回だけ作って使い回す
+    const komaPath = chipBatch || chess ? null : makeKomaPath(S);
     const tNow = now();
-    // \u99D2\u306E\u5F71\u306F shadowBlur(\u307C\u304B\u3057)\u3092\u4F7F\u308F\u305A\u3001\u753B\u9762\u306E\u4E0B\u65B9\u5411\u3078\u5C11\u3057\u305A\u3089\u3057\u305F\u534A\u900F\u660E\u306E\u540C\u3058\u5F62\u3092\u5148\u306B\u5857\u3063\u3066\u8868\u3059\u3002
-    // \u307C\u304B\u3057\u5F71\u306F canvas \u3067\u6700\u3082\u91CD\u3044\u51E6\u7406\u3067\u3001\u62E1\u5927\u8868\u793A\u3067\u306F\u753B\u9762\u5185\u306E\u5168\u99D2\u306B\u6BCE\u30D5\u30EC\u30FC\u30E0\u304B\u304B\u3063\u3066\u3044\u305F\u3002
-    // (\u5143\u306E\u5F71\u306F\u7AEF\u672B\u306E\u753B\u7D20\u5358\u4F4D\u3067\u305A\u308C\u3066\u3044\u305F\u306E\u3067\u3001\u305A\u3089\u3059\u91CF\u3082\u753B\u7D20\u5BC6\u5EA6\u3067\u5272\u3063\u3066\u5408\u308F\u305B\u308B)
+    const chessGrads = chess && !chipBatch ? makeChessGrads(ctx) : null;
+    // 駒の影は shadowBlur を使わず、少しずらした半透明の同じ形を先に塗って表す
     const shadowOn = S >= 14;
     const shD = Math.max(1, S * 0.05 / dpr), shX = Math.sin(cam.rot) * shD, shY = Math.cos(cam.rot) * shD;
     if (!chipBatch && S >= 11) {
-      // \u6587\u5B57\u306E\u66F8\u4F53\u6307\u5B9A\u306F\u6BCE\u56DE\u89E3\u6790\u304C\u8D70\u308B\u306E\u3067\u30011\u30D5\u30EC\u30FC\u30E0\u306B1\u56DE\u3060\u3051\u8A2D\u5B9A\u3059\u308B
-      ctx.font = `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
+      ctx.font = chess ? `${Math.floor(S * 0.8)}px ${CHESSFONT}` : `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
     }
     const drawPieceAt = (x, y, p) => {
       const army = W2.armies[p.owner];
@@ -2557,29 +2767,54 @@ function OpenWorldShogi() {
       }
       const selected = W2.sel && W2.sel.x === x && W2.sel.y === y;
       const pr = army.facing * Math.PI / 2;
-      if (shadowOn) {
+      const canAct = tNow - army.lastAction >= MOVE_COOLDOWN;
+      if (chess) {
+        // チェスの駒: 自軍は白駒、他軍は黒駒。台座の帯の色でどの軍か見分ける。残骸は半透明。
+        const isLoot = !army.alive;
+        const light = !isLoot && W2.playerId != null && army.id === W2.playerId;
+        if (selected) {
+          ctx.fillStyle = canAct ? "rgba(166,204,70,0.88)" : "rgba(232,96,76,0.6)";
+          ctx.fillRect(sx(x), sy(y), S, S);
+        }
         ctx.save();
-        ctx.translate(cx + shX, cy + shY);
+        ctx.translate(cx, cy);
         ctx.rotate(pr);
-        ctx.fillStyle = "rgba(20,12,4,0.35)";
+        if (shadowOn) {
+          ctx.fillStyle = "rgba(0,0,0,0.22)";
+          ctx.beginPath();
+          ctx.ellipse(S * 0.03, S * 0.44, S * 0.36, S * 0.07, 0, 0, 7);
+          ctx.fill();
+        }
+        const k = S / 100 * 1.14;
+        ctx.scale(k, k);
+        ctx.translate(-50, -50);
+        if (isLoot) ctx.globalAlpha = 0.55;
+        drawChessPiece(ctx, p.t, light, isLoot ? "#8d8d8a" : col.chip, chessGrads, S >= 9);
+        ctx.restore();
+      } else {
+        if (shadowOn) {
+          ctx.save();
+          ctx.translate(cx + shX, cy + shY);
+          ctx.rotate(pr);
+          ctx.fillStyle = "rgba(20,12,4,0.35)";
+          ctx.fill(komaPath);
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(pr);
+        ctx.fillStyle = col.fill;
         ctx.fill(komaPath);
+        ctx.lineWidth = selected ? 2.8 : 1.8;
+        ctx.strokeStyle = selected ? (canAct ? "#9FD08A" : C.danger) : col.edge;
+        ctx.stroke(komaPath);
+        if (S >= 11) {
+          ctx.fillStyle = p.promoted ? col.prom : col.text;
+          ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.06);
+        }
         ctx.restore();
       }
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(pr);
-      ctx.fillStyle = col.fill;
-      ctx.fill(komaPath);
-      const canAct = tNow - army.lastAction >= MOVE_COOLDOWN;
-      ctx.lineWidth = selected ? 2.8 : 1.8;
-      ctx.strokeStyle = selected ? (canAct ? "#9FD08A" : C.danger) : col.edge;
-      ctx.stroke(komaPath);
-      if (S >= 11) {
-        ctx.fillStyle = p.promoted ? col.prom : col.text;
-        ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.06);
-      }
-      ctx.restore();
-      if (!army.alive && S >= 10) {
+      if (!chess && !army.alive && S >= 10) {
         ctx.strokeStyle = "rgba(0,0,0,0.6)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -2611,6 +2846,38 @@ function OpenWorldShogi() {
         for (let i = 0; i < list.length; i += 2) ctx.rect(list[i], list[i + 1], cw, cw);
         ctx.fill();
       }
+    }
+    // 自軍(観戦中は注目している軍)の可動域をはっきり見せる:
+    // 外側を少し暗くし、境目を光る金の枠と四隅のかぎで囲む。
+    const hl = focusArmyForCam && focusArmyForCam.alive && focusArmyForCam.zone ? focusArmyForCam : null;
+    if (hl) {
+      const zs = hl.zone.set;
+      const zx0 = Math.max(0, zs.x0), zx1 = Math.min(MAP_W - 1, zs.x1), zy0 = Math.max(0, zs.y0), zy1 = Math.min(MAP_H - 1, zs.y1);
+      const rx = sx(zx0), ry = sy(zy0), rw = (zx1 - zx0 + 1) * S, rh = (zy1 - zy0 + 1) * S;
+      const mine = isCommanding(W2);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(sx(vx0 - 2), sy(vy0 - 2), (vx1 - vx0 + 4) * S, (vy1 - vy0 + 4) * S);
+      ctx.rect(rx, ry, rw, rh);
+      ctx.fillStyle = mine ? "rgba(10,8,4,0.12)" : "rgba(10,8,4,0.07)";
+      ctx.fill("evenodd");
+      ctx.shadowColor = "rgba(255,206,96,0.45)";
+      ctx.shadowBlur = 5;
+      ctx.strokeStyle = "rgba(255,211,106,0.7)";
+      ctx.lineWidth = 1.8;
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.shadowBlur = 0;
+      const cl = Math.max(6, Math.min(rw, rh) * 0.09);
+      ctx.lineWidth = 3;
+      ctx.lineCap = "square";
+      ctx.strokeStyle = "rgba(255,226,154,0.8)";
+      ctx.beginPath();
+      ctx.moveTo(rx, ry + cl); ctx.lineTo(rx, ry); ctx.lineTo(rx + cl, ry);
+      ctx.moveTo(rx + rw - cl, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + cl);
+      ctx.moveTo(rx + rw, ry + rh - cl); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw - cl, ry + rh);
+      ctx.moveTo(rx + cl, ry + rh); ctx.lineTo(rx, ry + rh); ctx.lineTo(rx, ry + rh - cl);
+      ctx.stroke();
+      ctx.restore();
     }
     if (W2.playerId !== null) {
       const spots = W2.sel ? W2.sel.moves : W2.dropSpots || [];
@@ -2650,7 +2917,9 @@ function OpenWorldShogi() {
       ctx.globalAlpha = 1;
     }
   }
+  const h = React.createElement;
   const W = g.current;
+  const worldChess = W.variant === "chess";
   const player0 = W.playerId !== null ? W.armies[W.playerId] || null : null;
   const isPlay = W.playerId !== null && player0 !== null && !W.myDefeated;
   const player = player0;
@@ -2661,230 +2930,337 @@ function OpenWorldShogi() {
   const hand = player ? player.hand || {} : {};
   let myPieceCount = 0;
   if (isPlay) for (const p of W.cells.values()) if (p.owner === W.playerId && p.t !== "K") myPieceCount++;
-  const leader = W.armies.reduce((b, a) => a.kills > (b ? b.kills : 0) ? a : b, null);
   let marchStatus = null, marching = false;
   if (isPlay && player && player.alive) {
     if (player.marchRel && lastRelRef.current) {
-      marchStatus = REL_LABEL[lastRelRef.current] || "\u524D";
+      marchStatus = relLabel(lastRelRef.current) || relLabel("front");
       marching = true;
     } else {
-      marchStatus = "\u505C\u6B62";
+      marchStatus = tr("停止", "Stopped");
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", flexWrap: "wrap", minWidth: 0 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 0, color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, started ? W.mode === "openworld" ? `\u30CD\u30C3\u30C8\u5BFE\u6226${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}` : isPlay ? "AI\u5BFE\u6226" : "AI\u89B3\u6226" : "-"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setShowArmyList((v) => !v), title: "\u8ECD\u4E00\u89A7", style: { fontSize: 9, padding: "3px 7px", borderRadius: 8, background: showArmyList ? "rgba(201,169,106,0.28)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${C.gold}55`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3, display: "inline-flex", alignItems: "center", gap: 3 } }, "\u6B8B\u5B58 ", remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 8, rotate: showArmyList ? 0 : 180 })), started && /* @__PURE__ */ React.createElement("button", { onClick: () => setConfirmExit(true), title: "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B", style: { fontSize: 11, width: 26, height: 24, padding: 0, borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 } }, "\u2715")), started && /* @__PURE__ */ React.createElement("div", { style: { maxHeight: showArmyList ? 52 : 0, overflow: "hidden", transition: "max-height 220ms ease", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } }, (showArmyList ? [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id) : []).map((a, i) => {
-    const isSelf = isPlay && a.id === W.playerId;
-    const isFocus = !isPlay && a.id === W.focusId;
-    return /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        key: a.id,
+  const paused = confirmExit && pausedRef.current;
+  const panelStyle = { background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)" };
+  const modeBadge = started
+    ? W.mode === "openworld"
+      ? `${tr("ネット対戦", "Online")}${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}`
+      : lang === "en"
+        ? `${worldChess ? "Chess" : "Shogi"} ${isPlay ? "vs AI" : "watch"}`
+        : `${worldChess ? "チェス" : "将棋"}・${isPlay ? "AI対戦" : "AI観戦"}`
+    : "-";
+  // タイトル画面の説明(選んでいるワールドと言語に合わせて書き換える)
+  const tc = variant === "chess";
+  const en = lang === "en";
+  const kw = tc ? tr("キング", "king") : tr("王", "king");
+  const introRows = [
+    [tr("世界", "World"), en
+      ? `Up to 200 named armies on a 480×480 land. Every army is everyone's enemy. ${tc ? "Only chess armies live in the chess world." : "Only shogi armies live in the shogi world."}`
+      : `480×480の大地に、二つ名を持つ最大200軍。全軍が互いに敵。${tc ? "チェスワールドにはチェスの軍だけが集まる。" : "将棋ワールドには将棋の軍だけが集まる。"}`],
+    [tr("可動域", "Zone"), tc
+      ? tr("駒が動けるのはキングを中心とした8×8。敵キングを討つたび縦横+2マス拡大(10×10、12×12…)。", "Your pieces can move inside an 8×8 zone around your king. Each enemy king you take grows it by 2 squares each way (10×10, 12×12…).")
+      : tr("駒が動けるのは王を中心とした9×9。敵王を討つたび縦横+2マス拡大(11×11、13×13…)。", "Your pieces can move inside a 9×9 zone around your king. Each enemy king you take grows it by 2 squares each way (11×11, 13×13…).")],
+  ];
+  if (tc) {
+    introRows.push([tr("持ち駒", "Hand"), tr("取った駒は持ち駒になり、自軍の可動域の空きマスに打てる(将棋と同じ)。", "Captured pieces go to your hand. You can drop them on any empty square in your zone, like in shogi.")]);
+  }
+  introRows.push(
+    [tr("進軍", "March"), tr("十字ボタンで方向を指定。全軍が15秒ごとに一斉前進し、止まった敵駒は踏み潰して捕獲。", "Pick a direction with the pad. Every army advances together every 15 seconds, trampling and capturing enemy pieces in the way."),
+      en ? "If two pieces land on the same square, only one survives. Kings too." : `同じマスに衝突したら、生き残るのは一方だけ。${kw}も例外なし。`],
+    [tr("倍速", "Speed"), en
+      ? "You can march at ×4 or ×16. At ×4 your board pieces drop to 0.9× every 10 seconds, at ×16 every second (the king is never lost). It needs board pieces and turns off when you stop marching."
+      : `進軍を倍速にできる。4倍は10秒ごと、16倍は1秒ごとに、盤上の配置駒が0.9倍に減る(${kw}は減らない)。配置駒がないと使えず、進軍を止めると等倍に戻る。`,
+      tr("敵も同じように倍速で攻めてくる。", "Enemies speed up and attack the same way.")],
+    [tr("指し手", "Moves"), tr("移動・打ち・回転は5秒に1回。敵も側面への回り込みを仕掛けてくる。", "You can move, drop, or rotate once every 5 seconds. Enemies will try to flank you.")],
+    [tr("一時停止", "Pause"), tr("対戦中に右上の✕を押すと一時停止。再開・観戦切替・タイトルへ戻るを選べる。", "Tap ✕ at the top right during a game to pause. Then resume, switch to watching, or go back to the title.")]
+  );
+  if (!tc) introRows.push([tr("ネット対戦", "Online"), tr("同じ世界に最大60軍でリアルタイム参加。誰もいなくても即参戦でき、後から合流もできる。離脱すると玉は消え、残りの駒は残骸として残る。", "Up to 60 armies share one live world. Join any time, even if it's empty. When you leave, your king disappears and your other pieces stay behind as wreckage.")]);
+  const langBtn = (key, label) => h("button", {
+    key, onClick: () => setLang(key), "aria-pressed": lang === key,
+    style: { fontSize: 12, padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontFamily: key === "en" ? ENFONT : SERIF,
+      background: lang === key ? C.gold : "transparent", color: lang === key ? "#1a1408" : C.sub, border: "none", fontWeight: lang === key ? 700 : 400 }
+  }, label);
+  const langSwitch = h("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 8 } },
+    h("div", { role: "group", "aria-label": "Language", style: { display: "inline-flex", gap: 2, padding: 2, borderRadius: 9, border: `1px solid ${C.panelEdge}`, background: "rgba(0,0,0,0.3)" } },
+      langBtn("ja", "日本語"), langBtn("en", "English")));
+  const variantBtn = (key, label, sub) => h("button", {
+    key,
+    onClick: () => setVariant(key),
+    "aria-pressed": variant === key,
+    style: {
+      flex: "1 1 0", minWidth: 0, padding: "clamp(7px,1.2vw,12px) 10px", borderRadius: 8, cursor: "pointer",
+      background: variant === key ? "rgba(227,194,126,0.22)" : "rgba(0,0,0,0.25)",
+      color: variant === key ? "#F0D48A" : C.sub,
+      border: `1px solid ${variant === key ? C.gold : C.panelEdge}`,
+      boxShadow: variant === key ? "inset 0 0 0 1px rgba(255,222,150,0.25)" : "none",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 2
+    }
+  },
+    h("span", { style: { fontFamily: SERIF, fontWeight: 800, fontSize: "clamp(14px,2vw,19px)" } }, label),
+    h("span", { style: { fontSize: "clamp(9.5px,1.2vw,12px)", opacity: 0.85 } }, sub)
+  );
+  return h("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
+    // ===== 上部バー =====
+    h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
+      h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 11.5 : "clamp(10px, 2.9vw, 12px)", fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋&チェス", "Open World Shogi & Chess")),
+      h("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, modeBadge),
+      h("span", { style: { flex: 1, minWidth: 0 } }),
+      started && h("button", { onClick: () => setShowArmyList((v) => !v), title: tr("軍一覧", "Armies"), style: { fontSize: 9, padding: "3px 7px", borderRadius: 8, background: showArmyList ? "rgba(201,169,106,0.28)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${C.gold}55`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3, display: "inline-flex", alignItems: "center", gap: 3 } }, tr("残存 ", "Alive "), remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, h(Icon, { name: "arrow", size: 8, rotate: showArmyList ? 0 : 180 })),
+      started && h("button", { onClick: openMenu, title: W.mode === "openworld" ? tr("メニュー", "Menu") : tr("一時停止", "Pause"), style: { fontSize: 11, width: 26, height: 24, padding: 0, borderRadius: 8, background: "rgba(232,96,76,0.12)", color: C.danger, border: `1px solid ${C.danger}55`, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 } }, "✕")
+    ),
+    // ===== 軍一覧 =====
+    started && h("div", { style: { maxHeight: showArmyList ? 52 : 0, overflow: "hidden", transition: "max-height 220ms ease", flexShrink: 0 } },
+      h("div", { className: "ows-scroll", style: { ...panelStyle, display: "flex", gap: 6, alignItems: "center", padding: "6px 10px", minHeight: 34, overflowX: "auto", touchAction: "pan-x", overscrollBehavior: "contain", whiteSpace: "nowrap" } },
+        (showArmyList ? [...W.armies].filter((a) => a.alive).sort((x, y) => y.kills - x.kills || x.id - y.id) : []).map((a, i) => {
+          const isSelf = isPlay && a.id === W.playerId;
+          const isFocus = !isPlay && a.id === W.focusId;
+          return h("button", {
+            key: a.id,
+            onClick: () => {
+              const w = g.current;
+              const pa = w.playerId !== null ? w.armies[w.playerId] : null;
+              const commanding = !!(pa && pa.alive && !w.myDefeated);
+              if (!commanding) {
+                if (w.focusId === a.id) {
+                  w.focusId = null;
+                  w.msg = tr("選択解除", "Deselected");
+                } else {
+                  w.focusId = a.id;
+                  camRef.current.manualMode = false;
+                  camRef.current.rot = -a.facing * (Math.PI / 2);
+                  w.msg = `注目: ${a.name}`;
+                }
+              } else {
+                camRef.current.x = a.center[0] + 0.5;
+                camRef.current.y = a.center[1] + 0.5;
+                camRef.current.manualMode = true;
+                w.msg = `注目: ${a.name}`;
+              }
+              bump();
+            },
+            style: { fontSize: 11, padding: "4px 9px", borderRadius: 12, background: isFocus || isSelf ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.05)", color: isSelf ? C.gold : a.color.chip, border: `1px solid ${isFocus || isSelf ? "#FFD866" : "#8B6F3E"}`, flexShrink: 0, fontWeight: isSelf ? 700 : 400 }
+          }, i + 1, ". ", a.name, tr(" 討", " · kills "), a.kills);
+        })
+      )
+    ),
+    // ===== 持ち駒 / 注目軍 =====
+    isPlay
+      ? h("div", { style: { ...panelStyle, display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34 } },
+          h("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, tr("持ち駒", "Hand")),
+          Object.keys(hand).length === 0 && h("span", { style: { fontSize: 11, color: "#5b6553" } }, tr("なし", "None")),
+          Object.entries(hand).map(([t, n]) => h("button", {
+            key: t,
+            onClick: () => selectHand(t),
+            disabled: !player.alive,
+            title: worldChess ? (lang === "en" ? CHESS_EN[t] : CHESS_JA[t]) : KANJI[t],
+            style: { fontFamily: worldChess ? CHESSFONT : KOMAFONT, fontSize: worldChess ? 17 : 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
+          }, handLabel(t), n > 1 ? h("span", { style: { fontSize: 10, fontFamily: SERIF } }, "×", n) : null)),
+          h("span", { style: { flex: 1 } }),
+          player.kills > 0 && h("span", { style: { fontSize: 11, color: C.gold } }, tr("討王", "Kills "), player.kills, tr("(域", " (zone "), zoneSideFor(player), "²)")
+        )
+      : h("div", { className: "ows-scroll", style: { ...panelStyle, display: "flex", gap: 8, alignItems: "center", padding: "4px 10px", minHeight: 34, overflowX: "auto", touchAction: "pan-x", whiteSpace: "nowrap" } },
+          h("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0 } }, tr("注目: ", "Focus: "), focusArmy ? focusArmy.name : "-"),
+          focusArmy && focusArmy.kills > 0 && h("span", { style: { fontSize: 11, color: C.gold, flexShrink: 0 } }, tr("討王", "Kills "), focusArmy.kills, tr("(域", " (zone "), zoneSideFor(focusArmy), "²)"),
+          focusArmy && h("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 2 } }, tr("持ち駒", "Hand")),
+          focusArmy && Object.keys(focusArmy.hand || {}).length === 0 && h("span", { style: { fontSize: 11, color: "#5b6553", flexShrink: 0 } }, tr("なし", "None")),
+          focusArmy && Object.entries(focusArmy.hand || {}).map(([t, n]) => h("span", {
+            key: t,
+            style: { fontFamily: worldChess ? CHESSFONT : KOMAFONT, fontSize: worldChess ? 16 : 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
+          }, handLabel(t), n > 1 ? h("span", { style: { fontSize: 9, fontFamily: SERIF } }, "×", n) : null)),
+          h("span", { style: { flex: 1, minWidth: 0 } })
+        ),
+    // ===== 盤面 =====
+    h("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } },
+      h("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }),
+      isPlay && h("div", { style: { position: "absolute", bottom: 14, zIndex: 20, ...(dpadLeft ? { left: 14 } : { right: 14 }), display: "flex", flexDirection: "column", alignItems: "center", gap: 6 } },
+        h("div", { style: { display: "flex", gap: 4 } },
+          h("button", { onClick: () => rotate(-1), title: tr("自軍を左回転", "Rotate army left"), style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, h(Icon, { name: "rotateCCW", size: 14 }), h("span", { style: { fontSize: 11 } }, tr("左", "Left"))),
+          h("button", { onClick: () => rotate(1), title: tr("自軍を右回転", "Rotate army right"), style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, h("span", { style: { fontSize: 11 } }, tr("右", "Right")), h(Icon, { name: "rotateCW", size: 14 }))
+        ),
+        h("div", { style: { display: "grid", gridTemplateColumns: "46px 46px 46px", gridTemplateRows: "46px 46px 46px", gap: 4 } },
+          h("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: -45 })),
+          h("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 0 })),
+          h("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 45 })),
+          h("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: -90 })),
+          h("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, h(Icon, { name: "stop" })),
+          h("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 90 })),
+          h("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 225 })),
+          h("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 180 })),
+          h("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 135 }))
+        )
+      )
+    ),
+    // ===== 下部バー =====
+    h("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } },
+      h("button", { onClick: () => rotateCameraStep(-1), title: tr("視点を左回転", "Rotate view left"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "rotateCCW", size: 14 })),
+      isPlay && h("button", { onClick: orientCameraToFront, title: tr("自軍の正面を上に", "Put my front up"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "arrow", size: 14 })),
+      h("button", { onClick: () => rotateCameraStep(1), title: tr("視点を右回転", "Rotate view right"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "rotateCW", size: 14 })),
+      h("button", { onClick: recenterCamera, title: isPlay ? tr("自軍に戻る", "Back to my army") : tr("注目軍へ戻る", "Back to focused army"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "target", size: 15 })),
+      isPlay && player && player.alive && h("button", {
         onClick: () => {
-          const w = g.current;
-          const pa = w.playerId !== null ? w.armies[w.playerId] : null;
-          const commanding = !!(pa && pa.alive && !w.myDefeated);
-          if (!commanding) {
-            if (w.focusId === a.id) {
-              w.focusId = null;
-              w.msg = "\u9078\u629E\u89E3\u9664";
-            } else {
-              w.focusId = a.id;
-              camRef.current.manualMode = false;
-              camRef.current.rot = -a.facing * (Math.PI / 2);
-              w.msg = `\u6CE8\u76EE: ${a.name}`;
-            }
-          } else {
-            camRef.current.x = a.center[0] + 0.5;
-            camRef.current.y = a.center[1] + 0.5;
-            camRef.current.manualMode = true;
-            w.msg = `\u6CE8\u76EE: ${a.name}`;
+          const cur = player.speedMult || 1;
+          if (cur === 1 && !player.marchRel) return; // 停止中は倍速できない
+          if (cur === 1) {
+            let n = 0;
+            for (const p of g.current.cells.values()) if (p.owner === player.id && p.t !== "K") n++;
+            if (n <= 0) { g.current.msg = tr("配置駒がないので倍速できない。", "No board pieces, so you can't speed up."); bump(); return; }
           }
+          const next = cur === 1 ? 4 : cur === 4 ? 16 : 1;
+          player.speedMult = next;
+          // ネット対戦ではサーバーが進行を持っているので、倍率もサーバーに伝える
+          if (isNetGuest()) netSend({ type: "speed", mult: next });
           bump();
         },
-        style: { fontSize: 11, padding: "4px 9px", borderRadius: 12, background: isFocus || isSelf ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.05)", color: isSelf ? C.gold : a.color.chip, border: `1px solid ${isFocus || isSelf ? "#FFD866" : "#8B6F3E"}`, flexShrink: 0, fontWeight: isSelf ? 700 : 400 }
-      },
-      i + 1,
-      ". ",
-      a.name,
-      " \u8A0E",
-      a.kills
-    );
-  }))), isPlay ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap" } }, "\u6301\u3061\u99D2"), Object.keys(hand).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553" } }, "\u306A\u3057"), Object.entries(hand).map(([t, n]) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: t,
-      onClick: () => selectHand(t),
-      disabled: !player.alive,
-      style: { fontFamily: KOMAFONT, fontSize: 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
-    },
-    KANJI[t],
-    n > 1 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10 } }, "\xD7", n) : null
-  )), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }), player.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold } }, "\u8A0E\u738B", player.kills, "(\u57DF", 2 * zoneRadiusFor(player) + 1, "\xB2)"), ) : /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { display: "flex", gap: 8, alignItems: "center", padding: "4px 10px", minHeight: 34, background: C.panel, borderBottom: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 1px 0 rgba(255,205,140,0.15), inset 0 -3px 6px rgba(0,0,0,0.4)", overflowX: "auto", touchAction: "pan-x", whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0 } }, "\u6CE8\u76EE: ", focusArmy ? focusArmy.name : "-"), focusArmy && focusArmy.kills > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.gold, flexShrink: 0 } }, "\u8A0E\u738B", focusArmy.kills, "(\u57DF", 2 * zoneRadiusFor(focusArmy) + 1, "\xB2)"),
-    focusArmy && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 2 } }, "\u6301\u3061\u99D2"),
-    focusArmy && Object.keys(focusArmy.hand || {}).length === 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#5b6553", flexShrink: 0 } }, "\u306A\u3057"),
-    focusArmy && Object.entries(focusArmy.hand || {}).map(([t, n]) => /* @__PURE__ */ React.createElement("span", {
-      key: t,
-      style: { fontFamily: KOMAFONT, fontSize: 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
-    }, KANJI[t], n > 1 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9 } }, "\xD7", n) : null)),
-    /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } })), /* @__PURE__ */ React.createElement("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } }, /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }), isPlay && /* @__PURE__ */ React.createElement("div", { style: {
-    position: "absolute",
-    bottom: 14,
-    zIndex: 20,
-    ...dpadLeft ? { left: 14 } : { right: 14 },
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6
-  } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4 } },
-    /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(-1), title: "\u81EA\u8ECD\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11 } }, "\u5DE6")),
-    /* @__PURE__ */ React.createElement("button", { onClick: () => rotate(1), title: "\u81EA\u8ECD\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11 } }, "\u53F3"), /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 }))
-  ), /* @__PURE__ */ React.createElement("div", { style: {
-    display: "grid",
-    gridTemplateColumns: "46px 46px 46px",
-    gridTemplateRows: "46px 46px 46px",
-    gap: 4
-  } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 0 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 45 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: -90 })), /* @__PURE__ */ React.createElement("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, /* @__PURE__ */ React.createElement(Icon, { name: "stop" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 90 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 225 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 180 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", rotate: 135 }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "nowrap", gap: 5, alignItems: "center", padding: "7px 8px", paddingBottom: "calc(7px + env(safe-area-inset-bottom))", background: C.panel, borderTop: `1px solid ${C.panelEdge}`, boxShadow: "inset 0 -1px 0 rgba(255,205,140,0.15), inset 0 3px 6px rgba(0,0,0,0.4)", minWidth: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(-1), title: "\u8996\u70B9\u3092\u5DE6\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCCW", size: 14 })), isPlay && /* @__PURE__ */ React.createElement("button", { onClick: orientCameraToFront, title: "\u81EA\u8ECD\u306E\u6B63\u9762\u3092\u4E0A\u306B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "arrow", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => rotateCameraStep(1), title: "\u8996\u70B9\u3092\u53F3\u56DE\u8EE2", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: recenterCamera, title: isPlay ? "\u81EA\u8ECD\u306B\u623B\u308B" : "\u6CE8\u76EE\u8ECD\u3078\u623B\u308B", style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Icon, { name: "target", size: 15 })), isPlay && player && player.alive && /* @__PURE__ */ React.createElement("button", { onClick: () => {
-    const cur = player.speedMult || 1;
-    if (cur === 1 && !player.marchRel) return; // \u505C\u6B62\u4E2D\u306F\u500D\u901F\u3067\u304D\u306A\u3044
-    if (cur === 1) {
-      let n = 0;
-      for (const p of g.current.cells.values()) if (p.owner === player.id && p.t !== "K") n++;
-      if (n <= 0) { g.current.msg = "\u914D\u7F6E\u99D2\u304C\u306A\u3044\u306E\u3067\u500D\u901F\u3067\u304D\u306A\u3044\u3002"; bump(); return; }
-    }
-    const next = cur === 1 ? 4 : cur === 4 ? 16 : 1;
-    player.speedMult = next;
-    // \u30CD\u30C3\u30C8\u5BFE\u6226\u3067\u306F\u30B5\u30FC\u30D0\u30FC\u304C\u9032\u884C\u3092\u6301\u3063\u3066\u3044\u308B\u306E\u3067\u3001\u500D\u7387\u3082\u30B5\u30FC\u30D0\u30FC\u306B\u4F1D\u3048\u308B
-    // (\u8868\u793A\u306F\u5148\u306B\u5207\u308A\u66FF\u3048\u3001\u30B5\u30FC\u30D0\u30FC\u304C\u62D2\u5426\u3057\u305F\u5834\u5408\u306F\u6B21\u306E\u72B6\u614B\u53D7\u4FE1\u3067\u623B\u308B)
-    if (isNetGuest()) netSend({ type: "speed", mult: next });
-    bump();
-  }, disabled: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1, title: "\u9032\u8ECD\u500D\u7387(4\u500D:10\u79D2\u3054\u3068\u300116\u500D:1\u79D2\u3054\u3068\u306B\u914D\u7F6E\u99D2\u304C0.9\u500D\u3002\u738B\u306F\u6E1B\u3089\u306A\u3044\u3002\u914D\u7F6E\u99D2\u304C\u306A\u3044\u6642\u3084\u9032\u8ECD\u3092\u6B62\u3081\u3066\u3044\u308B\u6642\u306F\u4F7F\u3048\u306A\u3044)", style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: player.speedMult > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: player.speedMult > 1 ? "#9FD08A" : C.sub, border: `1px solid ${player.speedMult > 1 ? "#9FD08A66" : C.panelEdge}`, opacity: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1 ? 0.45 : 1 } }, "\u00D7", player.speedMult || 1), started && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u4E00\u624B: ", /* @__PURE__ */ React.createElement("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.sub } }, "\u9032\u8ECD: ", /* @__PURE__ */ React.createElement("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }), isPlay && started && /* @__PURE__ */ React.createElement("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? "\u5341\u5B57\u30AD\u30FC\u3092\u53F3\u3078" : "\u5341\u5B57\u30AD\u30FC\u3092\u5DE6\u3078", style: {
-    width: 32,
-    height: 30,
-    padding: 0,
-    borderRadius: 9,
-    flexShrink: 0,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(255,255,255,0.06)",
-    color: C.sub,
-    border: `1px solid ${C.panelEdge}`
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "swap", size: 15 })), started && marchStatus && /* @__PURE__ */ React.createElement("span", { style: {
-    fontSize: 11,
-    fontWeight: 700,
-    padding: "5px 8px",
-    borderRadius: 9,
-    whiteSpace: "nowrap",
-    flexShrink: 0,
-    background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)",
-    color: marching ? "#9FD08A" : C.sub,
-    border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}`
-  } }, marching ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { name: "play", size: 10, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), marchStatus) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { name: "stop", size: 9, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), "\u505C\u6B62"))), !started && netPhase === null && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { background: WOOD_GRAIN, border: "1px solid #B08C4F", boxShadow: "inset 0 0 0 1px rgba(255,222,150,0.12), inset 0 2px 10px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.35)", borderRadius: 8, padding: "clamp(8px,1.4vw,20px) clamp(10px,1.8vw,26px) clamp(6px,1vw,16px)", marginBottom: "clamp(7px,1.4vw,18px)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: "clamp(18px, 5.4vw, 38px)", fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", marginBottom: 2, color: "#F0D48A", textShadow: "0 2px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,235,180,0.3), 0 3px 6px rgba(0,0,0,0.6)" } }, "\u30AA\u30FC\u30D7\u30F3\u30EF\u30FC\u30EB\u30C9\u5C06\u68CB"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "clamp(10px,1.6vw,17px)", color: "#E3C27E", letterSpacing: 2 } }, "\u2015 200\u8ECD\u30D0\u30C8\u30EB\u30ED\u30EF\u30A4\u30E4\u30EB \u2015")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "clamp(10px,1.6vw,17px)", color: C.sub, marginBottom: "clamp(7px,1.4vw,18px)" } }, "\u6700\u5F8C\u306E\u4E00\u8ECD\u306B\u306A\u308B\u307E\u3067\u3001\u6226\u306F\u7D42\u308F\u3089\u306A\u3044"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "left", margin: "0 0 9px", borderTop: `1px solid ${C.panelEdge}` } }, [
-    ["\u4E16\u754C", "480\xD7480\u306E\u5927\u5730\u306B\u3001\u4E8C\u3064\u540D\u3092\u6301\u3064\u6700\u5927200\u8ECD\u3002\u5168\u8ECD\u304C\u4E92\u3044\u306B\u6575\u3002"],
-    ["\u53EF\u52D5\u57DF", "\u99D2\u304C\u52D5\u3051\u308B\u306E\u306F\u738B\u3092\u4E2D\u5FC3\u3068\u3057\u305F9\xD79\u3002\u6575\u738B\u3092\u8A0E\u3064\u305F\u3073\u7E26\u6A2A+2\u30DE\u30B9\u62E1\u5927\u3002"],
-    ["\u9032\u8ECD", "\u5341\u5B57\u30DC\u30BF\u30F3\u3067\u65B9\u5411\u3092\u6307\u5B9A\u3002\u5168\u8ECD\u304C15\u79D2\u3054\u3068\u306B\u4E00\u6589\u524D\u9032\u3057\u3001\u6B62\u307E\u3063\u305F\u6575\u99D2\u306F\u8E0F\u307F\u6F70\u3057\u3066\u6355\u7372\u3002", "\u540C\u3058\u30DE\u30B9\u306B\u885D\u7A81\u3057\u305F\u3089\u3001\u751F\u304D\u6B8B\u308B\u306E\u306F\u4E00\u65B9\u3060\u3051\u3002\u738B\u3082\u4F8B\u5916\u306A\u3057\u3002"],
-    ["\u500D\u901F", "\u9032\u8ECD\u3092\u500D\u901F\u306B\u3067\u304D\u308B\u30024\u500D\u306F10\u79D2\u3054\u3068\u300116\u500D\u306F1\u79D2\u3054\u3068\u306B\u3001\u76E4\u4E0A\u306E\u914D\u7F6E\u99D2\u304C0.9\u500D\u306B\u6E1B\u308B(\u738B\u306F\u6E1B\u3089\u306A\u3044)\u3002\u914D\u7F6E\u99D2\u304C\u306A\u3044\u3068\u4F7F\u3048\u305A\u3001\u9032\u8ECD\u3092\u6B62\u3081\u308B\u3068\u7B49\u500D\u306B\u623B\u308B\u3002", "\u6575\u3082\u540C\u3058\u3088\u3046\u306B\u500D\u901F\u3067\u653B\u3081\u3066\u304F\u308B\u3002"],
-    ["\u6307\u3057\u624B", "\u79FB\u52D5\u30FB\u6253\u3061\u30FB\u56DE\u8EE2\u306F5\u79D2\u306B1\u56DE\u3002\u6575\u3082\u5074\u9762\u3078\u306E\u56DE\u308A\u8FBC\u307F\u3092\u4ED5\u639B\u3051\u3066\u304F\u308B\u3002"],
-    ["\u30CD\u30C3\u30C8\u5BFE\u6226", "\u540C\u3058\u4E16\u754C\u306B\u6700\u592760\u8ECD\u3067\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u53C2\u52A0\u3002\u8AB0\u3082\u3044\u306A\u304F\u3066\u3082\u5373\u53C2\u6226\u3067\u304D\u3001\u5F8C\u304B\u3089\u5408\u6D41\u3082\u3067\u304D\u308B\u3002\u96E2\u8131\u3059\u308B\u3068\u7389\u306F\u6D88\u3048\u3001\u6B8B\u308A\u306E\u99D2\u306F\u6B8B\u9AB8\u3068\u3057\u3066\u6B8B\u308B\u3002"]
-  ].map(([label, body, warn]) => /* @__PURE__ */ React.createElement("div", { key: label, style: { display: "flex", gap: 8, padding: "clamp(4px,0.9vw,10px) 2px", borderBottom: `1px solid ${C.panelEdge}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: "clamp(11.5px,1.6vw,17px)", fontWeight: 700, color: C.gold, width: "clamp(56px,8vw,92px)", flexShrink: 0, letterSpacing: 0, whiteSpace: "nowrap" } }, label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: "clamp(11px,1.5vw,16px)", lineHeight: 1.55, color: C.text } }, body, warn && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: C.danger } }, warn)))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", background: C.gold, color: "#1a1408", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(Icon, { name: "piece", size: 16 }), "AI\u5BFE\u6226"), /* @__PURE__ */ React.createElement("button", { onClick: () => begin("watch"), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(Icon, { name: "eye", size: 16 }), "AI\u89B3\u6226"), hasNet() && /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => {
-        setNetName("");
-        setNetMsg("");
-        setCodeInput("");
-        setNetPhase("nameEntry");
-        fetchRoomList();
-      },
-      style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", fontWeight: 700, border: `1px solid ${C.gold}`, color: C.gold, display: "inline-flex", alignItems: "center", gap: 6 }
-    },
-    /* @__PURE__ */ React.createElement(Icon, { name: "globe", size: 16 }),
-    "\u30CD\u30C3\u30C8\u5BFE\u6226"
-  )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, justifyContent: "center", marginTop: 8, fontSize: "clamp(10.5px,1.4vw,14px)" } },
-    /* @__PURE__ */ React.createElement("a", { href: "/terms.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, "\u5229\u7528\u898F\u7D04"),
-    /* @__PURE__ */ React.createElement("a", { href: "/privacy.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, "\u30D7\u30E9\u30A4\u30D0\u30B7\u30FC\u30DD\u30EA\u30B7\u30FC")
-  ), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 7, fontSize: "clamp(10px,1.3vw,13px)", fontFamily: ENFONT, letterSpacing: 1, color: C.sub } }, "Created by yoshi on 19 July 2026")), !started && netPhase === "nameEntry" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, "\u30CD\u30C3\u30C8\u5BFE\u6226"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16, lineHeight: 1.7 } }, "\u5171\u6709\u30EF\u30FC\u30EB\u30C9\u306B\u5373\u53C2\u52A0\u3059\u308B\u3002\u8AB0\u3082\u3044\u306A\u3051\u308C\u3070\u3042\u306A\u305F\u304C\u6700\u521D\u306E\u4E00\u4EBA\u306B\u306A\u308A\u3001\u5F8C\u304B\u3089\u8AB0\u3067\u3082\u5408\u6D41\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: netName,
-      onChange: (e) => setNetName(e.target.value),
-      maxLength: NAME_MAX_LEN,
-      placeholder: "\u3042\u306A\u305F\u306E\u540D\u524D(\u7A7A\u6B04\u53EF)",
-      style: { width: "100%", fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 14, boxSizing: "border-box" }
-    }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(), style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 } }, /* @__PURE__ */ React.createElement(Icon, { name: "globe", size: 16 }), "\u30AF\u30A4\u30C3\u30AF\u30DE\u30C3\u30C1\u3067\u53C2\u52A0"),
-  /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, margin: "14px 0 10px", letterSpacing: 2 } }, "\u2015 \u307E\u305F\u306F \u2015"),
-  /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } },
-    /* @__PURE__ */ React.createElement("input", {
-      value: codeInput,
-      onChange: (e) => setCodeInput(e.target.value),
-      maxLength: 5,
-      autoCapitalize: "characters",
-      autoCorrect: "off",
-      autoComplete: "off",
-      spellCheck: false,
-      placeholder: "\u5408\u8A00\u8449(3\u301C5\u6587\u5B57)\u3067\u5165\u5BA4",
-      style: { flex: "1 1 140px", minWidth: 0, fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 2, textTransform: "uppercase" }
-    }),
-    /* @__PURE__ */ React.createElement("button", { onClick: () => codeInput.trim().length >= 3 && joinOpenWorld(codeInput.trim()), disabled: codeInput.trim().length < 3, style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0, opacity: codeInput.trim().length < 3 ? 0.5 : 1 } }, "\u5165\u5BA4")
-  ),
-  /* @__PURE__ */ /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } },
-    /* @__PURE__ */ React.createElement("input", {
-      value: newRoomCode,
-      onChange: (e) => setNewRoomCode(e.target.value.slice(0, 5)),
-      maxLength: 5,
-      autoCapitalize: "characters",
-      autoCorrect: "off",
-      autoComplete: "off",
-      spellCheck: false,
-      placeholder: "\u5408\u8A00\u8449\u3092\u6C7A\u3081\u308B(\u82F1\u6570\u5B573\u301C5\u6587\u5B57)",
-      style: { flex: "1 1 140px", minWidth: 0, fontSize: 12, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 0.5, textTransform: "uppercase" }
-    }),
-    /* @__PURE__ */ React.createElement("button", { onClick: () => newRoomCode.trim().length >= 3 && joinOpenWorld(newRoomCode.trim(), true), disabled: newRoomCode.trim().length < 3, style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12, opacity: newRoomCode.trim().length < 3 ? 0.5 : 1 } }, "\u2795 \u4F5C\u308B")
-  ),
-  /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: 8 } },
-    /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, "\u73FE\u5728\u958B\u3044\u3066\u3044\u308B\u90E8\u5C4B"),
-    /* @__PURE__ */ React.createElement("button", { onClick: fetchRoomList, disabled: roomListLoading, style: { fontSize: 12, padding: "6px 12px", borderRadius: 8, color: C.gold, background: "rgba(201,169,106,0.12)", border: `1px solid ${C.gold}55`, opacity: roomListLoading ? 0.6 : 1, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 } }, /* @__PURE__ */ React.createElement(Icon, { name: "rotateCW", size: 12, style: roomListLoading ? { animation: "ows-spin 0.7s linear infinite" } : null }), !roomListLoading && "\u66F4\u65B0")
-  ),
-  /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { maxHeight: 160, overflowY: "auto", border: `1px solid ${C.panelEdge}`, borderRadius: 8, marginBottom: 10 } },
-    roomList.length === 0
-      ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, padding: "12px" } }, roomListMsg || "\u90E8\u5C4B\u4E00\u89A7\u3092\u53D6\u5F97\u4E2D\u2026")
-      : roomList.map((r) => /* @__PURE__ */ React.createElement("div", { key: r.code, style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${C.panelEdge}` } },
-          /* @__PURE__ */ React.createElement("span", { style: { fontFamily: SERIF, fontSize: 13, color: C.gold, letterSpacing: 1 } }, r.code),
-          /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, `${r.count}/${r.cap}\u8ECD`),
-          /* @__PURE__ */ React.createElement("button", { onClick: () => joinOpenWorld(r.code), disabled: r.count >= r.cap, style: { ...btnStyle(), fontSize: 11, padding: "5px 12px", opacity: r.count >= r.cap ? 0.4 : 1 } }, r.count >= r.cap ? "\u6E80\u54E1" : "\u5165\u5BA4")
+        disabled: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1,
+        title: tr(`進軍倍率(4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍。${kingWord()}は減らない。配置駒がない時や進軍を止めている時は使えない)`, "March speed (×4: every 10 s, ×16: every 1 s, your board pieces drop to 0.9×. The king is never lost. Unavailable with no board pieces or while stopped.)"),
+        style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: player.speedMult > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: player.speedMult > 1 ? "#9FD08A" : C.sub, border: `1px solid ${player.speedMult > 1 ? "#9FD08A66" : C.panelEdge}`, opacity: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1 ? 0.45 : 1 }
+      }, "×", player.speedMult || 1),
+      started && h("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } },
+        h("span", { style: { fontSize: 10, color: C.sub } }, tr("一手: ", "Move: "), h("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")),
+        h("span", { style: { fontSize: 10, color: C.sub } }, tr("進軍: ", "March: "), h("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))
+      ),
+      h("span", { style: { flex: 1, minWidth: 0 } }),
+      isPlay && started && h("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? tr("十字キーを右へ", "Move pad to the right") : tr("十字キーを左へ", "Move pad to the left"), style: { width: 32, height: 30, padding: 0, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", color: C.sub, border: `1px solid ${C.panelEdge}` } }, h(Icon, { name: "swap", size: 15 })),
+      started && marchStatus && h("span", { style: { fontSize: 11, fontWeight: 700, padding: "5px 8px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)", color: marching ? "#9FD08A" : C.sub, border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}` } },
+        marching
+          ? h(React.Fragment, null, h(Icon, { name: "play", size: 10, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), marchStatus)
+          : h(React.Fragment, null, h(Icon, { name: "stop", size: 9, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), tr("停止", "Stopped")))
+    ),
+    // ===== タイトル画面 =====
+    !started && netPhase === null && h(Overlay, null,
+      langSwitch,
+      h("div", { style: { background: WOOD_GRAIN, border: "1px solid #B08C4F", boxShadow: "inset 0 0 0 1px rgba(255,222,150,0.12), inset 0 2px 10px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.35)", borderRadius: 8, padding: "clamp(8px,1.4vw,20px) clamp(10px,1.8vw,26px) clamp(6px,1vw,16px)", marginBottom: "clamp(7px,1.4vw,18px)" } },
+        h("div", { style: { fontFamily: SERIF, fontSize: "clamp(17px, 4.9vw, 38px)", fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", marginBottom: 2, color: "#F0D48A", textShadow: "0 2px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,235,180,0.3), 0 3px 6px rgba(0,0,0,0.6)" } },
+          ...(lang === "en"
+            ? [h("span", { key: "en", style: { fontFamily: ENFONT, fontWeight: 700, letterSpacing: 0.5 } }, "Open World Shogi & Chess")]
+            : ["オープンワールド将棋", h("span", { key: "amp", style: { fontFamily: ENFONT, fontWeight: 600, margin: "0 0.08em" } }, "&"), tr("チェス", "Chess")])),
+        h("div", { style: { fontSize: "clamp(10px,1.6vw,17px)", color: "#E3C27E", letterSpacing: 2 } }, tr("― 200軍バトルロワイヤル ―", "― 200-army battle royale ―"))
+      ),
+      h("div", { style: { fontSize: "clamp(10px,1.6vw,17px)", color: C.sub, marginBottom: "clamp(7px,1.4vw,18px)" } }, tr("最後の一軍になるまで、戦は終わらない", "The war ends only when one army remains")),
+      // どちらのワールドで遊ぶか
+      h("div", { style: { fontSize: "clamp(10.5px,1.4vw,14px)", color: C.sub, marginBottom: 6 } }, tr("遊ぶワールドを選ぶ", "Choose a world")),
+      h("div", { role: "group", style: { display: "flex", gap: 8, marginBottom: "clamp(8px,1.4vw,16px)" } },
+        variantBtn("shogi", tr("将棋", "Shogi"), tr("9×9から広がる", "Starts at 9×9")),
+        variantBtn("chess", tr("チェス", "Chess"), tr("8×8から広がる", "Starts at 8×8"))
+      ),
+      h("div", { style: { textAlign: "left", margin: "0 0 9px", borderTop: `1px solid ${C.panelEdge}` } },
+        introRows.map(([label, body, warn]) => h("div", { key: label, style: { display: "flex", gap: 8, padding: "clamp(4px,0.9vw,10px) 2px", borderBottom: `1px solid ${C.panelEdge}` } },
+          h("span", { style: { fontFamily: SERIF, fontSize: "clamp(11.5px,1.6vw,17px)", fontWeight: 700, color: C.gold, width: lang === "en" ? "clamp(58px,8vw,92px)" : "clamp(56px,8vw,92px)", flexShrink: 0, letterSpacing: 0, whiteSpace: "nowrap" } }, label),
+          h("span", { style: { fontSize: "clamp(11px,1.5vw,16px)", lineHeight: 1.55, color: C.text } }, body, warn && h(React.Fragment, null, h("br", null), h("span", { style: { color: C.danger } }, warn)))
         ))
-  ), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), marginTop: 8, padding: "8px 20px" } }, "\u623B\u308B")), !started && netPhase === "connecting" && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 20 } }, "\u63A5\u7D9A\u3057\u3066\u3044\u307E\u3059\u2026"), /* @__PURE__ */ React.createElement("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, "\u30AD\u30E3\u30F3\u30BB\u30EB")), started && W.mode === "openworld" && W.myDefeated && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u30EF\u30FC\u30EB\u30C9\u306F\u7D9A\u3044\u3066\u3044\u308B\u3002\u3082\u3046\u4E00\u5EA6\u53C2\u6226\u3067\u304D\u308B\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, "\u518D\u53C2\u6226"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
-    leaveOpenWorld();
-    backToTitle();
-  } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))), started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u81EA\u8ECD\u306E\u7389\u304C\u8A0E\u305F\u308C\u305F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, "\u3053\u306E\u307E\u307E\u4ED6\u8ECD\u306E\u6226\u3044\u3092\u89B3\u6226\u3059\u308B\u304B\u3001\u30BF\u30A4\u30C8\u30EB\u306B\u623B\u308B\u304B\u3092\u9078\u3079\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => setDefeatAck(true) }, "\u89B3\u6226\u3092\u7D9A\u3051\u308B"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: backToTitle }, "\u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B"))), showNamePrompt && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, "\u8ECD\u306E\u540D\u524D\u3092\u6C7A\u3081\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, "\u6700\u5927", NAME_MAX_LEN, "\u6587\u5B57\u3002\u4E0D\u9069\u5207\u306A\u8A00\u8449\u306F\u81EA\u52D5\u7684\u306B\u4F0F\u5B57\u306B\u306A\u308A\u307E\u3059\u3002\u7A7A\u6B04\u306A\u3089\u30E9\u30F3\u30C0\u30E0\u306A\u540D\u524D\u306B\u306A\u308A\u307E\u3059\u3002"), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: nameInput,
-      onChange: (e) => setNameInput(e.target.value),
-      maxLength: NAME_MAX_LEN,
-      placeholder: "\u4F8B: \u30AF\u30EA\u30E0\u30BE\u30F3\u30D5\u30A1\u30F3\u30B0",
-      style: { width: "100%", fontSize: 16, padding: "10px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 18, boxSizing: "border-box" }
-    }
-  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, "\u53C2\u6226!"), /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => {
-    setShowNamePrompt(false);
-    setNameInput("");
-  } }, "\u623B\u308B"))), confirmExit && /* @__PURE__ */ React.createElement(Overlay, null,
-  /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 14 } }, "\u30E1\u30CB\u30E5\u30FC"),
-  /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 9 } },
-    W.mode !== "openworld" && isPlay && /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToWatch },
-      "\u25C9 \u89B3\u6226\u306B\u5207\u308A\u66FF\u3048\u308B",
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u81EA\u8ECD\u306F\u76E4\u4E0A\u306B\u6B8B\u308A\u3001AI\u304C\u6307\u63EE\u3092\u5F15\u304D\u7D99\u304E\u307E\u3059")),
-    W.mode !== "openworld" && !isPlay && /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToPlay },
-      "\u2694 \u53C2\u6226\u3059\u308B",
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u65B0\u3057\u3044\u8ECD\u3068\u3057\u3066\u3053\u306E\u6226\u5834\u306B\u52A0\u308F\u308A\u307E\u3059")),
-    /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(true), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: backToTitle },
-      "\u2715 \u30BF\u30A4\u30C8\u30EB\u3078\u623B\u308B",
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, "\u9032\u884C\u4E2D\u306E\u76E4\u9762\u306F\u5931\u308F\u308C\u307E\u3059")),
-    /* @__PURE__ */ React.createElement("button", { style: { ...btnStyle(), padding: "10px 18px", fontSize: 13 }, onClick: () => setConfirmExit(false) }, "\u30AD\u30E3\u30F3\u30BB\u30EB")
-  )), W.over && /* @__PURE__ */ React.createElement(Overlay, null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? "\u52DD\u5229" : "\u6557\u5317" : "\u6C7A\u7740"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
-    backToTitle();
-    bump();
-  }, style: { ...btnStyle(), fontSize: 15, padding: "10px 30px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, "\u30BF\u30A4\u30C8\u30EB\u3078"))));
+      ),
+      h("div", { style: { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" } },
+        h("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", background: C.gold, color: "#1a1408", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, h(Icon, { name: "piece", size: 16 }), tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
+        h("button", { onClick: () => begin("watch"), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, h(Icon, { name: "eye", size: 16 }), tc ? tr("チェスを観戦", "Watch chess") : tr("将棋を観戦", "Watch shogi")),
+        hasNet() && !tc && h("button", {
+          onClick: () => {
+            setNetName("");
+            setNetMsg("");
+            setCodeInput("");
+            setNetPhase("nameEntry");
+            fetchRoomList();
+          },
+          style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", fontWeight: 700, border: `1px solid ${C.gold}`, color: C.gold, display: "inline-flex", alignItems: "center", gap: 6 }
+        }, h(Icon, { name: "globe", size: 16 }), tr("ネット対戦", "Online"))
+      ),
+      tc && h("div", { style: { fontSize: "clamp(10px,1.3vw,13px)", color: C.sub, marginTop: 8 } }, tr("ネット対戦は今のところ将棋ワールドのみです。", "Online play is shogi only for now.")),
+      h("div", { style: { display: "flex", gap: 14, justifyContent: "center", marginTop: 8, fontSize: "clamp(10.5px,1.4vw,14px)" } },
+        h("a", { href: "/terms.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, tr("利用規約", "Terms of Use")),
+        h("a", { href: "/privacy.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "underline" } }, tr("プライバシーポリシー", "Privacy Policy"))
+      ),
+      h("div", { style: { textAlign: "center", marginTop: 7, fontSize: "clamp(10px,1.3vw,13px)", fontFamily: ENFONT, letterSpacing: 1, color: C.sub } }, "Created by yoshi on 19 July 2026")
+    ),
+    // ===== ネット対戦: 名前入力・部屋選び =====
+    !started && netPhase === "nameEntry" && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 8 } }, tr("ネット対戦", "Online")),
+      h("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16, lineHeight: 1.7 } }, tr("共有ワールドに即参加する。誰もいなければあなたが最初の一人になり、後から誰でも合流できる。", "Jump straight into a shared world. If nobody is there, you'll be the first, and anyone can join later.")),
+      netMsg && h("div", { style: { fontSize: 12, color: C.danger, marginBottom: 12 } }, netMsg),
+      h("input", { value: netName, onChange: (e) => setNetName(e.target.value), maxLength: NAME_MAX_LEN, placeholder: tr("あなたの名前(空欄可)", "Your name (optional)"), style: { width: "100%", fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 14, boxSizing: "border-box" } }),
+      h("button", { onClick: () => joinOpenWorld(), style: { ...btnStyle(), width: "100%", fontSize: 15, padding: "11px", background: C.gold, color: "#1a1408", fontWeight: 700, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 } }, h(Icon, { name: "globe", size: 16 }), tr("クイックマッチで参加", "Quick match")),
+      h("div", { style: { fontSize: 10.5, color: C.sub, margin: "14px 0 10px", letterSpacing: 2 } }, tr("― または ―", "― or ―")),
+      h("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } },
+        h("input", { value: codeInput, onChange: (e) => setCodeInput(e.target.value), maxLength: 5, autoCapitalize: "characters", autoCorrect: "off", autoComplete: "off", spellCheck: false, placeholder: tr("合言葉(3〜5文字)で入室", "Room code (3–5 characters)"), style: { flex: "1 1 140px", minWidth: 0, fontSize: 15, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 2, textTransform: "uppercase" } }),
+        h("button", { onClick: () => codeInput.trim().length >= 3 && joinOpenWorld(codeInput.trim()), disabled: codeInput.trim().length < 3, style: { ...btnStyle(), padding: "9px 16px", fontWeight: 700, flexShrink: 0, opacity: codeInput.trim().length < 3 ? 0.5 : 1 } }, tr("入室", "Join"))
+      ),
+      h("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } },
+        h("input", { value: newRoomCode, onChange: (e) => setNewRoomCode(e.target.value.slice(0, 5)), maxLength: 5, autoCapitalize: "characters", autoCorrect: "off", autoComplete: "off", spellCheck: false, placeholder: tr("合言葉を決める(英数字3〜5文字)", "New room code (3–5 letters or digits)"), style: { flex: "1 1 140px", minWidth: 0, fontSize: 12, padding: "9px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px dashed ${C.panelEdge}`, boxSizing: "border-box", letterSpacing: 0.5, textTransform: "uppercase" } }),
+        h("button", { onClick: () => newRoomCode.trim().length >= 3 && joinOpenWorld(newRoomCode.trim(), true), disabled: newRoomCode.trim().length < 3, style: { ...btnStyle(), padding: "9px 14px", fontWeight: 700, flexShrink: 0, fontSize: 12, opacity: newRoomCode.trim().length < 3 ? 0.5 : 1 } }, tr("➕ 作る", "➕ Create"))
+      ),
+      h("div", { style: { display: "flex", alignItems: "center", marginBottom: 8 } },
+        h("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, tr("現在開いている部屋", "Open rooms")),
+        h("button", { onClick: fetchRoomList, disabled: roomListLoading, style: { fontSize: 12, padding: "6px 12px", borderRadius: 8, color: C.gold, background: "rgba(201,169,106,0.12)", border: `1px solid ${C.gold}55`, opacity: roomListLoading ? 0.6 : 1, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 } }, h(Icon, { name: "rotateCW", size: 12, style: roomListLoading ? { animation: "ows-spin 0.7s linear infinite" } : null }), !roomListLoading && tr("更新", "Refresh"))
+      ),
+      h("div", { className: "ows-scroll", style: { maxHeight: 160, overflowY: "auto", border: `1px solid ${C.panelEdge}`, borderRadius: 8, marginBottom: 10 } },
+        roomList.length === 0
+          ? h("div", { style: { fontSize: 11, color: C.sub, padding: "12px" } }, roomListMsg || tr("部屋一覧を取得中…", "Loading rooms…"))
+          : roomList.map((r) => h("div", { key: r.code, style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${C.panelEdge}` } },
+              h("span", { style: { fontFamily: SERIF, fontSize: 13, color: C.gold, letterSpacing: 1 } }, r.code),
+              h("span", { style: { fontSize: 11, color: C.sub, flex: 1, textAlign: "left" } }, `${r.count}/${r.cap}軍`),
+              h("button", { onClick: () => joinOpenWorld(r.code), disabled: r.count >= r.cap, style: { ...btnStyle(), fontSize: 11, padding: "5px 12px", opacity: r.count >= r.cap ? 0.4 : 1 } }, r.count >= r.cap ? tr("満員", "Full") : tr("入室", "Join"))
+            ))
+      ),
+      h("button", { onClick: leaveOpenWorld, style: { ...btnStyle(), marginTop: 8, padding: "8px 20px" } }, tr("戻る", "Back"))
+    ),
+    !started && netPhase === "connecting" && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 20 } }, tr("接続しています…", "Connecting…")),
+      h("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, tr("キャンセル", "Cancel"))
+    ),
+    started && W.mode === "openworld" && W.myDefeated && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr("自軍の玉が討たれた", "Your king has fallen")),
+      h("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, tr("ワールドは続いている。もう一度参戦できる。", "The world goes on. You can join again.")),
+      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
+        h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, tr("再参戦", "Rejoin")),
+        h("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => { leaveOpenWorld(); backToTitle(); } }, tr("タイトルへ", "To title"))
+      )
+    ),
+    started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr(`自軍の${worldChess ? "キング" : "玉"}が討たれた`, "Your king has fallen")),
+      h("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, tr("このまま他軍の戦いを観戦するか、タイトルに戻るかを選べます。", "Keep watching the other armies, or go back to the title.")),
+      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
+        h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => setDefeatAck(true) }, tr("観戦を続ける", "Keep watching")),
+        h("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: backToTitle }, tr("タイトルへ戻る", "Back to title"))
+      )
+    ),
+    showNamePrompt && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 6 } }, tr("軍の名前を決めてください", "Name your army")),
+      h("div", { style: { fontSize: 12, color: C.gold, marginBottom: 8 } }, tc ? tr("チェスワールドに参戦します", "You're joining the chess world") : tr("将棋ワールドに参戦します", "You're joining the shogi world")),
+      h("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, tr(`最大${NAME_MAX_LEN}文字。不適切な言葉は自動的に伏字になります。空欄ならランダムな名前になります。`, `Up to ${NAME_MAX_LEN} characters. Rude words are masked automatically. Leave it blank for a random name.`)),
+      h("input", { value: nameInput, onChange: (e) => setNameInput(e.target.value), maxLength: NAME_MAX_LEN, placeholder: tr("例: クリムゾンファング", "e.g. Crimson Fang"), style: { width: "100%", fontSize: 16, padding: "10px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 18, boxSizing: "border-box" } }),
+      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
+        h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, tr("参戦!", "Join battle!")),
+        h("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => { setShowNamePrompt(false); setNameInput(""); } }, tr("戻る", "Back"))
+      )
+    ),
+    // ===== 一時停止(✕ボタン) =====
+    confirmExit && h(Overlay, null,
+      paused
+        ? h(React.Fragment, null,
+            h("div", { style: { display: "flex", justifyContent: "center", marginBottom: 6, color: C.gold } }, h(Icon, { name: "pause", size: 34 })),
+            h("div", { style: { fontFamily: SERIF, fontSize: 26, fontWeight: 800, color: "#F0D48A", letterSpacing: 4, marginBottom: 4 } }, tr("一時停止", "Pause")),
+            h("div", { style: { fontSize: 11.5, color: C.sub, marginBottom: 16 } }, tr("時間も進軍も止まっています", "Time and marching are stopped"))
+          )
+        : h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 14 } }, tr("メニュー", "Menu")),
+      h("div", { style: { display: "flex", flexDirection: "column", gap: 9, maxWidth: 360, margin: "0 auto" } },
+        paused && h("button", { style: { ...btnStyle(), padding: "12px 18px", fontSize: 15, fontWeight: 700, background: C.gold, color: "#1a1408", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }, onClick: closeMenu }, h(Icon, { name: "play", size: 14 }), tr("再開する", "Resume")),
+        W.mode !== "openworld" && isPlay && h("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToWatch },
+          tr("◉ 観戦に切り替える", "◉ Switch to watching"),
+          h("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, tr("自軍は盤上に残り、AIが指揮を引き継ぎます", "Your army stays on the board and the AI takes command"))),
+        W.mode !== "openworld" && !isPlay && h("button", { style: { ...btnStyle(), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: switchToPlay },
+          tr("⚔ 参戦する", "⚔ Join the battle"),
+          h("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, tr("新しい軍としてこの戦場に加わります", "Enter this battlefield as a new army"))),
+        h("button", { style: { ...btnStyle(true), padding: "11px 18px", fontSize: 14, textAlign: "left" }, onClick: backToTitle },
+          tr("✕ タイトルへ戻る", "✕ Back to title"),
+          h("div", { style: { fontSize: 10.5, color: C.sub, marginTop: 3 } }, tr("進行中の盤面は失われます", "The current game will be lost"))),
+        !paused && h("button", { style: { ...btnStyle(), padding: "10px 18px", fontSize: 13 }, onClick: closeMenu }, tr("キャンセル", "Cancel"))
+      )
+    ),
+    W.over && h(Overlay, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 32, fontWeight: 700, color: isPlay ? W.winner === 0 ? C.gold : C.danger : C.gold, marginBottom: 8 } }, isPlay ? W.winner === 0 ? tr("勝利", "Victory") : tr("敗北", "Defeat") : tr("決着", "Game over")),
+      h("div", { style: { fontSize: 13, color: C.sub, marginBottom: 20 } }, W.reason),
+      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
+        h("button", { onClick: () => { backToTitle(); bump(); }, style: { ...btnStyle(), fontSize: 15, padding: "10px 30px", background: C.gold, color: "#1a1408", fontWeight: 700 } }, tr("タイトルへ", "To title"))
+      )
+    )
+  );
 }
 function roundedPolyPath(ctx, pts, r) {
   const n = pts.length;
@@ -2898,7 +3274,7 @@ function roundedPolyPath(ctx, pts, r) {
   }
   ctx.closePath();
 }
-// \u99D2\u306E\u5F62(\u89D2\u3092\u4E38\u3081\u305F\u4E94\u89D2\u5F62)\u3002\u500D\u7387S\u304C\u540C\u3058\u306A\u3089\u5168\u99D2\u5171\u901A\u306A\u306E\u3067\u3001\u63CF\u753B\u306E\u305F\u3073\u306B\u4F5C\u308A\u76F4\u3055\u305A\u4F7F\u3044\u56DE\u3059\u3002
+// 駒の形(角を丸めた五角形)。倍率Sが同じなら全駒共通なので、描画のたびに作り直さず使い回す。
 function makeKomaPath(S) {
   const w = S * 0.86, h = S * 0.92, r = Math.max(1, S * 0.05);
   const pts = [
@@ -2922,37 +3298,21 @@ function Icon({ name, size, rotate, style }) {
   size = size || 18;
   const wrapStyle = Object.assign({ display: "block", flexShrink: 0 }, rotate ? { transform: `rotate(${rotate}deg)` } : null, style || {});
   const common = { width: size, height: size, viewBox: "0 0 24 24", style: wrapStyle };
-  if (name === "arrow") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M12 3 L20 19 H4 Z", fill: "currentColor" }));
-  }
-  if (name === "rotateCW") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
-  }
+  const h = React.createElement;
+  if (name === "arrow") return h("svg", common, h("path", { d: "M12 3 L20 19 H4 Z", fill: "currentColor" }));
+  if (name === "rotateCW") return h("svg", common, h("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
   if (name === "rotateCCW") {
     const s2 = Object.assign({}, common.style, { transform: `${common.style.transform || ""} scaleX(-1)`.trim() });
-    return /* @__PURE__ */ React.createElement("svg", { ...common, style: s2 }, /* @__PURE__ */ React.createElement("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
+    return h("svg", { ...common, style: s2 }, h("path", { d: "M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5 0 .84-.21 1.64-.58 2.33l1.47 1.47A6.96 6.96 0 0019 12c0-3.87-3.13-7-7-7zm-5 7c0-.84.21-1.64.58-2.33L6.11 8.2A6.96 6.96 0 005 12c0 3.87 3.13 7 7 7v3l5-4-5-4v3c-2.76 0-5-2.24-5-5z", fill: "currentColor" }));
   }
-  if (name === "stop") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("rect", { x: 6, y: 6, width: 12, height: 12, rx: 2, fill: "currentColor" }));
-  }
-  if (name === "play") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M7 4l13 8-13 8z", fill: "currentColor" }));
-  }
-  if (name === "target") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 8, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 3, fill: "currentColor" }));
-  }
-  if (name === "piece") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("polygon", { points: "12,1.6 19.04,8.8 17.92,21.6 6.08,21.6 4.96,8.8", fill: "currentColor" }));
-  }
-  if (name === "eye") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z", fill: "none", stroke: "currentColor", strokeWidth: 1.8 }), /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 3.2, fill: "currentColor" }));
-  }
-  if (name === "swap") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("path", { d: "M4 8h13l-3.5-3.5M20 16H7l3.5 3.5", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" }));
-  }
-  if (name === "globe") {
-    return /* @__PURE__ */ React.createElement("svg", common, /* @__PURE__ */ React.createElement("circle", { cx: 12, cy: 12, r: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), /* @__PURE__ */ React.createElement("ellipse", { cx: 12, cy: 12, rx: 4, ry: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.4 }), /* @__PURE__ */ React.createElement("line", { x1: 3, y1: 12, x2: 21, y2: 12, stroke: "currentColor", strokeWidth: 1.4 }));
-  }
+  if (name === "stop") return h("svg", common, h("rect", { x: 6, y: 6, width: 12, height: 12, rx: 2, fill: "currentColor" }));
+  if (name === "pause") return h("svg", common, h("rect", { x: 6, y: 5, width: 4, height: 14, rx: 1, fill: "currentColor" }), h("rect", { x: 14, y: 5, width: 4, height: 14, rx: 1, fill: "currentColor" }));
+  if (name === "play") return h("svg", common, h("path", { d: "M7 4l13 8-13 8z", fill: "currentColor" }));
+  if (name === "target") return h("svg", common, h("circle", { cx: 12, cy: 12, r: 8, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), h("circle", { cx: 12, cy: 12, r: 3, fill: "currentColor" }));
+  if (name === "piece") return h("svg", common, h("polygon", { points: "12,1.6 19.04,8.8 17.92,21.6 6.08,21.6 4.96,8.8", fill: "currentColor" }));
+  if (name === "eye") return h("svg", common, h("path", { d: "M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z", fill: "none", stroke: "currentColor", strokeWidth: 1.8 }), h("circle", { cx: 12, cy: 12, r: 3.2, fill: "currentColor" }));
+  if (name === "swap") return h("svg", common, h("path", { d: "M4 8h13l-3.5-3.5M20 16H7l3.5 3.5", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" }));
+  if (name === "globe") return h("svg", common, h("circle", { cx: 12, cy: 12, r: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.6 }), h("ellipse", { cx: 12, cy: 12, rx: 4, ry: 9, fill: "none", stroke: "currentColor", strokeWidth: 1.4 }), h("line", { x1: 3, y1: 12, x2: 21, y2: 12, stroke: "currentColor", strokeWidth: 1.4 }));
   return null;
 }
 function btnStyle(danger) {
@@ -2975,7 +3335,8 @@ function dpadBtnStyle(stop) {
   };
 }
 function Overlay({ children }) {
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: WOOD_GRAIN, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } }, /* @__PURE__ */ React.createElement("div", { className: "ows-scroll", style: { padding: "clamp(12px,2vw,32px) clamp(14px,2.5vw,40px)", maxWidth: "880px", width: "92vw", maxHeight: "94vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
+  return React.createElement("div", { style: { position: "fixed", inset: 0, background: WOOD_GRAIN, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } },
+    React.createElement("div", { className: "ows-scroll", style: { padding: "clamp(12px,2vw,32px) clamp(14px,2.5vw,40px)", maxWidth: "880px", width: "92vw", maxHeight: "94vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
 }
 class OwsErrorBoundary extends React.Component {
   constructor(props) {
@@ -2990,17 +3351,17 @@ class OwsErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.error) {
-      return /* @__PURE__ */ React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#10140F", color: "#EAE4D0", fontFamily: "system-ui, sans-serif", padding: 24, textAlign: "center" } },
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginBottom: 10 } }, "描画エラーが発生しました"),
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#9AA38E", marginBottom: 18, maxWidth: 400, wordBreak: "break-all", fontFamily: "ui-monospace, monospace" } }, String(this.state.error && this.state.error.message || this.state.error)),
-        /* @__PURE__ */ React.createElement("button", { onClick: () => window.location.reload(), style: { fontSize: 14, padding: "10px 22px", borderRadius: 8, background: "#C9A96A", color: "#1a1408", border: "none", fontWeight: 700 } }, "再読み込み")
+      return React.createElement("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#10140F", color: "#EAE4D0", fontFamily: "system-ui, sans-serif", padding: 24, textAlign: "center" } },
+        React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginBottom: 10 } }, "描画エラーが発生しました"),
+        React.createElement("div", { style: { fontSize: 12, color: "#9AA38E", marginBottom: 18, maxWidth: 400, wordBreak: "break-all", fontFamily: "ui-monospace, monospace" } }, String(this.state.error && this.state.error.message || this.state.error)),
+        React.createElement("button", { onClick: () => window.location.reload(), style: { fontSize: 14, padding: "10px 22px", borderRadius: 8, background: "#C9A96A", color: "#1a1408", border: "none", fontWeight: 700 } }, "再読み込み")
       );
     }
     return this.props.children;
   }
 }
 const rootEl = document.getElementById("root");
-ReactDOM.createRoot(rootEl).render(/* @__PURE__ */ React.createElement(OwsErrorBoundary, null, /* @__PURE__ */ React.createElement(OpenWorldShogi, null)));
+ReactDOM.createRoot(rootEl).render(React.createElement(OwsErrorBoundary, null, React.createElement(OpenWorldShogi, null)));
 
 </script>
 </body>
