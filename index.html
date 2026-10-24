@@ -2568,7 +2568,7 @@ function OpenWorldShogi() {
     if (isNetGuest()) netSend({ type: "targetRel", rel });
     bump();
   }
-  // 進軍倍率を直接えらぶ(×1/×4/×16)。倍速は進軍中で、王以外の配置駒があるときだけ。
+  // 進軍倍率を直接えらぶ(1x/4x/16x)。倍速は進軍中で、王以外の配置駒があるときだけ。
   function setSpeed(m) {
     const W2 = g.current;
     if (W2.playerId === null || pausedRef.current) return;
@@ -3237,7 +3237,7 @@ function OpenWorldShogi() {
     [tr("進軍", "March"), tr("十字ボタンで方向を指定。全軍が15秒ごとに一斉前進し、止まった敵駒は踏み潰して捕獲。", "Pick a direction with the pad. Every army advances together every 15 seconds, trampling and capturing enemy pieces in the way."),
       en ? "If two pieces land on the same square, only one survives. Kings too." : `同じマスに衝突したら、生き残るのは一方だけ。${kw}も例外なし。`],
     [tr("倍速", "Speed"), en
-      ? "You can march at ×4 or ×16. At ×4 your board pieces drop to 0.9× every 10 seconds, at ×16 every second (the king is never lost). It needs board pieces and turns off when you stop marching."
+      ? "You can march at 4x or 16x. At 4x your board pieces drop to 0.9× every 10 seconds, at 16x every second (the king is never lost). It needs board pieces and turns off when you stop marching."
       : `進軍を倍速にできる。4倍は10秒ごと、16倍は1秒ごとに、盤上の配置駒が0.9倍に減る(${kw}は減らない)。配置駒がないと使えず、進軍を止めると等倍に戻る。`,
       tr("敵も同じように倍速で攻めてくる。", "Enemies speed up and attack the same way.")],
     [tr("指し手", "Moves"), tr("移動・打ち・回転は5秒に1回。敵も側面への回り込みを仕掛けてくる。", "You can move, drop, or rotate once every 5 seconds. Enemies will try to flank you.")],
@@ -3343,20 +3343,17 @@ function OpenWorldShogi() {
     h("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } },
       h("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }),
       isPlay && h("div", { style: { position: "absolute", bottom: 14, zIndex: 20, ...(dpadLeft ? { left: 14 } : { right: 14 }), display: "flex", flexDirection: "column", alignItems: "center", gap: 6 } },
-        // 進軍倍率: ×1 / ×4 / ×16 を1回で選べる(十字キーと同じ幅に3等分)
-        h("div", { role: "group", "aria-label": tr("進軍倍率", "March speed"), title: tr(`4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍(${kingWord()}は減らない)。停止中や配置駒がない時は使えない`, "×4: every 10 s, ×16: every 1 s, your board pieces drop to 0.9× (the king is never lost). Unavailable while stopped or with no board pieces."), style: { display: "flex", gap: 4, width: 146 } },
+        // 進軍倍率: 1x / 4x / 16x を1回で選べる(十字キーと同じ幅に3等分)。フォントは他のボタンと同じ(継承)。
+        h("div", { role: "group", "aria-label": tr("進軍倍率", "March speed"), title: tr(`4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍(${kingWord()}は減らない)。停止中や配置駒がない時は使えない`, "4x: every 10 s, 16x: every 1 s, your board pieces drop to 0.9× (the king is never lost). Unavailable while stopped or with no board pieces."), style: { display: "flex", gap: 4, width: 146 } },
           [1, 4, 16].map((m) => {
             const cur = player.speedMult || 1;
             const on = cur === m;
             const usable = m === 1 || (player.marchRel && myPieceCount > 0);
             return h("button", {
               key: m, onClick: () => setSpeed(m), disabled: !player.alive || (!usable && !on), "aria-pressed": on,
-              style: { ...dpadBtnStyle(false, on), width: "auto", flex: "1 1 0", height: 32, gap: 1, opacity: usable || on ? 1 : 0.45,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", system-ui, sans-serif', fontVariantNumeric: "tabular-nums", lineHeight: 1 }
-            },
-              // 「×」は小さく細めに、数字をはっきり大きく(セリフ体の×と小さく沈む数字がちぐはぐに見えていた)
-              h("span", { style: { fontSize: 11, fontWeight: 500, opacity: 0.75, transform: "translateY(-0.5px)" } }, "×"),
-              h("span", { style: { fontSize: 15, fontWeight: 700, letterSpacing: 0.2 } }, String(m)));
+              style: { ...dpadBtnStyle(false, on), width: "auto", flex: "1 1 0", height: 32, opacity: usable || on ? 1 : 0.45,
+                lineHeight: 1, fontSize: 15, fontWeight: 700, letterSpacing: 0.2 }
+            }, m + "x");
           })
         ),
         h("div", { style: { display: "flex", gap: 4 } },
