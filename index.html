@@ -35,7 +35,10 @@
   :root { --ows-top: env(safe-area-inset-top, 0px); }
   /* ホーム画面から開いたとき(下のスクリプトが ows-standalone を付ける)。
      iPhoneは時計・電波の帯の下およそ35pxまでぼかすので、その分さらに下げる。 */
-  :root.ows-standalone { --ows-top: calc(env(safe-area-inset-top, 0px) + 40px); }
+  :root.ows-standalone { --ows-top: calc(env(safe-area-inset-top, 0px) + 22px); }
+  /* ホーム画面から開いたiPhoneでは、画面の高さが実際より短く報告されて下に隙間ができるので、
+     全画面の要素は実際の画面の高さ(--ows-h、下のスクリプトで計算)にする。 */
+  :root.ows-standalone .ows-fill { bottom: auto !important; height: var(--ows-h, 100%) !important; }
   #root { height: 100%; }
   #boot-error { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100000; display: none;
     background: rgba(10,5,5,0.96); color: #FFB3A0; font-family: ui-monospace, monospace; font-size: 12px;
@@ -116,7 +119,18 @@
     try {
       var sa = window.navigator.standalone === true ||
         (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
-      if (sa) document.documentElement.classList.add('ows-standalone');
+      if (sa) {
+        document.documentElement.classList.add('ows-standalone');
+        var setH = function () {
+          var portrait = window.innerWidth <= window.innerHeight;
+          var full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+          var h = Math.max(window.innerHeight, full || 0);
+          document.documentElement.style.setProperty('--ows-h', h + 'px');
+        };
+        setH();
+        window.addEventListener('resize', setH);
+        window.addEventListener('orientationchange', function () { setTimeout(setH, 250); });
+      }
     } catch (e) {}
   })();
 </script>
@@ -3195,9 +3209,9 @@ function OpenWorldShogi() {
     h("span", { style: { fontFamily: SERIF, fontWeight: 800, fontSize: "clamp(14px,2vw,19px)" } }, label),
     h("span", { style: { fontSize: "clamp(9.5px,1.2vw,12px)", opacity: 0.85 } }, sub)
   );
-  return h("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box", paddingTop: "var(--ows-top)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% var(--ows-top) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
+  return h("div", { className: "ows-fill", style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
     // ===== 上部バー =====
-    h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
+    h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "calc(var(--ows-top) + 7px) 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
       h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 12.5 : 13, fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋", "Open World Chess")),
       h("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, modeBadge),
       h("span", { style: { flex: 1, minWidth: 0 } }),
@@ -3323,7 +3337,7 @@ function OpenWorldShogi() {
           : h(React.Fragment, null, h(Icon, { name: "stop", size: 9, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), tr("停止", "Stopped")))
     ),
     // ===== タイトル画面 =====
-    !started && netPhase === null && h("div", { className: "ows-title ows-scroll ows-noscroll", style: { background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, color: "#EAE4D0" } },
+    !started && netPhase === null && h("div", { className: "ows-title ows-scroll ows-noscroll ows-fill", style: { background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, color: "#EAE4D0" } },
       h("div", { className: "ows-title-inner" + (lang === "en" ? " is-en" : "") },
         // 言語切替(右上)
         h("div", { className: "ows-lang", role: "group", "aria-label": "Language" },
@@ -3692,7 +3706,7 @@ function dpadBtnStyle(stop) {
   };
 }
 function Overlay({ children }) {
-  return React.createElement("div", { style: { position: "fixed", inset: 0, background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } },
+  return React.createElement("div", { className: "ows-fill", style: { position: "fixed", inset: 0, background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } },
     React.createElement("div", { className: "ows-scroll ows-noscroll", style: { marginTop: "var(--ows-top)", padding: "clamp(12px,2vw,32px) clamp(14px,2.5vw,40px)", maxWidth: "880px", width: "92vw", maxHeight: "94vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
 }
 class OwsErrorBoundary extends React.Component {
