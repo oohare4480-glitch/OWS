@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>オープンワールド将棋&amp;チェス【OpenWorldShogi&amp;Chess】</title>
-<meta name="description" content="オープンワールド将棋&チェス — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Shogi & Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
-<meta property="og:title" content="オープンワールド将棋&チェス | Open World Shogi & Chess">
+<title>オープンワールド将棋【Open World Chess】</title>
+<meta name="description" content="オープンワールド将棋 — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
+<meta property="og:title" content="オープンワールド将棋 | Open World Chess">
 <meta property="og:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋でもチェスでも遊べる。 A battle-royale with up to 200 armies on a massive board, in shogi or chess. Free to play.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://openworldshogi.com/">
 <meta property="og:image" content="https://openworldshogi.com/favicon-512x512.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="オープンワールド将棋&チェス | Open World Shogi & Chess">
+<meta name="twitter:title" content="オープンワールド将棋 | Open World Chess">
 <meta name="twitter:description" content="480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋でもチェスでも遊べる。A battle-royale with up to 200 armies, in shogi or chess. Free to play.">
 <meta name="twitter:image" content="https://openworldshogi.com/favicon-512x512.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -44,6 +44,69 @@
   /* スクロールはできるがバーは出さない(説明文・オーバーレイ用) */
   .ows-noscroll { scrollbar-width: none; }
   .ows-noscroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  /* ===== タイトル画面 ===== */
+  .ows-title { position: fixed; inset: 0; z-index: 40; overflow-y: auto; scrollbar-width: none; }
+  .ows-title::-webkit-scrollbar { display: none; }
+  .ows-title-inner {
+    position: relative; box-sizing: border-box; min-height: 100%; height: 100%; max-width: 480px; margin: 0 auto;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    display: grid; grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto minmax(110px, 1fr) auto auto;
+    grid-template-areas: "lang" "hero" "switch" "rules" "actions" "foot";
+  }
+  .ows-lang { grid-area: lang; justify-self: end; display: inline-flex; padding: 2px; border-radius: 999px; border: 1px solid rgba(176,140,79,0.55); background: rgba(0,0,0,0.35); }
+  .ows-hero { grid-area: hero; text-align: center; padding-top: clamp(4px, 2vh, 22px); }
+  .ows-h1 { margin: 0; font-weight: 800; line-height: 1; }
+  .ows-t1 {
+    display: block; font-family: "Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif; font-weight: 800;
+    font-size: clamp(34px, 10.2vw, 60px); letter-spacing: 0.02em;
+    background: linear-gradient(180deg, #FFF3CC 0%, #F2D68E 36%, #C99F57 72%, #8B6831 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,0.75)) drop-shadow(0 8px 18px rgba(0,0,0,0.5));
+    white-space: nowrap;
+  }
+  .is-en .ows-t1 { font-family: "Playfair Display", Georgia, serif; font-weight: 700; font-size: clamp(42px, 13vw, 72px); letter-spacing: 0; }
+  .ows-t2 { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }
+  .ows-t2-text {
+    font-family: "Shippori Mincho B1","Hiragino Mincho ProN",serif; font-weight: 800; font-size: clamp(22px, 6.4vw, 34px);
+    letter-spacing: 0.5em; padding-left: 0.5em; color: #E9CF8E; text-shadow: 0 2px 0 rgba(0,0,0,0.7);
+  }
+  .is-en .ows-t2-text { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; letter-spacing: 0.08em; padding-left: 0; }
+  .ows-rule { flex: 1; max-width: 120px; height: 1px; }
+  .ows-rule.l { background: linear-gradient(90deg, transparent, rgba(227,194,126,0.8)); }
+  .ows-rule.r { background: linear-gradient(270deg, transparent, rgba(227,194,126,0.8)); }
+  .ows-sub { margin: 12px 0 0; font-size: 12px; color: #E3C27E; letter-spacing: 0.3em; padding-left: 0.3em; }
+  .is-en .ows-sub { font-family: "Playfair Display", Georgia, serif; letter-spacing: 0.06em; padding-left: 0; font-size: 13px; }
+  .ows-tag { margin: 6px 0 0; font-size: 13px; color: #C9B896; line-height: 1.6; }
+  .is-en .ows-tag { font-family: "Playfair Display", Georgia, serif; font-style: italic; }
+  .ows-switch { grid-area: switch; display: flex; margin-top: clamp(12px, 2.6vh, 24px); padding: 3px; border-radius: 10px; border: 1px solid rgba(176,140,79,0.6); background: rgba(0,0,0,0.38); }
+  .ows-rules { grid-area: rules; min-height: 0; display: flex; flex-direction: column; margin-top: 12px;
+    border-top: 1px solid transparent; border-image: linear-gradient(90deg, transparent, rgba(176,140,79,0.75) 15%, rgba(176,140,79,0.75) 85%, transparent) 1;
+    border-bottom: 1px solid transparent; }
+  .ows-rules-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; text-align: left;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%); }
+  .ows-actions { grid-area: actions; margin-top: 14px; }
+  .ows-foot { grid-area: foot; text-align: center; margin-top: 12px; }
+
+  /* パソコンなど横に広い画面: 左に題字と操作、右に説明文の2段組み */
+  @media (min-width: 900px) and (min-height: 520px) {
+    .ows-title-inner {
+      max-width: 1120px; padding: 28px 48px; column-gap: clamp(40px, 6vw, 96px);
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto auto auto 1fr;
+      grid-template-areas: ". rules" "hero rules" "switch rules" "actions rules" "foot rules" ". rules";
+    }
+    .ows-lang { position: absolute; top: 24px; right: 48px; }
+    .ows-hero { padding-top: 0; }
+    .ows-t1 { font-size: min(58px, 4.2vw); }
+    .is-en .ows-t1 { font-size: min(84px, 6.4vw); }
+    .ows-rules { align-self: center; max-height: min(72vh, 620px); margin-top: 0; }
+    .ows-switch { margin-top: 28px; }
+    .ows-actions { margin-top: 16px; }
+    .ows-foot { margin-top: 22px; }
+  }
+
 </style>
 </head>
 <body>
@@ -1636,7 +1699,7 @@ function OpenWorldShogi() {
     try { document.documentElement.lang = l; } catch (e) {}
     setLangState(l);
   }
-  useEffect(() => { try { document.documentElement.lang = lang; document.title = lang === "en" ? "Open World Shogi & Chess" : "オープンワールド将棋&チェス【OpenWorldShogi&Chess】"; } catch (e) {} }, [lang]);
+  useEffect(() => { try { document.documentElement.lang = lang; document.title = lang === "en" ? "Open World Chess" : "オープンワールド将棋"; } catch (e) {} }, [lang]);
   // 一時停止中かどうか。止めている間は仮想時計(now)の進みを0にし、世界の更新も止める。
   const pausedRef = useRef(false);
   function setPaused(p) {
@@ -3025,7 +3088,7 @@ function OpenWorldShogi() {
   return h("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
     // ===== 上部バー =====
     h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
-      h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 11.5 : "clamp(10px, 2.9vw, 12px)", fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋&チェス", "Open World Shogi & Chess")),
+      h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 12.5 : 13, fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋", "Open World Chess")),
       h("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 9, background: "rgba(201,169,106,0.15)", color: C.gold, border: `1px solid ${C.gold}44`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 } }, modeBadge),
       h("span", { style: { flex: 1, minWidth: 0 } }),
       started && h("button", { onClick: () => setShowArmyList((v) => !v), title: tr("軍一覧", "Armies"), style: { fontSize: 9, padding: "3px 7px", borderRadius: 8, background: showArmyList ? "rgba(201,169,106,0.28)" : "rgba(255,255,255,0.06)", color: C.gold, border: `1px solid ${C.gold}55`, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3, display: "inline-flex", alignItems: "center", gap: 3 } }, tr("残存 ", "Alive "), remaining + (isPlay && player.alive ? 1 : 0), "/", W.mode === "openworld" ? W.cap || CAP : CAP, h(Icon, { name: "arrow", size: 8, rotate: showArmyList ? 0 : 180 })),
@@ -3150,40 +3213,29 @@ function OpenWorldShogi() {
           : h(React.Fragment, null, h(Icon, { name: "stop", size: 9, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), tr("停止", "Stopped")))
     ),
     // ===== タイトル画面 =====
-    !started && netPhase === null && h(Overlay, null,
-      h("div", { style: { maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "stretch", gap: 0 } },
-        // 言語切替(控えめに右上)
-        h("div", { style: { display: "flex", justifyContent: "flex-end" } },
-          h("div", { role: "group", "aria-label": "Language", style: { display: "inline-flex", padding: 2, borderRadius: 999, border: "1px solid rgba(176,140,79,0.55)", background: "rgba(0,0,0,0.35)" } },
-            [["ja", "日本語"], ["en", "EN"]].map(([key, label]) => h("button", {
-              key, onClick: () => setLang(key), "aria-pressed": lang === key,
-              style: { fontFamily: key === "en" ? ENFONT : SERIF, fontSize: 11, lineHeight: 1, padding: "6px 11px", borderRadius: 999, border: "none", cursor: "pointer",
-                background: lang === key ? "#E3C27E" : "transparent", color: lang === key ? "#1a1408" : C.sub, fontWeight: lang === key ? 700 : 500 }
-            }, label)))
-        ),
-        // ===== 題字 =====
-        h("div", { style: { textAlign: "center", padding: "clamp(10px,3vh,30px) 0 0" } },
-          h("div", { style: lang === "en"
-            ? { fontFamily: ENFONT, fontStyle: "italic", fontSize: "clamp(15px,4vw,19px)", color: C.sub, letterSpacing: 1 }
-            : { fontFamily: SERIF, fontWeight: 700, fontSize: "clamp(12px,3.4vw,15px)", color: C.sub, letterSpacing: "0.42em", paddingLeft: "0.42em" } },
-            lang === "en" ? "Open World" : "オープンワールド"),
-          h("h1", { style: { margin: "2px 0 0", fontWeight: 800, lineHeight: 1.05, fontSize: lang === "en" ? "clamp(40px,12vw,64px)" : "clamp(44px,14vw,72px)", fontFamily: lang === "en" ? ENFONT : SERIF,
-              letterSpacing: lang === "en" ? 0 : "0.04em",
-              background: "linear-gradient(180deg, #FFF1C4 0%, #F0D48A 38%, #C9A15A 72%, #8E6B33 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
-              filter: "drop-shadow(0 2px 0 rgba(0,0,0,0.75)) drop-shadow(0 6px 14px rgba(0,0,0,0.45))" } },
-            lang === "en" ? "Shogi & Chess" : h(React.Fragment, null, "将棋",
-              h("span", { style: { fontFamily: ENFONT, fontStyle: "italic", fontWeight: 600, fontSize: "0.62em", margin: "0 0.14em", verticalAlign: "0.12em" } }, "&"), "チェス")),
-          // 飾り罫: ― 200軍バトルロワイヤル ―
-          h("div", { style: { display: "flex", alignItems: "center", gap: 12, margin: "12px auto 0", maxWidth: 360 } },
-            h("span", { style: { flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(227,194,126,0.7))" } }),
-            h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: "clamp(11px,3vw,13px)", color: C.gold, letterSpacing: lang === "en" ? 1 : "0.25em", whiteSpace: "nowrap" } },
-              tr("200軍バトルロワイヤル", "A 200-army battle royale")),
-            h("span", { style: { flex: 1, height: 1, background: "linear-gradient(270deg, transparent, rgba(227,194,126,0.7))" } })
+    !started && netPhase === null && h("div", { className: "ows-title ows-scroll ows-noscroll", style: { background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, color: "#EAE4D0" } },
+      h("div", { className: "ows-title-inner" + (lang === "en" ? " is-en" : "") },
+        // 言語切替(右上)
+        h("div", { className: "ows-lang", role: "group", "aria-label": "Language" },
+          [["ja", "日本語"], ["en", "EN"]].map(([key, label]) => h("button", {
+            key, onClick: () => setLang(key), "aria-pressed": lang === key,
+            style: { fontFamily: key === "en" ? ENFONT : SERIF, fontSize: 11, lineHeight: 1, padding: "6px 11px", borderRadius: 999, border: "none", cursor: "pointer",
+              background: lang === key ? "#E3C27E" : "transparent", color: lang === key ? "#1a1408" : C.sub, fontWeight: lang === key ? 700 : 500 }
+          }, label))),
+        // ===== 題字: 「オープンワールド」を主役に =====
+        h("header", { className: "ows-hero" },
+          h("h1", { className: "ows-h1", "aria-label": lang === "en" ? "Open World Chess" : "オープンワールド将棋" },
+            h("span", { className: "ows-t1" }, lang === "en" ? "Open World" : "オープンワールド"),
+            h("span", { className: "ows-t2" },
+              h("span", { className: "ows-rule l" }),
+              h("span", { className: "ows-t2-text" }, lang === "en" ? "Chess" : "将棋"),
+              h("span", { className: "ows-rule r" }))
           ),
-          h("p", { style: { margin: "10px 0 0", fontSize: "clamp(12px,3.2vw,14px)", color: C.sub, lineHeight: 1.6 } }, tr("最後の一軍になるまで、戦は終わらない", "The war ends only when one army remains"))
+          h("p", { className: "ows-sub" }, tr("200軍バトルロワイヤル", "A 200-army battle royale")),
+          h("p", { className: "ows-tag" }, tr("最後の一軍になるまで、戦は終わらない", "The war ends only when one army remains"))
         ),
-        // ===== ワールド選択(切替タブ) =====
-        h("div", { role: "group", "aria-label": tr("ワールド", "World"), style: { display: "flex", marginTop: "clamp(16px,3.4vh,28px)", padding: 3, borderRadius: 10, border: "1px solid rgba(176,140,79,0.6)", background: "rgba(0,0,0,0.38)" } },
+        // ===== ワールド選択 =====
+        h("div", { className: "ows-switch", role: "group", "aria-label": tr("ワールド", "World") },
           [["shogi", "☗", tr("将棋", "Shogi"), "9×9"], ["chess", "\u265A\uFE0E", tr("チェス", "Chess"), "8×8"]].map(([key, glyph, label, size]) => h("button", {
             key, onClick: () => setVariant(key), "aria-pressed": variant === key,
             style: { flex: "1 1 0", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 6px", borderRadius: 7, border: "none", cursor: "pointer",
@@ -3196,39 +3248,42 @@ function OpenWorldShogi() {
             h("span", { style: { fontSize: 11, opacity: 0.7, fontFamily: ENFONT } }, size)
           ))
         ),
-        // ===== 説明文(この中だけスクロール。スクロールバーは出さず、上下を薄くぼかす) =====
-        h("div", { style: { marginTop: 14, height: 1, background: "linear-gradient(90deg, transparent, rgba(176,140,79,0.75) 15%, rgba(176,140,79,0.75) 85%, transparent)" } }),
-        h("div", { className: "ows-scroll ows-noscroll", style: { maxHeight: "min(31vh, 300px)", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "left",
-            WebkitMaskImage: "linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%)", maskImage: "linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%)" } },
-          h("div", { style: { padding: "6px 2px 18px" } },
-            introRows.map(([label, body, warn], idx) => h("div", { key: label, style: { display: "flex", gap: 14, padding: "11px 0", borderTop: idx ? "1px solid rgba(176,140,79,0.22)" : "none" } },
-              h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: 12.5, fontWeight: 700, color: C.gold, width: lang === "en" ? 58 : 66, flexShrink: 0, paddingTop: 1, whiteSpace: "nowrap" } }, label),
-              h("span", { style: { fontSize: 13, lineHeight: 1.75, color: "#E6DFCB", minWidth: 0 } },
-                Array.isArray(body) ? body.map((line, k) => h("span", { key: k, style: { display: "block" } }, line)) : body,
-                warn && h("span", { style: { display: "block", color: "#E9826F", marginTop: 3, fontSize: 12.5 } }, warn))
-            ))
+        // ===== 説明文(この中だけスクロール) =====
+        h("section", { className: "ows-rules", "aria-label": tr("遊び方", "How to play") },
+          h("div", { className: "ows-scroll ows-noscroll ows-rules-scroll" },
+            h("div", { style: { padding: "6px 2px 18px" } },
+              introRows.map(([label, body, warn], idx) => h("div", { key: label, style: { display: "flex", gap: 14, padding: "11px 0", borderTop: idx ? "1px solid rgba(176,140,79,0.22)" : "none" } },
+                h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: 12.5, fontWeight: 700, color: C.gold, width: lang === "en" ? 58 : 66, flexShrink: 0, paddingTop: 1, whiteSpace: "nowrap" } }, label),
+                h("span", { style: { fontSize: 13, lineHeight: 1.75, color: "#E6DFCB", minWidth: 0 } },
+                  Array.isArray(body) ? body.map((line, k) => h("span", { key: k, style: { display: "block" } }, line)) : body,
+                  warn && h("span", { style: { display: "block", color: "#E9826F", marginTop: 3, fontSize: 12.5 } }, warn))
+              ))
+            )
           )
         ),
-        h("div", { style: { height: 1, background: "linear-gradient(90deg, transparent, rgba(176,140,79,0.75) 15%, rgba(176,140,79,0.75) 85%, transparent)" } }),
         // ===== 操作ボタン =====
-        h("button", { onClick: () => setShowNamePrompt(true), style: { marginTop: 18, height: 46, borderRadius: 8, border: "1px solid #F3DC9C", cursor: "pointer",
-            background: "linear-gradient(180deg, #F2D892 0%, #DDB56B 100%)", color: "#1d1407", boxShadow: "0 1px 0 rgba(255,245,210,0.6) inset, 0 6px 18px rgba(0,0,0,0.35)",
-            fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 800, fontSize: 15, letterSpacing: lang === "en" ? 0.3 : "0.08em", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 } },
-          h(Icon, { name: "piece", size: 14 }), tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
-        h("div", { style: { display: "flex", gap: 8, marginTop: 8 } },
-          h("button", { onClick: () => begin("watch"), style: ghostBtn(lang) }, h(Icon, { name: "eye", size: 14 }), tr("観戦する", "Watch")),
-          hasNet() && !tc && h("button", {
-            onClick: () => { setNetName(""); setNetMsg(""); setCodeInput(""); setNetPhase("nameEntry"); fetchRoomList(); },
-            style: ghostBtn(lang)
-          }, h(Icon, { name: "globe", size: 14 }), tr("ネット対戦", "Online"))
+        h("div", { className: "ows-actions" },
+          h("button", { onClick: () => setShowNamePrompt(true), style: { width: "100%", height: 46, borderRadius: 8, border: "1px solid #F3DC9C", cursor: "pointer",
+              background: "linear-gradient(180deg, #F2D892 0%, #DDB56B 100%)", color: "#1d1407", boxShadow: "0 1px 0 rgba(255,245,210,0.6) inset, 0 6px 18px rgba(0,0,0,0.35)",
+              fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 800, fontSize: 15, letterSpacing: lang === "en" ? 0.3 : "0.08em", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 } },
+            h(Icon, { name: "piece", size: 14 }), tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
+          h("div", { style: { display: "flex", gap: 8, marginTop: 8 } },
+            h("button", { onClick: () => begin("watch"), style: ghostBtn(lang) }, h(Icon, { name: "eye", size: 14 }), tr("観戦する", "Watch")),
+            hasNet() && !tc && h("button", {
+              onClick: () => { setNetName(""); setNetMsg(""); setCodeInput(""); setNetPhase("nameEntry"); fetchRoomList(); },
+              style: ghostBtn(lang)
+            }, h(Icon, { name: "globe", size: 14 }), tr("ネット対戦", "Online"))
+          ),
+          tc && h("div", { style: { fontSize: 11, color: C.sub, marginTop: 8, textAlign: "center", opacity: 0.85 } }, tr("ネット対戦は今のところ将棋ワールドのみです。", "Online play is shogi only for now."))
         ),
-        tc && h("div", { style: { fontSize: 11, color: C.sub, marginTop: 8, textAlign: "center", opacity: 0.85 } }, tr("ネット対戦は今のところ将棋ワールドのみです。", "Online play is shogi only for now.")),
-        // ===== フッター =====
-        h("div", { style: { display: "flex", gap: 16, justifyContent: "center", marginTop: 18, fontSize: 11 } },
-          h("a", { href: "/terms.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "none", borderBottom: "1px solid rgba(201,184,150,0.4)" } }, tr("利用規約", "Terms of Use")),
-          h("a", { href: "/privacy.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "none", borderBottom: "1px solid rgba(201,184,150,0.4)" } }, tr("プライバシーポリシー", "Privacy Policy"))
-        ),
-        h("div", { style: { textAlign: "center", marginTop: 8, fontSize: 11, fontFamily: ENFONT, fontStyle: "italic", letterSpacing: 0.5, color: "rgba(201,184,150,0.7)" } }, "Created by yoshi on 19 July 2026")
+        // ===== フッター(常に画面内に見える) =====
+        h("footer", { className: "ows-foot" },
+          h("div", { style: { fontFamily: ENFONT, fontStyle: "italic", fontSize: 12, letterSpacing: 0.5, color: "rgba(227,194,126,0.85)" } }, "Created by yoshi on 19 July 2026"),
+          h("div", { style: { display: "flex", gap: 16, justifyContent: "center", marginTop: 6, fontSize: 11 } },
+            h("a", { href: "/terms.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "none", borderBottom: "1px solid rgba(201,184,150,0.4)" } }, tr("利用規約", "Terms of Use")),
+            h("a", { href: "/privacy.html", target: "_blank", rel: "noopener", style: { color: C.sub, textDecoration: "none", borderBottom: "1px solid rgba(201,184,150,0.4)" } }, tr("プライバシーポリシー", "Privacy Policy"))
+          )
+        )
       )
     ),
     
