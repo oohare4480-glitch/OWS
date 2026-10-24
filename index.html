@@ -2807,26 +2807,26 @@ function OpenWorldShogi() {
     ctx.translate(-Wd / 2, -Hd / 2);
     const mixed = W2.variant === "mixed";
     if (chess || mixed) {
-      // チェス盤/将棋×チェス盤: 2×2マス分の画像に一度だけ描き、それを敷き詰める。
-      // (以前はマスと筋を毎フレーム別々に塗っていて、描画の大半をここが占めていた)
+      // チェス盤/将棋×チェス盤: N×Nマス分の画像を一度だけ作り、1枚ずつ正しい位置に貼る。
+      // (以前は模様の敷き詰め(pattern)を使っていたが、iPhoneでは拡大縮小したときに
+      //  模様の繰り返しに少しずつ誤差がたまり、マス目と駒がずれていた。
+      //  1枚ずつ座標を指定して貼れば、どの位置でもマス目は駒とぴったり合う)
       ctx.fillStyle = mixed ? (S >= 4 ? C.mixLight : C.mixMid) : (S >= 4 ? C.chessLight : C.chessMid);
       ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
       if (S >= 4) {
         const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W - 1, Math.ceil(vx1));
         const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H - 1, Math.ceil(vy1));
         const tile = boardTile(mixed ? "mixed" : "chess", S * dpr);
-        const pat = tile.pattern(ctx);
-        if (pat && pat.setTransform && typeof DOMMatrix !== "undefined") {
-          const k = S / tile.bucket;
-          ctx.imageSmoothingQuality = "high";
-          pat.setTransform(new DOMMatrix([k, 0, 0, k, sx(0), sy(0)]));
-          ctx.fillStyle = pat;
-          ctx.fillRect(sx(gx0), sy(gy0), (gx1 - gx0 + 1) * S, (gy1 - gy0 + 1) * S);
-        } else {
-          ctx.fillStyle = mixed ? C.mixDark : C.chessDark;
-          ctx.beginPath();
-          for (let y = gy0; y <= gy1; y++) for (let x = gx0 + ((gx0 + y + 1) & 1); x <= gx1; x += 2) ctx.rect(sx(x), sy(y), S, S);
-          ctx.fill();
+        const N = tile.n, B = tile.bucket;
+        const bx0 = Math.floor(gx0 / N) * N, by0 = Math.floor(gy0 / N) * N;
+        const ov = 0.6 / dpr; // 継ぎ目が見えないよう、ごくわずかに重ねて貼る
+        ctx.imageSmoothingQuality = "high";
+        for (let by = by0; by <= gy1; by += N) {
+          const hcells = Math.min(N, MAP_H - by);
+          for (let bx = bx0; bx <= gx1; bx += N) {
+            const wcells = Math.min(N, MAP_W - bx);
+            ctx.drawImage(tile.canvas, 0, 0, wcells * B, hcells * B, sx(bx), sy(by), wcells * S + (bx + wcells < MAP_W ? ov : 0), hcells * S + (by + hcells < MAP_H ? ov : 0));
+          }
         }
       }
     } else {
@@ -3514,25 +3514,31 @@ function boardTile(kind, pxS) {
   let t = BOARD_TILES.get(key);
   if (t) return t;
   if (BOARD_TILES.size > 16) BOARD_TILES.clear();
+  // 1枚の画像に入れるマス数(偶数)。画像が512画素前後になるようにし、貼る回数を減らす。
+  const n = Math.max(2, Math.min(16, 2 * Math.floor(512 / (bucket * 2))));
   const c = document.createElement("canvas");
-  const n = bucket * 2;
-  c.width = c.height = n;
+  const W = bucket * n;
+  c.width = c.height = W;
   const x = c.getContext("2d");
   const light = kind === "mixed" ? C.mixLight : C.chessLight;
   const dark = kind === "mixed" ? C.mixDark : C.chessDark;
   x.fillStyle = light;
-  x.fillRect(0, 0, n, n);
+  x.fillRect(0, 0, W, W);
   x.fillStyle = dark;
-  x.fillRect(bucket, 0, bucket, bucket);
-  x.fillRect(0, bucket, bucket, bucket);
+  for (let j = 0; j < n; j++) for (let i = (j + 1) & 1; i < n; i += 2) x.fillRect(i * bucket, j * bucket, bucket, bucket);
   brushPattern(x); // 筋の元画像を用意
+  const b2 = bucket * 2;
   if (kind === "mixed") {
     // 木目は横向きに、少し控えめに
     x.save();
     x.globalAlpha = 0.55;
-    x.translate(n, 0);
-    x.rotate(Math.PI / 2);
-    x.drawImage(brushTileSrc, 0, 0, n, n);
+    for (let j = 0; j < n; j += 2) for (let i = 0; i < n; i += 2) {
+      x.save();
+      x.translate(i * bucket + b2, j * bucket);
+      x.rotate(Math.PI / 2);
+      x.drawImage(brushTileSrc, 0, 0, b2, b2);
+      x.restore();
+    }
     x.restore();
     if (bucket >= 6) {
       // 将棋盤のような罫線(マスの境目)
@@ -3540,27 +3546,26 @@ function boardTile(kind, pxS) {
       x.lineWidth = Math.max(1, Math.round(bucket / 28));
       const o = x.lineWidth / 2;
       x.beginPath();
-      x.moveTo(o, 0); x.lineTo(o, n);
-      x.moveTo(bucket + o, 0); x.lineTo(bucket + o, n);
-      x.moveTo(0, o); x.lineTo(n, o);
-      x.moveTo(0, bucket + o); x.lineTo(n, bucket + o);
+      for (let k = 0; k < n; k++) {
+        x.moveTo(k * bucket + o, 0); x.lineTo(k * bucket + o, W);
+        x.moveTo(0, k * bucket + o); x.lineTo(W, k * bucket + o);
+      }
       x.stroke();
     }
   } else {
-    x.drawImage(brushTileSrc, 0, 0, n, n);
+    for (let j = 0; j < n; j += 2) for (let i = 0; i < n; i += 2) x.drawImage(brushTileSrc, i * bucket, j * bucket, b2, b2);
     if (bucket >= 18) {
       x.strokeStyle = "rgba(0,0,0,0.10)";
       x.lineWidth = 1;
       x.beginPath();
-      x.moveTo(0.5, 0); x.lineTo(0.5, n);
-      x.moveTo(bucket + 0.5, 0); x.lineTo(bucket + 0.5, n);
-      x.moveTo(0, 0.5); x.lineTo(n, 0.5);
-      x.moveTo(0, bucket + 0.5); x.lineTo(n, bucket + 0.5);
+      for (let k = 0; k < n; k++) {
+        x.moveTo(k * bucket + 0.5, 0); x.lineTo(k * bucket + 0.5, W);
+        x.moveTo(0, k * bucket + 0.5); x.lineTo(W, k * bucket + 0.5);
+      }
       x.stroke();
     }
   }
-  t = { canvas: c, bucket, pat: null, patCtx: null,
-    pattern(ctx) { if (this.patCtx !== ctx) { this.pat = ctx.createPattern(c, "repeat"); this.patCtx = ctx; } return this.pat; } };
+  t = { canvas: c, bucket, n };
   BOARD_TILES.set(key, t);
   return t;
 }
