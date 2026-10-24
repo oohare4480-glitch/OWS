@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#1a0906">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>オープンワールド将棋【Open World Chess】</title>
 <meta name="description" content="オープンワールド将棋 — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
 <meta property="og:title" content="オープンワールド将棋 | Open World Chess">
@@ -27,6 +30,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Playfair+Display:wght@500;600;700&family=Yuji+Syuku&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #1a0906; overscroll-behavior: none; }
+  /* 画面上端の余白。iPhoneでは時計・電波・電池の帯とその少し下がぼかされるので、
+     ホーム画面に追加して開いたとき(standalone)は、さらに下げてぼかしの外に出す。 */
+  :root { --ows-top: env(safe-area-inset-top, 0px); }
+  @media (display-mode: standalone) {
+    :root { --ows-top: calc(env(safe-area-inset-top, 0px) + 34px); }
+  }
   #root { height: 100%; }
   #boot-error { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100000; display: none;
     background: rgba(10,5,5,0.96); color: #FFB3A0; font-family: ui-monospace, monospace; font-size: 12px;
@@ -50,7 +59,7 @@
   .ows-title::-webkit-scrollbar { display: none; }
   .ows-title-inner {
     position: relative; box-sizing: border-box; height: 100%; min-height: 560px; width: 100%; max-width: 480px; margin: 0 auto;
-    padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    padding: calc(var(--ows-top) + 14px) 18px calc(env(safe-area-inset-bottom, 0px) + 12px);
     display: grid; grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto minmax(110px, 1fr) auto auto auto;
     grid-template-areas: "lang" "hero" "switch" "rules" "actions" "note" "foot";
@@ -3176,7 +3185,7 @@ function OpenWorldShogi() {
     h("span", { style: { fontFamily: SERIF, fontWeight: 800, fontSize: "clamp(14px,2vw,19px)" } }, label),
     h("span", { style: { fontSize: "clamp(9.5px,1.2vw,12px)", opacity: 0.85 } }, sub)
   );
-  return h("div", { style: { height: "100dvh", boxSizing: "border-box", paddingTop: "env(safe-area-inset-top, 0px)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% env(safe-area-inset-top, 0px) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
+  return h("div", { style: { height: "100dvh", boxSizing: "border-box", paddingTop: "var(--ows-top)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% var(--ows-top) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
     // ===== 上部バー =====
     h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
       h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 12.5 : 13, fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋", "Open World Chess")),
@@ -3674,7 +3683,7 @@ function dpadBtnStyle(stop) {
 }
 function Overlay({ children }) {
   return React.createElement("div", { style: { position: "fixed", inset: 0, background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } },
-    React.createElement("div", { className: "ows-scroll ows-noscroll", style: { padding: "clamp(12px,2vw,32px) clamp(14px,2.5vw,40px)", maxWidth: "880px", width: "92vw", maxHeight: "94vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
+    React.createElement("div", { className: "ows-scroll ows-noscroll", style: { marginTop: "var(--ows-top)", padding: "clamp(12px,2vw,32px) clamp(14px,2.5vw,40px)", maxWidth: "880px", width: "92vw", maxHeight: "94vh", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "center", color: "#EAE4D0" } }, children));
 }
 class OwsErrorBoundary extends React.Component {
   constructor(props) {
