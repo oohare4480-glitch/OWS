@@ -350,6 +350,34 @@ function sideOfOwner(owner) {
   const a = owsWorldRef && owsWorldRef.armies ? owsWorldRef.armies[owner] : null;
   return a && a.chessSide ? a.chessSide : null;
 }
+// 持ち駒ボタンのチェスの駒は、盤上と同じ絵で、その軍の色(白/黒)で描いた小さな画像にする。
+// (文字の駒記号だと、ボタンの文字色で塗られてしまい、黒い軍でも白っぽく見えていた)
+const HAND_ICON_CACHE = new Map();
+function chessHandIconURL(t, light, accent) {
+  const key = t + "|" + (light ? 1 : 0) + "|" + accent;
+  let url = HAND_ICON_CACHE.get(key);
+  if (url) return url;
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 72;
+    const x = c.getContext("2d");
+    x.scale(0.72 * 1.1, 0.72 * 1.1);
+    x.translate(-4.5, -6);
+    drawChessPiece(x, t, light, accent, makeChessGrads(x), true);
+    url = c.toDataURL("image/png");
+  } catch (e) { url = ""; }
+  HAND_ICON_CACHE.set(key, url);
+  return url;
+}
+function handIcon(t, owner, h) {
+  if (!pieceIsChessStyle(t, owner)) return handLabel(t, owner);
+  const a = owsWorldRef && owsWorldRef.armies ? owsWorldRef.armies[owner] : null;
+  const light = a && a.chessSide ? a.chessSide === "white" : true;
+  const accent = a ? (owsWorldRef.playerId === owner ? PLAYER_COLOR.chip : a.color.chip) : PLAYER_COLOR.chip;
+  const url = chessHandIconURL(t, light, accent);
+  if (!url) return handLabel(t, owner);
+  return h("img", { src: url, alt: handLabel(t, owner), draggable: false, style: { width: 22, height: 22, display: "inline-block", verticalAlign: "middle", pointerEvents: "none" } });
+}
 const handLabel = (t, owner) => pieceIsChessStyle(t, owner)
   ? ((sideOfOwner(owner) === "white" ? CHESS_GLYPH_WHITE[t] : CHESS_GLYPH[t]) || "?")
   : (KANJI[t] || (t === "K" ? "王" : "?"));
@@ -708,6 +736,14 @@ function findSpawnSpot(W, facing, kind) {
 function armyHasBoardPieces(W, id) {
   return W.cells.countOf(id) > 0;
 }
+// 軍の「玉か王か」と「チェスの駒の色」を決める。
+// 将棋軍は連動させる(玉の軍は白、王の軍は黒)。持っているチェスの駒の色で玉か王かがわかる。
+// チェス軍は色だけランダム。
+function pickSides(kind) {
+  const kingKanji = Math.random() < 0.5 ? "玉" : "王";
+  const chessSide = kind === "chess" ? (Math.random() < 0.5 ? "white" : "black") : (kingKanji === "玉" ? "white" : "black");
+  return { kingKanji, chessSide };
+}
 function pickArmyKind() {
   return owsVariant === "mixed" ? (Math.random() < 0.5 ? "shogi" : "chess") : owsVariant === "chess" ? "chess" : "shogi";
 }
@@ -732,8 +768,7 @@ function spawnNewArmy(W, onBoardCache, forceKind) {
   const fresh = {
     id,
     kind,
-    chessSide: Math.random() < 0.5 ? "white" : "black",
-    kingKanji: Math.random() < 0.5 ? "玉" : "王",
+    ...pickSides(kind),
     facing,
     zf: facing,
     alive: true,
@@ -1517,8 +1552,7 @@ function newWorld(mode, playerName, netOpts, variant, playerKind) {
     armies.push({
       id,
       kind,
-      chessSide: Math.random() < 0.5 ? "white" : "black",
-      kingKanji: Math.random() < 0.5 ? "玉" : "王",
+      ...pickSides(kind),
       facing,
       zf: facing,
       alive: true,
@@ -3276,7 +3310,7 @@ function OpenWorldShogi() {
             disabled: !player.alive,
             title: pieceIsChessStyle(t, player.id) ? (lang === "en" ? CHESS_EN[t] : CHESS_JA[t]) : KANJI[t],
             style: { fontFamily: pieceIsChessStyle(t, player.id) ? CHESSFONT : KOMAFONT, fontSize: pieceIsChessStyle(t, player.id) ? 17 : 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
-          }, handLabel(t, player.id), n > 1 ? h("span", { style: { fontSize: 10, fontFamily: SERIF } }, "×", n) : null)),
+          }, handIcon(t, player.id, h), n > 1 ? h("span", { style: { fontSize: 10, fontFamily: SERIF } }, "×", n) : null)),
           h("span", { style: { flex: 1 } }),
           player.kills > 0 && h("span", { style: { fontSize: 11, color: C.gold } }, tr("討王", "Kills "), player.kills, tr("(域", " (zone "), zoneSideFor(player), "²)")
         )
@@ -3288,7 +3322,7 @@ function OpenWorldShogi() {
           focusArmy && Object.entries(focusArmy.hand || {}).map(([t, n]) => h("span", {
             key: t,
             style: { fontFamily: pieceIsChessStyle(t, focusArmy.id) ? CHESSFONT : KOMAFONT, fontSize: pieceIsChessStyle(t, focusArmy.id) ? 16 : 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
-          }, handLabel(t, focusArmy.id), n > 1 ? h("span", { style: { fontSize: 9, fontFamily: SERIF } }, "×", n) : null)),
+          }, handIcon(t, focusArmy.id, h), n > 1 ? h("span", { style: { fontSize: 9, fontFamily: SERIF } }, "×", n) : null)),
           h("span", { style: { flex: 1, minWidth: 0 } })
         ),
     // ===== 盤面 =====
