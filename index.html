@@ -2406,9 +2406,21 @@ function OpenWorldShogi() {
     const wy = Math.floor(uy / cam.s + cam.y);
     if (wx < 0 || wy < 0 || wx >= MAP_W || wy >= MAP_H) return;
     if (!isCommanding(W2)) {
+      // タップした場所にある軍を選ぶ。可動域が重なっているときは、
+      //  1) タップしたマスに駒がある軍(駒そのものをタップした)
+      //  2) それ以外は可動域がいちばん小さい軍
+      // を優先する(大きな軍の可動域の中にいる小さな軍も選べるように)。
+      const tk = K(wx, wy);
+      const tp = W2.cells.get(tk);
+      let pick = null, pickArea = Infinity;
       for (const a of W2.armies) {
-        if (!a.alive || !a.zone) continue;
-        if (a.zone.set.has(K(wx, wy))) {
+        if (!a.alive || !a.zone || !a.zone.set.has(tk)) continue;
+        if (tp && tp.owner === a.id) { pick = a; break; }
+        const area = a.zone.set.size;
+        if (area < pickArea) { pickArea = area; pick = a; }
+      }
+      for (const a of pick ? [pick] : []) {
+        {
           if (W2.focusId === a.id) {
             W2.focusId = null;
             W2.msg = "選択解除";
