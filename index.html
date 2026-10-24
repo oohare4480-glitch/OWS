@@ -186,7 +186,24 @@ const K = (x, y) => x + "," + y;
 // 今のワールドの種類をここに持ち、駒の動き・見た目・可動域の形を切り替える。
 let owsVariant = "shogi";
 const isChess = () => owsVariant === "chess";
-const kingWord = () => isChess() ? tr("キング", "king") : tr("玉", "king");
+const isMixed = () => owsVariant === "mixed";
+// 今のワールド(駒の持ち主の軍が将棋軍かチェス軍かを調べるのに使う)
+let owsWorldRef = null;
+// 軍の種類("shogi" / "chess")。将棋×チェスのワールドでは軍ごとに違う。
+function kindOfOwner(owner) {
+  if (owsVariant !== "mixed") return owsVariant === "chess" ? "chess" : "shogi";
+  const a = owsWorldRef && owsWorldRef.armies ? owsWorldRef.armies[owner] : null;
+  return a && a.kind === "chess" ? "chess" : "shogi";
+}
+const CHESS_ONLY = { Q: 1, CN: 1, CP: 1 };
+const SHOGI_ONLY = { P: 1, L: 1, N: 1, S: 1, G: 1 };
+// 駒をチェスの見た目で描くか。キング・ルーク・ビショップ(=玉・飛・角)は持ち主の軍の種類で決める。
+function pieceIsChessStyle(t, owner) {
+  if (CHESS_ONLY[t]) return true;
+  if (SHOGI_ONLY[t]) return false;
+  return kindOfOwner(owner) === "chess";
+}
+const kingWord = () => isChess() ? tr("キング", "king") : isMixed() ? tr("王・キング", "king") : tr("玉", "king");
 // ===== 表示言語 =====
 // "ja" = 日本語 / "en" = English。タイトル画面で切り替え、端末に覚えておく。
 let owsLang = (() => {
@@ -217,7 +234,7 @@ function zoneRadiusFor(army) {
 // 可動域の一辺のマス数(将棋は 9,11,13… / チェスは 8,10,12…)
 function zoneSideFor(army) {
   const r = Math.min(zoneRadiusFor(army), ZONE_R_MAX);
-  return isChess() ? 2 * r : 2 * r + 1;
+  return army.kind === "chess" ? 2 * r : 2 * r + 1;
 }
 // 自分より格上を倒すと多めに、格下を狩ると下限(0.15)まで薄くなる伸び係数。
 function killGain(myKills, victimKills) {
@@ -253,23 +270,26 @@ const PKANJI = { P: "と", L: "杏", N: "圭", S: "全", B: "馬", R: "竜" };
 const CHESS_GLYPH = { K: "\u265A\uFE0E", Q: "\u265B\uFE0E", R: "\u265C\uFE0E", B: "\u265D\uFE0E", CN: "\u265E\uFE0E", CP: "\u265F\uFE0E" };
 const CHESS_JA = { K: "キング", Q: "クイーン", R: "ルーク", B: "ビショップ", CN: "ナイト", CP: "ポーン" };
 const kanjiOf = (p, playerId) => {
-  if (isChess()) return CHESS_GLYPH[p.t] || "?";
+  if (pieceIsChessStyle(p.t, p.owner)) return CHESS_GLYPH[p.t] || "?";
   return p.t === "K" ? p.owner === playerId ? "玉" : "王" : (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
 };
 // メッセージ用の駒の呼び名
 const CHESS_EN = { K: "king", Q: "queen", R: "rook", B: "bishop", CN: "knight", CP: "pawn" };
-const pieceWord = (p, playerId) => isChess() ? (owsLang === "en" ? CHESS_EN[p.t] || "piece" : CHESS_JA[p.t] || "駒") : kanjiOf(p, playerId);
+const pieceWord = (p, playerId) => pieceIsChessStyle(p.t, p.owner) ? (owsLang === "en" ? CHESS_EN[p.t] || "piece" : CHESS_JA[p.t] || "駒") : kanjiOf(p, playerId);
 // 持ち駒ボタンの表示
-const handLabel = (t) => isChess() ? (CHESS_GLYPH[t] || "?") : (KANJI[t] || "?");
+const handLabel = (t, owner) => pieceIsChessStyle(t, owner) ? (CHESS_GLYPH[t] || "?") : (KANJI[t] || (t === "K" ? "王" : "?"));
 // 取られた駒が持ち駒になるときの種類(ポーンから昇格したクイーンはポーンに戻る)
 const handTypeOf = (p) => p.fromPawn ? "CP" : p.t;
-function isPromotable(t) {
-  return isChess() ? t === "CP" : !!PROMOTABLE[t];
+// ポーンはどの軍が持っていてもクイーンに昇格。チェス軍の駒は(ポーン以外)成らない。将棋軍の駒は将棋と同じく成る。
+function isPromotable(t, owner) {
+  if (t === "CP") return true;
+  if (kindOfOwner(owner) === "chess") return false;
+  return !!PROMOTABLE[t];
 }
 // 成れるかどうか。将棋: 駒を取る/敵の可動域に入る・出る。チェス: ポーンが敵の可動域に入るとクイーンに昇格。
 function promoCheck(mover, victim, fx, fy, tx, ty, armyId, zones) {
-  if (!mover || !isPromotable(mover.t) || mover.promoted) return false;
-  if (isChess()) return isInHostileZone(tx, ty, armyId, zones);
+  if (!mover || !isPromotable(mover.t, mover.owner) || mover.promoted) return false;
+  if (mover.t === "CP") return isInHostileZone(tx, ty, armyId, zones);
   return !!victim || isInHostileZone(tx, ty, armyId, zones) || isInHostileZone(fx, fy, armyId, zones);
 }
 const NAME_POOLS = [
@@ -386,8 +406,8 @@ function pieceMoveVectors(p) {
 // どちらも配列の x=4 が王/キングで、そこが軍の中心になる。
 const SHOGI_BACK = ["L", "N", "S", "G", "K", "G", "S", "N", "L"];
 const CHESS_BACK = ["R", "CN", "B", "Q", "K", "B", "CN", "R"];
-function makeGrid(owner) {
-  if (isChess()) {
+function makeGrid(owner, kind) {
+  if ((kind || kindOfOwner(owner)) === "chess") {
     const g = [[], []];
     for (let x = 0; x < 8; x++) {
       g[0][x] = { t: CHESS_BACK[x], promoted: false, owner };
@@ -405,19 +425,19 @@ function makeGrid(owner) {
   g[1][7] = { t: "R", promoted: false, owner };
   return g;
 }
-function armyFootprint(center, facing) {
+function armyFootprint(center, facing, kind) {
   const f = F[facing], r = RV[facing];
   const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
   const out = [];
-  const grid = makeGrid(0);
+  const grid = makeGrid(0, kind);
   for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[y].length; x++) {
     if (!grid[y][x]) continue;
     out.push(K(anchor[0] + r[0] * x + f[0] * y, anchor[1] + r[1] * x + f[1] * y));
   }
   return out;
 }
-function footprintBlocked(W, center, facing) {
-  for (const k of armyFootprint(center, facing)) {
+function footprintBlocked(W, center, facing, kind) {
+  for (const k of armyFootprint(center, facing, kind)) {
     const p = W.cells.get(k);
     if (!p) continue;
     const oa = W.armies[p.owner];
@@ -425,10 +445,10 @@ function footprintBlocked(W, center, facing) {
   }
   return false;
 }
-function placeArmyCentered(cells, armyId, center, facing) {
+function placeArmyCentered(cells, armyId, center, facing, kind) {
   const f = F[facing], r = RV[facing];
   const anchor = [center[0] - r[0] * 4, center[1] - r[1] * 4];
-  const grid = makeGrid(armyId);
+  const grid = makeGrid(armyId, kind);
   for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[y].length; x++) {
     const p = grid[y][x];
     if (!p) continue;
@@ -440,8 +460,9 @@ function relocateArmy(W, a, center, facing) {
   for (const [k, p] of W.cells) if (p.owner === a.id) doomed.push(k);
   for (const k of doomed) W.cells.delete(k);
   a.facing = facing;
+  a.zf = facing;
   a.center = [center[0], center[1]];
-  placeArmyCentered(W.cells, a.id, a.center, facing);
+  placeArmyCentered(W.cells, a.id, a.center, facing, a.kind);
   a.kingKey = K(center[0], center[1]);
   a.zone = null;
   refreshZone(a);
@@ -523,8 +544,8 @@ function nearestLoot(W, a, grid, minDist) {
 // 将棋は中心を真ん中にした奇数マス(9×9から)。チェスは偶数マス(8×8から)なので真ん中が取れず、
 // 軍の向きに合わせて「横は左に1マス多く、縦は前に1マス多く」とる(初期配置の8列がちょうど収まる)。
 // 討王で広がる量は将棋と同じ(縦横+2マスずつ)。
-function zoneOffsets(facing, r) {
-  if (!isChess()) return [-r, r, -r, r];
+function zoneOffsets(facing, r, kind) {
+  if (kind !== "chess") return [-r, r, -r, r];
   const rv = RV[facing || 0], fv = F[facing || 0];
   let xl = Infinity, xh = -Infinity, yl = Infinity, yh = -Infinity;
   for (const a of [-r, r - 1]) for (const b of [-(r - 1), r]) {
@@ -564,14 +585,16 @@ function isCommanding(W) {
 function focusOwnerOf(W) {
   return isCommanding(W) ? W.playerId : W.focusId;
 }
-function zoneFits(cx, cy, r, facing) {
-  const o = zoneOffsets(facing, r);
+function zoneFits(cx, cy, r, facing, kind) {
+  const o = zoneOffsets(facing, r, kind);
   return cx + o[0] >= 0 && cy + o[2] >= 0 && cx + o[1] <= MAP_W - 1 && cy + o[3] <= MAP_H - 1;
 }
 function refreshZone(a) {
   const zr = Math.min(zoneRadiusFor(a), ZONE_R_MAX);
-  const f = a.facing || 0;
-  const o = zoneOffsets(f, zr);
+  // チェス軍の可動域(8×8)は真ん中が取れないので、生まれたときの向きで形を固定する。
+  // 回転するたびに形を変えると、端の列の駒が可動域からはみ出していた。
+  const f = a.zf != null ? a.zf : (a.facing || 0);
+  const o = zoneOffsets(f, zr, a.kind);
   const cx = Math.max(-o[0], Math.min(MAP_W - 1 - o[1], a.center[0]));
   const cy = Math.max(-o[2], Math.min(MAP_H - 1 - o[3], a.center[1]));
   if (cx !== a.center[0] || cy !== a.center[1]) a.center = [cx, cy];
@@ -580,7 +603,7 @@ function refreshZone(a) {
     a.zone.f = f;
   }
 }
-function findSpawnSpot(W, facing) {
+function findSpawnSpot(W, facing, kind) {
   const margins = [22, 16, 12];
   const live = [];
   for (const a of W.armies) if (a.alive && a.zone) live.push(a);
@@ -598,7 +621,7 @@ function findSpawnSpot(W, facing) {
         }
       }
       if (clash) continue;
-      if (footprintBlocked(W, [cx, cy], facing)) continue;
+      if (footprintBlocked(W, [cx, cy], facing, kind)) continue;
       return [cx, cy];
     }
   }
@@ -608,9 +631,13 @@ function armyHasBoardPieces(W, id) {
   for (const p of W.cells.values()) if (p.owner === id) return true;
   return false;
 }
-function spawnNewArmy(W, onBoardCache) {
+function pickArmyKind() {
+  return owsVariant === "mixed" ? (Math.random() < 0.5 ? "shogi" : "chess") : owsVariant === "chess" ? "chess" : "shogi";
+}
+function spawnNewArmy(W, onBoardCache, forceKind) {
   const facing = Math.floor(Math.random() * 4);
-  const center = findSpawnSpot(W, facing);
+  const kind = forceKind || pickArmyKind();
+  const center = findSpawnSpot(W, facing, kind);
   if (!center) return null;
   const existingNames = new Set();
   for (const x of W.armies) if (x.alive) existingNames.add(x.name);
@@ -624,10 +651,12 @@ function spawnNewArmy(W, onBoardCache) {
   }
   const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !onBoard.has(a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
-  placeArmyCentered(W.cells, id, center, facing);
+  placeArmyCentered(W.cells, id, center, facing, kind);
   const fresh = {
     id,
+    kind,
     facing,
+    zf: facing,
     alive: true,
     hand: {},
     target: null,
@@ -927,7 +956,7 @@ function marchDirFor(W, a, kings, myPieces, lootGrid) {
   for (const [mx, my] of attempts) {
     if (!(mx || my)) continue;
     if (!marchInBounds(myPieces, mx, my)) continue;
-    if (!zoneFits(a.center[0] + mx, a.center[1] + my, zr, a.facing)) continue;
+    if (!zoneFits(a.center[0] + mx, a.center[1] + my, zr, a.zf != null ? a.zf : a.facing, a.kind)) continue;
     return [mx, my];
   }
   return null;
@@ -1197,7 +1226,7 @@ function aiPickAction(W, army, kings, piecesByOwner) {
         const dk = Math.max(Math.abs(a.tx - myKing[0]), Math.abs(a.ty - myKing[1]));
         if (dk <= 4) s += (inCheck ? 400 : 80) * (1 - dk / 5);
       }
-      if (canPr) s += isChess() ? 30 : 4;
+      if (canPr) s += mover.t === "CP" ? 30 : 4;
       if (nearestKp) {
         const d0 = Math.abs(a.fx - nearestKp[0]) + Math.abs(a.fy - nearestKp[1]);
         const d1 = Math.abs(a.tx - nearestKp[0]) + Math.abs(a.ty - nearestKp[1]);
@@ -1272,7 +1301,7 @@ function applyAction(W, army, a) {
 const LOOT_KINDS_SHOGI = ["P", "P", "P", "P", "L", "N", "S", "G", "B", "R"];
 const LOOT_KINDS_CHESS = ["CP", "CP", "CP", "CP", "CN", "CN", "B", "B", "R", "Q"];
 function scatterLoot(cells, armies, neutralId, count) {
-  const kinds = isChess() ? LOOT_KINDS_CHESS : LOOT_KINDS_SHOGI;
+  const kinds = isChess() ? LOOT_KINDS_CHESS : isMixed() ? LOOT_KINDS_SHOGI.concat(LOOT_KINDS_CHESS) : LOOT_KINDS_SHOGI;
   let placed = 0;
   for (let attempt = 0; attempt < count * 14 && placed < count; attempt++) {
     const x = 2 + Math.floor(Math.random() * (MAP_W - 4));
@@ -1297,7 +1326,7 @@ const INIT_TIERS = [
   [1, 39, 60]
 ];
 function seedInitialProgress(W, skipId) {
-  const TYPES = isChess() ? ["CP", "CP", "CP", "CN", "B", "R", "Q"] : ["P", "P", "P", "L", "N", "S", "G", "B", "R"];
+  const TYPES_C = ["CP", "CP", "CP", "CN", "B", "R", "Q"], TYPES_S = ["P", "P", "P", "L", "N", "S", "G", "B", "R"];
   const pool = W.armies.filter((a) => a.alive && a.id !== skipId);
   const taken = [];
   const assign = [];
@@ -1325,8 +1354,9 @@ function seedInitialProgress(W, skipId) {
       assign.push([best, kills]);
     }
   }
-  const canPromoteRandomly = (t) => !isChess() && !!PROMOTABLE[t] && Math.random() < 0.3;
+  const canPromoteRandomly = (t, a) => a.kind !== "chess" && !!PROMOTABLE[t] && Math.random() < 0.3;
   for (const [a, kills] of assign) {
+    const TYPES = a.kind === "chess" ? TYPES_C : TYPES_S;
     delete a.__seeded;
     a.kills = kills;
     if (kills > 0) a.skill = Math.max(a.skill || 0, Math.min(0.98, 0.5 + kills * 0.012));
@@ -1346,7 +1376,7 @@ function seedInitialProgress(W, skipId) {
           const k = K(x, y);
           if (W.cells.has(k)) continue;
           const t = TYPES[Math.floor(Math.random() * TYPES.length)];
-          W.cells.set(k, { t, promoted: canPromoteRandomly(t), owner: a.id });
+          W.cells.set(k, { t, promoted: canPromoteRandomly(t, a), owner: a.id });
           placed++;
         }
       }
@@ -1359,7 +1389,7 @@ function seedInitialProgress(W, skipId) {
       const k = K(x, y);
       if (W.cells.has(k)) continue;
       const t = TYPES[Math.floor(Math.random() * TYPES.length)];
-      W.cells.set(k, { t, promoted: canPromoteRandomly(t), owner: a.id });
+      W.cells.set(k, { t, promoted: canPromoteRandomly(t, a), owner: a.id });
       placed++;
     }
     const handTotal = Math.round(kills * 6);
@@ -1369,9 +1399,10 @@ function seedInitialProgress(W, skipId) {
     }
   }
 }
-function newWorld(mode, playerName, netOpts, variant) {
-  // ワールドの種類はここで決まり、このワールドが続く間は変わらない(将棋とチェスは混ざらない)
-  owsVariant = variant === "chess" ? "chess" : "shogi";
+function newWorld(mode, playerName, netOpts, variant, playerKind) {
+  // ワールドの種類はここで決まり、このワールドが続く間は変わらない。
+  // "shogi" と "chess" はそれぞれの軍だけ、"mixed" は将棋軍とチェス軍が同じ世界で戦う。
+  owsVariant = variant === "chess" ? "chess" : variant === "mixed" ? "mixed" : "shogi";
   const total = CAP;
   const cells = new Map();
   const names = generateNames(total);
@@ -1394,11 +1425,14 @@ function newWorld(mode, playerName, netOpts, variant) {
       Math.max(10, Math.min(MAP_H - 11, Math.floor((r + 0.5) * cell) + jy))
     ];
     const facing = Math.floor(Math.random() * 4);
-    placeArmyCentered(cells, id, center, facing);
     const isPlayerSlot = id === 0 && mode === "play";
+    const kind = isPlayerSlot && owsVariant === "mixed" && playerKind ? playerKind : pickArmyKind();
+    placeArmyCentered(cells, id, center, facing, kind);
     armies.push({
       id,
+      kind,
       facing,
+      zf: facing,
       alive: true,
       hand: {},
       target: null,
@@ -1415,6 +1449,7 @@ function newWorld(mode, playerName, netOpts, variant) {
       kingKey: K(center[0], center[1])
     });
   }
+  owsWorldRef = { armies, cells };
   for (const a of armies) refreshZone(a);
   let neutralId = null;
   let lootTarget = 0;
@@ -1426,6 +1461,7 @@ function newWorld(mode, playerName, netOpts, variant) {
       facing: 0,
       alive: false,
       neutral: true,
+      kind: "shogi",
       hand: {},
       target: null,
       marchRel: null,
@@ -1444,11 +1480,11 @@ function newWorld(mode, playerName, netOpts, variant) {
       // プレイヤーの軍は、途中参加と同じ基準(他軍の可動域から離れた場所)へ移し直す。
       const W0 = { cells, armies };
       const pf = armies[0].facing;
-      const spot = findSpawnSpot(W0, pf);
+      const spot = findSpawnSpot(W0, pf, armies[0].kind);
       if (spot) relocateArmy(W0, armies[0], spot, pf);
     }
   }
-  return {
+  return owsWorldRef = {
     mode,
     variant: owsVariant,
     playerId: mode === "play" ? 0 : null,
@@ -1622,7 +1658,7 @@ function applyOpenWorldState(W, s, myArmyId) {
   W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
   W.armies = (s.armies || []).map((sa) => ({
     id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null, marchRel: sa.marchRel || null,
-    center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name, speedMult: sa.speedMult || 1,
+    kind: "shogi", center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name, speedMult: sa.speedMult || 1,
     lastMove: t - (MOVE_COOLDOWN - (sa.cd || 0)), lastAction: t - (MOVE_COOLDOWN - (sa.cd || 0)),
     zone: null, color: sa.id === myArmyId ? PLAYER_COLOR : makeColor(sa.id),
   }));
@@ -1654,7 +1690,7 @@ function applyOpenWorldState(W, s, myArmyId) {
 }
 function newOpenWorld(myArmyId) {
   owsVariant = "shogi"; // ネット対戦は将棋ワールドのみ
-  return {
+  return owsWorldRef = {
     mode: "openworld", variant: "shogi", playerId: myArmyId, cells: new Map(), armies: [],
     focusId: myArmyId, banner: null, msg: "オープンワールド: 王を守れ",
     sel: null, handSel: null, dropSpots: null, promo: null,
@@ -1681,6 +1717,8 @@ function OpenWorldShogi() {
   const [showArmyList, setShowArmyList] = useState(false);
   // タイトル画面で選ぶワールドの種類("shogi" / "chess")
   const [variant, setVariant] = useState("shogi");
+  // 将棋×チェスで参戦するときの自軍の種類
+  const [myKind, setMyKind] = useState("shogi");
   const [lang, setLangState] = useState(owsLang);
   owsLang = lang;
   function setLang(l) {
@@ -1847,7 +1885,7 @@ function OpenWorldShogi() {
   }
   function begin(mode, playerName, netOpts) {
     setPaused(false);
-    g.current = newWorld(mode, playerName, netOpts, variant);
+    g.current = newWorld(mode, playerName, netOpts, variant, myKind);
     const w = g.current;
     const t = now();
     for (const a of w.armies) {
@@ -1903,7 +1941,7 @@ function OpenWorldShogi() {
     if (W2.mode === "openworld") return;
     const cur = W2.playerId !== null ? W2.armies[W2.playerId] : null;
     if (cur && cur.alive && !W2.myDefeated) return;
-    const a = spawnNewArmy(W2);
+    const a = spawnNewArmy(W2, null, W2.variant === "mixed" ? myKind : null);
     if (!a) { W2.msg = "参戦できる場所がありません"; bump(); return; }
     a.name = filterProfanity((nameInput || "").trim()).slice(0, NAME_MAX_LEN) || a.name;
     W2.playerId = a.id;
@@ -2360,8 +2398,8 @@ function OpenWorldShogi() {
           addKillGrowth(player2, dead ? dead.kills || 0 : 0);
           handleDefeat(W2, dead, player2);
         }
-        const promoMsg = canPr ? (isChess() ? "クイーンに昇格!" : "成った。") : "";
-        W2.msg = (v ? `${v.t === "K" ? (isChess() ? "キング" : "玉") : pieceWord(v, W2.playerId)}を取った。` : "移動した。") + promoMsg;
+        const promoMsg = canPr ? (mover.t === "Q" && mover.fromPawn ? "クイーンに昇格!" : "成った。") : "";
+        W2.msg = (v ? `${pieceWord(v, W2.playerId)}を取った。` : "移動した。") + promoMsg;
       }, { type: "move", fx, fy, tx: wx, ty: wy, promote: canPr });
       W2.sel = null;
       bump();
@@ -2800,13 +2838,14 @@ function OpenWorldShogi() {
     const chipBatch = S < 5 ? new Map() : null;
     // 駒の形は同じ倍率なら全駒共通なので、1フレームに1回だけ作って使い回す
     const komaPath = chipBatch || chess ? null : makeKomaPath(S);
+    const anyChess = W2.variant !== "shogi";
     const tNow = now();
-    const chessGrads = chess && !chipBatch ? makeChessGrads(ctx) : null;
+    const chessGrads = W2.variant !== "shogi" && !chipBatch ? makeChessGrads(ctx) : null;
     // 駒の影は shadowBlur を使わず、少しずらした半透明の同じ形を先に塗って表す
     const shadowOn = S >= 14;
     const shD = Math.max(1, S * 0.05 / dpr), shX = Math.sin(cam.rot) * shD, shY = Math.cos(cam.rot) * shD;
     if (!chipBatch && S >= 11) {
-      ctx.font = chess ? `${Math.floor(S * 0.8)}px ${CHESSFONT}` : `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
+      ctx.font = `${Math.floor(S * 0.62)}px ${KOMAFONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineJoin = "round";
@@ -2824,7 +2863,7 @@ function OpenWorldShogi() {
       const selected = W2.sel && W2.sel.x === x && W2.sel.y === y;
       const pr = army.facing * Math.PI / 2;
       const canAct = tNow - army.lastAction >= MOVE_COOLDOWN;
-      if (chess) {
+      if (anyChess && pieceIsChessStyle(p.t, p.owner)) {
         // チェスの駒: 自軍は白駒、他軍は黒駒。台座の帯の色でどの軍か見分ける。残骸は半透明。
         const isLoot = !army.alive;
         const light = !isLoot && W2.playerId != null && army.id === W2.playerId;
@@ -2870,7 +2909,7 @@ function OpenWorldShogi() {
         }
         ctx.restore();
       }
-      if (!chess && !army.alive && S >= 10) {
+      if (!(anyChess && pieceIsChessStyle(p.t, p.owner)) && !army.alive && S >= 10) {
         ctx.strokeStyle = "rgba(0,0,0,0.6)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -2976,6 +3015,7 @@ function OpenWorldShogi() {
   const h = React.createElement;
   const W = g.current;
   const worldChess = W.variant === "chess";
+  const worldMixed = W.variant === "mixed";
   const player0 = W.playerId !== null ? W.armies[W.playerId] || null : null;
   const isPlay = W.playerId !== null && player0 !== null && !W.myDefeated;
   const player = player0;
@@ -3001,44 +3041,68 @@ function OpenWorldShogi() {
     ? W.mode === "openworld"
       ? `${tr("ネット対戦", "Online")}${netRef.current.roomCode ? " " + netRef.current.roomCode : ""}`
       : lang === "en"
-        ? `${worldChess ? "Chess" : "Shogi"} ${isPlay ? "vs AI" : "watch"}`
-        : `${worldChess ? "チェス" : "将棋"}・${isPlay ? "AI対戦" : "AI観戦"}`
+        ? `${worldMixed ? "Mixed" : worldChess ? "Chess" : "Shogi"} ${isPlay ? "vs AI" : "watch"}`
+        : `${worldMixed ? "将棋×チェス" : worldChess ? "チェス" : "将棋"}・${isPlay ? "AI対戦" : "AI観戦"}`
     : "-";
   // タイトル画面の説明(選んでいるワールドと言語に合わせて書き換える)
   const tc = variant === "chess";
+  const tm = variant === "mixed";
   const en = lang === "en";
-  const kw = tc ? tr("キング", "king") : tr("王", "king");
-  const introRows = [
-    [tr("世界", "World"), en
-      ? `Up to 200 named armies on a 480×480 land. Every army is everyone's enemy. ${tc ? "Only chess armies live in the chess world." : "Only shogi armies live in the shogi world."}`
-      : `480×480の大地に、二つ名を持つ最大200軍。全軍が互いに敵。${tc ? "チェスワールドにはチェスの軍だけが集まる。" : "将棋ワールドには将棋の軍だけが集まる。"}`],
-    [tr("可動域", "Zone"), tc
-      ? tr("駒が動けるのはキングを中心とした8×8。敵キングを討つたび縦横+2マス拡大(10×10、12×12…)。", "Your pieces can move inside an 8×8 zone around your king. Each enemy king you take grows it by 2 squares each way (10×10, 12×12…).")
-      : tr("駒が動けるのは王を中心とした9×9。敵王を討つたび縦横+2マス拡大(11×11、13×13…)。", "Your pieces can move inside a 9×9 zone around your king. Each enemy king you take grows it by 2 squares each way (11×11, 13×13…).")],
+  const kw = tc ? tr("キング", "king") : tm ? tr("王・キング", "king") : tr("王", "king");
+  const chessMoves = [
+    tr("♚\uFE0E キング: 周りに1マス", "♚\uFE0E King: 1 square in any direction"),
+    tr("♛\uFE0E クイーン: 縦・横・斜めにどこまでも", "♛\uFE0E Queen: any distance straight or diagonal"),
+    tr("♜\uFE0E ルーク: 縦・横にどこまでも", "♜\uFE0E Rook: any distance straight"),
+    tr("♝\uFE0E ビショップ: 斜めにどこまでも", "♝\uFE0E Bishop: any distance diagonal"),
+    tr("♞\uFE0E ナイト: L字に跳ぶ(間の駒を飛び越えられる)", "♞\uFE0E Knight: jumps in an L shape, over other pieces"),
+    tr("♟\uFE0E ポーン: 前に1マス。駒を取るときだけ斜め前", "♟\uFE0E Pawn: 1 square forward, captures only diagonally forward")
   ];
-  if (tc) {
-    introRows.push([tr("駒の動き", "Pieces"), [
-      tr("♚\uFE0E キング: 周りに1マス", "♚\uFE0E King: 1 square in any direction"),
-      tr("♛\uFE0E クイーン: 縦・横・斜めにどこまでも", "♛\uFE0E Queen: any distance straight or diagonal"),
-      tr("♜\uFE0E ルーク: 縦・横にどこまでも", "♜\uFE0E Rook: any distance straight"),
-      tr("♝\uFE0E ビショップ: 斜めにどこまでも", "♝\uFE0E Bishop: any distance diagonal"),
-      tr("♞\uFE0E ナイト: L字に跳ぶ(間の駒を飛び越えられる)", "♞\uFE0E Knight: jumps in an L shape, over other pieces"),
-      tr("♟\uFE0E ポーン: 前に1マス。駒を取るときだけ斜め前", "♟\uFE0E Pawn: 1 square forward, captures only diagonally forward")
-    ], tr("ポーンは敵の可動域に入るとクイーンに昇格する。", "A pawn becomes a queen when it enters an enemy's zone.")]);
-    introRows.push([tr("持ち駒", "Hand"), tr("取った駒は持ち駒になり、自軍の可動域の空きマスに打てる(将棋と同じ)。", "Captured pieces go to your hand. You can drop them on any empty square in your zone, like in shogi.")]);
-  }
-  if (!tc) {
-    introRows.push([tr("駒の動き", "Pieces"), [
-      tr("玉・王: 周りに1マス", "King (玉/王): 1 square in any direction"),
-      tr("飛: 縦・横にどこまでも", "Rook (飛): any distance straight"),
-      tr("角: 斜めにどこまでも", "Bishop (角): any distance diagonal"),
-      tr("金: 斜め後ろ以外の6方向に1マス", "Gold (金): 1 square any way except diagonally back"),
-      tr("銀: 前の3方向と斜め後ろに1マス", "Silver (銀): 1 square forward or diagonally"),
-      tr("桂: 2マス前の左右へ跳ぶ(間の駒を飛び越えられる)", "Knight (桂): jumps two ahead and one to the side, over pieces"),
-      tr("香: 前にどこまでも", "Lance (香): any distance forward"),
-      tr("歩: 前に1マス", "Pawn (歩): 1 square forward")
-    ], tr("駒を取るか敵の可動域に出入りすると成る。飛は竜(+斜め1マス)、角は馬(+縦横1マス)、銀・桂・香・歩は金の動きになる。",
-      "A piece promotes when it captures or moves into or out of an enemy zone. Rook becomes Dragon (+1 diagonal), Bishop becomes Horse (+1 straight), and Silver, Knight, Lance and Pawn move like Gold.")]);
+  const shogiMoves = [
+    tr("玉・王: 周りに1マス", "King (玉/王): 1 square in any direction"),
+    tr("飛: 縦・横にどこまでも", "Rook (飛): any distance straight"),
+    tr("角: 斜めにどこまでも", "Bishop (角): any distance diagonal"),
+    tr("金: 斜め後ろ以外の6方向に1マス", "Gold (金): 1 square any way except diagonally back"),
+    tr("銀: 前の3方向と斜め後ろに1マス", "Silver (銀): 1 square forward or diagonally"),
+    tr("桂: 2マス前の左右へ跳ぶ(間の駒を飛び越えられる)", "Knight (桂): jumps two ahead and one to the side, over pieces"),
+    tr("香: 前にどこまでも", "Lance (香): any distance forward"),
+    tr("歩: 前に1マス", "Pawn (歩): 1 square forward")
+  ];
+  const chessPromo = tr("ポーンは敵の可動域に入るとクイーンに昇格する。", "A pawn becomes a queen when it enters an enemy's zone.");
+  const shogiPromo = tr("駒を取るか敵の可動域に出入りすると成る。飛は竜(+斜め1マス)、角は馬(+縦横1マス)、銀・桂・香・歩は金の動きになる。",
+    "A piece promotes when it captures or moves into or out of an enemy zone. Rook becomes Dragon (+1 diagonal), Bishop becomes Horse (+1 straight), and Silver, Knight, Lance and Pawn move like Gold.");
+  const introRows = [];
+  if (tm) {
+    introRows.push(
+      [tr("世界", "World"), [
+        tr("480×480の大地に、二つ名を持つ最大200軍。", "Up to 200 named armies on a 480×480 land."),
+        tr("将棋の軍とチェスの軍が入り乱れ、全軍が互いに敵。", "Shogi armies and chess armies fight side by side, and every army is everyone's enemy."),
+        tr("参戦するときは、将棋軍かチェス軍かを選べる。", "When you join, you choose to lead a shogi army or a chess army.")
+      ]],
+      [tr("可動域", "Zone"), [
+        tr("将棋軍: 王を中心とした9×9", "Shogi army: a 9×9 zone around the king"),
+        tr("チェス軍: キングを中心とした8×8", "Chess army: an 8×8 zone around the king"),
+        tr("どちらも敵の王・キングを討つたび縦横+2マス拡大。", "Either way, each enemy king you take grows it by 2 squares each way.")
+      ]],
+      [tr("将棋の駒", "Shogi pieces"), shogiMoves, shogiPromo],
+      [tr("チェスの駒", "Chess pieces"), chessMoves, chessPromo],
+      [tr("持ち駒", "Hand"), [
+        tr("取った駒は、将棋の駒でもチェスの駒でも持ち駒になる。", "Every piece you capture, shogi or chess, goes to your hand."),
+        tr("持ち駒は自軍の可動域の空きマスに打てる。チェス軍が金や銀を打ったり、将棋軍がクイーンやナイトを打ったりもできる。", "You can drop it on any empty square in your zone, so a chess army can drop a Gold, and a shogi army can drop a Queen or a Knight."),
+        tr("打った駒は自軍の駒になる。", "A dropped piece fights for you.")
+      ], tr("普通のチェスでは取った駒は盤から消えるだけで使えないが、このゲームでは自分の駒として使える。", "In normal chess, captured pieces just leave the board. Here you can use them as your own.")]
+    );
+  } else {
+    introRows.push(
+      [tr("世界", "World"), en
+        ? `Up to 200 named armies on a 480×480 land. Every army is everyone's enemy. ${tc ? "Only chess armies live in the chess world." : "Only shogi armies live in the shogi world."}`
+        : `480×480の大地に、二つ名を持つ最大200軍。全軍が互いに敵。${tc ? "チェスワールドにはチェスの軍だけが集まる。" : "将棋ワールドには将棋の軍だけが集まる。"}`],
+      [tr("可動域", "Zone"), tc
+        ? tr("駒が動けるのはキングを中心とした8×8。敵キングを討つたび縦横+2マス拡大(10×10、12×12…)。", "Your pieces can move inside an 8×8 zone around your king. Each enemy king you take grows it by 2 squares each way (10×10, 12×12…).")
+        : tr("駒が動けるのは王を中心とした9×9。敵王を討つたび縦横+2マス拡大(11×11、13×13…)。", "Your pieces can move inside a 9×9 zone around your king. Each enemy king you take grows it by 2 squares each way (11×11, 13×13…).")],
+      [tr("駒の動き", "Pieces"), tc ? chessMoves : shogiMoves, tc ? chessPromo : shogiPromo]
+    );
+    if (tc) introRows.push([tr("持ち駒", "Hand"), tr("取った駒は持ち駒になり、自軍の可動域の空きマスに打てる。打った駒は自軍の駒になる。", "Captured pieces go to your hand. You can drop them on any empty square in your zone, and they fight for you."),
+      tr("普通のチェスでは取った駒は盤から消えるだけで使えないが、このゲームでは自分の駒として使える。", "In normal chess, captured pieces just leave the board. Here you can use them as your own.")]);
   }
   introRows.push(
     [tr("進軍", "March"), tr("十字ボタンで方向を指定。全軍が15秒ごとに一斉前進し、止まった敵駒は踏み潰して捕獲。", "Pick a direction with the pad. Every army advances together every 15 seconds, trampling and capturing enemy pieces in the way."),
@@ -3050,7 +3114,8 @@ function OpenWorldShogi() {
     [tr("指し手", "Moves"), tr("移動・打ち・回転は5秒に1回。敵も側面への回り込みを仕掛けてくる。", "You can move, drop, or rotate once every 5 seconds. Enemies will try to flank you.")],
     [tr("一時停止", "Pause"), tr("対戦中に右上の✕を押すと一時停止。再開・観戦切替・タイトルへ戻るを選べる。", "Tap ✕ at the top right during a game to pause. Then resume, switch to watching, or go back to the title.")]
   );
-  if (!tc) introRows.push([tr("ネット対戦", "Online"), tr("同じ世界に最大60軍でリアルタイム参加。誰もいなくても即参戦でき、後から合流もできる。離脱すると玉は消え、残りの駒は残骸として残る。", "Up to 60 armies share one live world. Join any time, even if it's empty. When you leave, your king disappears and your other pieces stay behind as wreckage.")]);
+  if (!tc && !tm) introRows.push([tr("ネット対戦", "Online"), tr("同じ世界に最大60軍でリアルタイム参加。誰もいなくても即参戦でき、後から合流もできる。離脱すると玉は消え、残りの駒は残骸として残る。", "Up to 60 armies share one live world. Join any time, even if it's empty. When you leave, your king disappears and your other pieces stay behind as wreckage.")]);
+
   const langBtn = (key, label) => h("button", {
     key, onClick: () => setLang(key), "aria-pressed": lang === key,
     style: { fontSize: 12, padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontFamily: key === "en" ? ENFONT : SERIF,
@@ -3115,7 +3180,7 @@ function OpenWorldShogi() {
               bump();
             },
             style: { fontSize: 11, padding: "4px 9px", borderRadius: 12, background: isFocus || isSelf ? "rgba(255,216,102,0.18)" : "rgba(255,255,255,0.05)", color: isSelf ? C.gold : a.color.chip, border: `1px solid ${isFocus || isSelf ? "#FFD866" : "#8B6F3E"}`, flexShrink: 0, fontWeight: isSelf ? 700 : 400 }
-          }, i + 1, ". ", a.name, tr(" 討", " · kills "), a.kills);
+          }, i + 1, ". ", worldMixed ? (a.kind === "chess" ? "\u265A\uFE0E " : "☗ ") : "", a.name, tr(" 討", " · kills "), a.kills);
         })
       )
     ),
@@ -3128,9 +3193,9 @@ function OpenWorldShogi() {
             key: t,
             onClick: () => selectHand(t),
             disabled: !player.alive,
-            title: worldChess ? (lang === "en" ? CHESS_EN[t] : CHESS_JA[t]) : KANJI[t],
-            style: { fontFamily: worldChess ? CHESSFONT : KOMAFONT, fontSize: worldChess ? 17 : 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
-          }, handLabel(t), n > 1 ? h("span", { style: { fontSize: 10, fontFamily: SERIF } }, "×", n) : null)),
+            title: pieceIsChessStyle(t, player.id) ? (lang === "en" ? CHESS_EN[t] : CHESS_JA[t]) : KANJI[t],
+            style: { fontFamily: pieceIsChessStyle(t, player.id) ? CHESSFONT : KOMAFONT, fontSize: pieceIsChessStyle(t, player.id) ? 17 : 15, lineHeight: 1, padding: "5px 8px", background: W.handSel === t ? C.gold : "#3a2a15", color: W.handSel === t ? "#1a1408" : C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 6 }
+          }, handLabel(t, player.id), n > 1 ? h("span", { style: { fontSize: 10, fontFamily: SERIF } }, "×", n) : null)),
           h("span", { style: { flex: 1 } }),
           player.kills > 0 && h("span", { style: { fontSize: 11, color: C.gold } }, tr("討王", "Kills "), player.kills, tr("(域", " (zone "), zoneSideFor(player), "²)")
         )
@@ -3141,8 +3206,8 @@ function OpenWorldShogi() {
           focusArmy && Object.keys(focusArmy.hand || {}).length === 0 && h("span", { style: { fontSize: 11, color: "#5b6553", flexShrink: 0 } }, tr("なし", "None")),
           focusArmy && Object.entries(focusArmy.hand || {}).map(([t, n]) => h("span", {
             key: t,
-            style: { fontFamily: worldChess ? CHESSFONT : KOMAFONT, fontSize: worldChess ? 16 : 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
-          }, handLabel(t), n > 1 ? h("span", { style: { fontSize: 9, fontFamily: SERIF } }, "×", n) : null)),
+            style: { fontFamily: pieceIsChessStyle(t, focusArmy.id) ? CHESSFONT : KOMAFONT, fontSize: pieceIsChessStyle(t, focusArmy.id) ? 16 : 14, lineHeight: 1, padding: "3px 6px", background: "#3a2a15", color: C.text, border: `1px solid ${C.panelEdge}`, borderRadius: 5, flexShrink: 0 }
+          }, handLabel(t, focusArmy.id), n > 1 ? h("span", { style: { fontSize: 9, fontFamily: SERIF } }, "×", n) : null)),
           h("span", { style: { flex: 1, minWidth: 0 } })
         ),
     // ===== 盤面 =====
@@ -3223,16 +3288,17 @@ function OpenWorldShogi() {
         ),
         // ===== ワールド選択 =====
         h("div", { className: "ows-switch", role: "group", "aria-label": tr("ワールド", "World") },
-          [["shogi", "☗", tr("将棋", "Shogi"), "9×9"], ["chess", "\u265A\uFE0E", tr("チェス", "Chess"), "8×8"]].map(([key, glyph, label, size]) => h("button", {
+          [["shogi", "☗", tr("将棋", "Shogi"), "9×9"], ["chess", "\u265A\uFE0E", tr("チェス", "Chess"), "8×8"], ["mixed", "☗\u265A\uFE0E", tr("将棋×チェス", "Shogi × Chess"), tr("入り乱れて戦う", "both, together")]].map(([key, glyph, label, size]) => h("button", {
             key, onClick: () => setVariant(key), "aria-pressed": variant === key,
-            style: { flex: "1 1 0", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 6px", borderRadius: 7, border: "none", cursor: "pointer",
+            style: { flex: key === "mixed" ? "1.45 1 0" : "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "8px 4px", borderRadius: 7, border: "none", cursor: "pointer",
               background: variant === key ? "linear-gradient(180deg, rgba(227,194,126,0.26), rgba(227,194,126,0.12))" : "transparent",
               boxShadow: variant === key ? "inset 0 0 0 1px rgba(240,212,138,0.55)" : "none",
               color: variant === key ? "#F6E2A8" : C.sub, transition: "background 160ms ease, color 160ms ease" }
           },
-            h("span", { style: { fontSize: 16, lineHeight: 1, fontFamily: CHESSFONT, opacity: variant === key ? 1 : 0.7 } }, glyph),
-            h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 700, fontSize: 15 } }, label),
-            h("span", { style: { fontSize: 11, opacity: 0.7, fontFamily: ENFONT } }, size)
+            h("span", { style: { display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" } },
+              h("span", { style: { fontSize: key === "mixed" ? 12 : 14, lineHeight: 1, fontFamily: CHESSFONT, opacity: variant === key ? 1 : 0.7, letterSpacing: -1 } }, glyph),
+              h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 700, fontSize: 14 } }, label)),
+            h("span", { style: { fontSize: 10.5, opacity: 0.7, fontFamily: lang === "en" ? ENFONT : SERIF, whiteSpace: "nowrap" } }, size)
           ))
         ),
         // ===== 説明文(この中だけスクロール) =====
@@ -3253,16 +3319,16 @@ function OpenWorldShogi() {
           h("button", { className: "ows-primary", onClick: () => setShowNamePrompt(true), style: { width: "100%", height: 46, borderRadius: 8, border: "1px solid #F3DC9C", cursor: "pointer",
               background: "linear-gradient(180deg, #F2D892 0%, #DDB56B 100%)", color: "#1d1407", boxShadow: "0 1px 0 rgba(255,245,210,0.6) inset, 0 6px 18px rgba(0,0,0,0.35)",
               fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 800, fontSize: 15, letterSpacing: lang === "en" ? 0.3 : "0.08em", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 } },
-            h(Icon, { name: "piece", size: 14 }), tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
+            h(Icon, { name: "piece", size: 14 }), tm ? tr("将棋×チェスでAI対戦", "Play mixed vs AI") : tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
           h("div", { className: "ows-ghosts", style: { display: "flex", gap: 8 } },
             h("button", { onClick: () => begin("watch"), style: ghostBtn(lang) }, h(Icon, { name: "eye", size: 14 }), tr("観戦する", "Watch")),
-            hasNet() && !tc && h("button", {
+            hasNet() && !tc && !tm && h("button", {
               onClick: () => { setNetName(""); setNetMsg(""); setCodeInput(""); setNetPhase("nameEntry"); fetchRoomList(); },
               style: ghostBtn(lang)
             }, h(Icon, { name: "globe", size: 14 }), tr("ネット対戦", "Online"))
           ),
         ),
-        tc && h("div", { className: "ows-note" }, tr("ネット対戦は今のところ将棋ワールドのみです。", "Online play is shogi only for now.")),
+        (tc || tm) && h("div", { className: "ows-note" }, tr("ネット対戦は今のところ将棋ワールドのみです。", "Online play is shogi only for now.")),
         // ===== フッター(常に画面内に見える) =====
         h("footer", { className: "ows-foot" },
           h("div", { style: { fontFamily: ENFONT, fontStyle: "italic", fontSize: 12, letterSpacing: 0.5, color: "rgba(227,194,126,0.85)" } }, "Created by yoshi on 19 July 2026"),
@@ -3318,7 +3384,7 @@ function OpenWorldShogi() {
       )
     ),
     started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && h(Overlay, null,
-      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr(`自軍の${worldChess ? "キング" : "玉"}が討たれた`, "Your king has fallen")),
+      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr(`自軍の${(player && player.kind === "chess") ? "キング" : "玉"}が討たれた`, "Your king has fallen")),
       h("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, tr("このまま他軍の戦いを観戦するか、タイトルに戻るかを選べます。", "Keep watching the other armies, or go back to the title.")),
       h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
         h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => setDefeatAck(true) }, tr("観戦を続ける", "Keep watching")),
@@ -3327,8 +3393,16 @@ function OpenWorldShogi() {
     ),
     showNamePrompt && h(Overlay, null,
       h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 6 } }, tr("軍の名前を決めてください", "Name your army")),
-      h("div", { style: { fontSize: 12, color: C.gold, marginBottom: 8 } }, tc ? tr("チェスワールドに参戦します", "You're joining the chess world") : tr("将棋ワールドに参戦します", "You're joining the shogi world")),
+      h("div", { style: { fontSize: 12, color: C.gold, marginBottom: 8 } }, tm ? tr("将棋×チェスのワールドに参戦します", "You're joining the mixed world") : tc ? tr("チェスワールドに参戦します", "You're joining the chess world") : tr("将棋ワールドに参戦します", "You're joining the shogi world")),
       h("div", { style: { fontSize: 11, color: C.sub, marginBottom: 12 } }, tr(`最大${NAME_MAX_LEN}文字。不適切な言葉は自動的に伏字になります。空欄ならランダムな名前になります。`, `Up to ${NAME_MAX_LEN} characters. Rude words are masked automatically. Leave it blank for a random name.`)),
+      tm && h("div", { role: "group", "aria-label": tr("自軍の種類", "Your army"), style: { display: "flex", gap: 0, padding: 3, borderRadius: 10, border: "1px solid rgba(176,140,79,0.6)", background: "rgba(0,0,0,0.38)", marginBottom: 14 } },
+        [["shogi", "☗", tr("将棋軍で戦う", "Lead a shogi army")], ["chess", "\u265A\uFE0E", tr("チェス軍で戦う", "Lead a chess army")]].map(([key, glyph, label]) => h("button", {
+          key, onClick: () => setMyKind(key), "aria-pressed": myKind === key,
+          style: { flex: "1 1 0", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 4px", borderRadius: 7, border: "none", cursor: "pointer",
+            background: myKind === key ? "linear-gradient(180deg, rgba(227,194,126,0.26), rgba(227,194,126,0.12))" : "transparent",
+            boxShadow: myKind === key ? "inset 0 0 0 1px rgba(240,212,138,0.55)" : "none", color: myKind === key ? "#F6E2A8" : C.sub,
+            fontFamily: lang === "en" ? ENFONT : SERIF, fontWeight: 700, fontSize: 13.5 }
+        }, h("span", { style: { fontFamily: CHESSFONT } }, glyph), label))),
       h("input", { value: nameInput, onChange: (e) => setNameInput(e.target.value), maxLength: NAME_MAX_LEN, placeholder: tr("例: クリムゾンファング", "e.g. Crimson Fang"), style: { width: "100%", fontSize: 16, padding: "10px 12px", borderRadius: 8, background: "#1c140a", color: C.text, border: `1px solid ${C.panelEdge}`, marginBottom: 18, boxSizing: "border-box" } }),
       h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
         h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: confirmJoin }, tr("参戦!", "Join battle!")),
