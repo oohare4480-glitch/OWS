@@ -332,13 +332,27 @@ const CHESS_GLYPH = { K: "\u265A\uFE0E", Q: "\u265B\uFE0E", R: "\u265C\uFE0E", B
 const CHESS_JA = { K: "キング", Q: "クイーン", R: "ルーク", B: "ビショップ", CN: "ナイト", CP: "ポーン" };
 const kanjiOf = (p, playerId) => {
   if (pieceIsChessStyle(p.t, p.owner)) return CHESS_GLYPH[p.t] || "?";
-  return p.t === "K" ? p.owner === playerId ? "玉" : "王" : (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
+  if (p.t === "K") {
+    // 王将か玉将かは軍ごとにランダム(自軍も含む)。決まっていない時(ネット対戦)は自軍だけ「玉」。
+    const a = owsWorldRef && owsWorldRef.armies ? owsWorldRef.armies[p.owner] : null;
+    if (a && a.kingKanji) return a.kingKanji;
+    return p.owner === playerId ? "玉" : "王";
+  }
+  return (p.promoted && PKANJI[p.t]) || KANJI[p.t] || "?";
 };
 // メッセージ用の駒の呼び名
 const CHESS_EN = { K: "king", Q: "queen", R: "rook", B: "bishop", CN: "knight", CP: "pawn" };
 const pieceWord = (p, playerId) => pieceIsChessStyle(p.t, p.owner) ? (owsLang === "en" ? CHESS_EN[p.t] || "piece" : CHESS_JA[p.t] || "駒") : kanjiOf(p, playerId);
 // 持ち駒ボタンの表示
-const handLabel = (t, owner) => pieceIsChessStyle(t, owner) ? (CHESS_GLYPH[t] || "?") : (KANJI[t] || (t === "K" ? "王" : "?"));
+// 白側の軍の持ち駒は白い駒の記号で表示する(打った駒は自軍の色になるので、持ち駒の時点で自軍の色にそろえる)
+const CHESS_GLYPH_WHITE = { K: "\u2654\uFE0E", Q: "\u2655\uFE0E", R: "\u2656\uFE0E", B: "\u2657\uFE0E", CN: "\u2658\uFE0E", CP: "\u2659\uFE0E" };
+function sideOfOwner(owner) {
+  const a = owsWorldRef && owsWorldRef.armies ? owsWorldRef.armies[owner] : null;
+  return a && a.chessSide ? a.chessSide : null;
+}
+const handLabel = (t, owner) => pieceIsChessStyle(t, owner)
+  ? ((sideOfOwner(owner) === "white" ? CHESS_GLYPH_WHITE[t] : CHESS_GLYPH[t]) || "?")
+  : (KANJI[t] || (t === "K" ? "王" : "?"));
 // 取られた駒が持ち駒になるときの種類(ポーンから昇格したクイーンはポーンに戻る)
 const handTypeOf = (p) => p.fromPawn ? "CP" : p.t;
 // ポーンはどの軍が持っていてもクイーンに昇格。チェス軍の駒は(ポーン以外)成らない。将棋軍の駒は将棋と同じく成る。
@@ -718,6 +732,8 @@ function spawnNewArmy(W, onBoardCache, forceKind) {
   const fresh = {
     id,
     kind,
+    chessSide: Math.random() < 0.5 ? "white" : "black",
+    kingKanji: Math.random() < 0.5 ? "玉" : "王",
     facing,
     zf: facing,
     alive: true,
@@ -1501,6 +1517,8 @@ function newWorld(mode, playerName, netOpts, variant, playerKind) {
     armies.push({
       id,
       kind,
+      chessSide: Math.random() < 0.5 ? "white" : "black",
+      kingKanji: Math.random() < 0.5 ? "玉" : "王",
       facing,
       zf: facing,
       alive: true,
@@ -2053,7 +2071,7 @@ function OpenWorldShogi() {
         W2.sel = null;
         W2.handSel = null;
         W2.dropSpots = null;
-        banner(tr("敗北", "Defeat"), tr("自軍の玉が討たれた…再挑戦できます", "Your king has fallen. You can try again."), "bad");
+        camRef.current.manualMode = true;
       }
       return;
     }
@@ -2072,14 +2090,10 @@ function OpenWorldShogi() {
             if (d < bd) { bd = d; watch = a; }
           }
         }
-        if (watch) W2.focusId = watch.id;
-        banner(
-          tr("敗北", "Defeat"),
-          watch === killer && killer
-            ? tr(`${killer.name} に討たれた…このまま観戦するか選べる`, `Defeated by ${killer.name}. You can keep watching.`)
-            : tr(`自軍の${kingWord()}が討たれた…このまま観戦するか選べる`, `Your king has fallen. You can keep watching.`),
-          "bad"
-        );
+        // 負けた瞬間に他の軍へカメラを移したり、ズームを変えたりしない。
+        // 討たれた場所をそのまま映し続けるので、どう負けたのか・その後どう動いたのかが見られる。
+        W2.focusId = null;
+        camRef.current.manualMode = true;
       }
       return;
     }
@@ -3066,7 +3080,7 @@ function OpenWorldShogi() {
     if (W2.banner && Date.now() < W2.banner.until) {
       const a = Math.min(1, (W2.banner.until - Date.now()) / 600);
       ctx.globalAlpha = a;
-      ctx.fillStyle = "rgba(12,15,11,0.82)";
+      ctx.fillStyle = "rgba(12,15,11,0.5)"; // 下の盤が透けて見えるよう薄めに
       ctx.fillRect(0, Hd * 0.3, Wd, 84);
       ctx.fillStyle = W2.banner.tone === "good" ? C.gold : C.danger;
       ctx.font = `700 ${Math.min(30, Wd * 0.07)}px ${SERIF}`;
@@ -3438,20 +3452,23 @@ function OpenWorldShogi() {
       h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 20 } }, tr("接続しています…", "Connecting…")),
       h("button", { onClick: leaveOpenWorld, style: { ...btnStyle(true), padding: "9px 22px" } }, tr("キャンセル", "Cancel"))
     ),
-    started && W.mode === "openworld" && W.myDefeated && h(Overlay, null,
-      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr("自軍の玉が討たれた", "Your king has fallen")),
-      h("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, tr("ワールドは続いている。もう一度参戦できる。", "The world goes on. You can join again.")),
-      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
-        h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: respawnMine }, tr("再参戦", "Rejoin")),
-        h("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: () => { leaveOpenWorld(); backToTitle(); } }, tr("タイトルへ", "To title"))
+    // 敗北の知らせ: 画面全体は覆わず、下に半透明の小さな札として出す。
+    // 盤はそのまま動き続け、ドラッグや拡大縮小もできるので、どう討たれたのか・その後の動きを見られる。
+    started && W.mode === "openworld" && W.myDefeated && h(DefeatSheet, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, color: "#F0D48A", marginBottom: 12 } }, tr("自軍の玉が討たれた", "Your king has fallen")),
+
+      h("div", { style: { display: "flex", gap: 8 } },
+        h("button", { style: { ...btnStyle(), flex: 1, background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 12px" }, onClick: respawnMine }, tr("再参戦", "Rejoin")),
+        h("button", { style: { ...btnStyle(), flex: 1, padding: "10px 12px" }, onClick: () => { leaveOpenWorld(); backToTitle(); } }, tr("タイトルへ", "To title"))
       )
     ),
-    started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && h(Overlay, null,
-      h("div", { style: { fontFamily: SERIF, fontSize: 20, marginBottom: 10 } }, tr(`自軍の${(player && player.kind === "chess") ? "キング" : "玉"}が討たれた`, "Your king has fallen")),
-      h("div", { style: { fontSize: 12, color: C.text, marginBottom: 20 } }, tr("このまま他軍の戦いを観戦するか、タイトルに戻るかを選べます。", "Keep watching the other armies, or go back to the title.")),
-      h("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
-        h("button", { style: { ...btnStyle(), background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 26px" }, onClick: () => setDefeatAck(true) }, tr("観戦を続ける", "Keep watching")),
-        h("button", { style: { ...btnStyle(), padding: "10px 26px" }, onClick: backToTitle }, tr("タイトルへ戻る", "Back to title"))
+    started && W.mode !== "openworld" && W.playerId !== null && W.myDefeated && !defeatAck && h(DefeatSheet, null,
+      h("div", { style: { fontFamily: SERIF, fontSize: 17, fontWeight: 700, color: "#F0D48A", marginBottom: 12 } },
+        tr(`自軍の${(player && player.kind === "chess") ? "キング" : ((player && player.kingKanji) || "玉")}が討たれた`, "Your king has fallen")),
+
+      h("div", { style: { display: "flex", gap: 8 } },
+        h("button", { style: { ...btnStyle(), flex: 1, background: C.gold, color: "#1a1408", fontWeight: 700, padding: "10px 12px" }, onClick: () => setDefeatAck(true) }, tr("観戦を続ける", "Keep watching")),
+        h("button", { style: { ...btnStyle(), flex: 1, padding: "10px 12px" }, onClick: backToTitle }, tr("タイトルへ戻る", "Back to title"))
       )
     ),
     showNamePrompt && h(Overlay, null,
@@ -3595,8 +3612,10 @@ function pieceSprite(p, army, col, chessStyle, pxS, playerId, shadowOn) {
   const bucket = Math.max(6, Math.ceil(Math.pow(2, Math.ceil(Math.log2(pxS) * 8) / 8)));
   const isLoot = !army.alive;
   const withText = pxS >= 11;
+  // チェスの駒の色: 自軍も含めて、軍ごとに生まれたときに白か黒かが決まる(chessSide)。
+  const lightPiece = !isLoot && (army.chessSide ? army.chessSide === "white" : army.id === playerId);
   const key = chessStyle
-    ? `c|${p.t}|${!isLoot && army.id === playerId ? 1 : 0}|${isLoot ? "#8d8d8a" : col.chip}|${isLoot ? 1 : 0}|${bucket}|${shadowOn ? 1 : 0}`
+    ? `c|${p.t}|${lightPiece ? 1 : 0}|${isLoot ? "#8d8d8a" : col.chip}|${isLoot ? 1 : 0}|${bucket}|${shadowOn ? 1 : 0}`
     : `s|${kanjiOf(p, playerId)}|${p.promoted ? 1 : 0}|${col.fill}|${col.edge}|${p.promoted ? col.prom : col.text}|${bucket}|${withText ? 1 : 0}|${shadowOn ? 1 : 0}`;
   let sp = SPRITE_CACHE.get(key);
   if (sp) return sp;
@@ -3618,7 +3637,7 @@ function pieceSprite(p, army, col, chessStyle, pxS, playerId, shadowOn) {
     x.scale(k, k);
     x.translate(-50, -50);
     if (isLoot) x.globalAlpha = 0.55;
-    drawChessPiece(x, p.t, !isLoot && army.id === playerId, isLoot ? "#8d8d8a" : col.chip, makeChessGrads(x), bucket >= 9);
+    drawChessPiece(x, p.t, lightPiece, isLoot ? "#8d8d8a" : col.chip, makeChessGrads(x), bucket >= 9);
   } else {
     const path = makeKomaPath(bucket);
     if (shadowOn) {
@@ -3707,6 +3726,11 @@ function dpadBtnStyle(stop) {
     border: `1px solid ${stop ? "rgba(168,88,61,0.7)" : "rgba(139,111,62,0.7)"}`,
     boxShadow: "0 2px 6px rgba(0,0,0,0.3)"
   };
+}
+function DefeatSheet({ children }) {
+  return React.createElement("div", { style: { position: "fixed", left: 0, right: 0, bottom: "calc(env(safe-area-inset-bottom, 0px) + 66px)", zIndex: 40, display: "flex", justifyContent: "center", padding: "0 12px", pointerEvents: "none" } },
+    React.createElement("div", { role: "dialog", style: { pointerEvents: "auto", width: "100%", maxWidth: 420, boxSizing: "border-box", padding: "14px 14px 12px", borderRadius: 14, textAlign: "center",
+      background: "rgba(18,10,6,0.78)", border: "1px solid rgba(176,140,79,0.55)", boxShadow: "0 10px 30px rgba(0,0,0,0.45)", color: "#EAE4D0" } }, children));
 }
 function Overlay({ children }) {
   return React.createElement("div", { className: "ows-fill", style: { position: "fixed", inset: 0, background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40 } },
