@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#1a0906">
 <title>オープンワールド将棋【Open World Chess】</title>
 <meta name="description" content="オープンワールド将棋 — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
 <meta property="og:title" content="オープンワールド将棋 | Open World Chess">
@@ -1585,7 +1586,11 @@ const C = {
   chessLight: "#DCDCD9",
   chessDark: "#A3A3A0",
   chessMid: "#BFBFBC",
-  chessEdge: "#3f3f3d"
+  chessEdge: "#3f3f3d",
+  // 将棋×チェスの盤(榧の明るい色と少し濃い色の市松)
+  mixLight: "#EBD7A6",
+  mixDark: "#CFAF74",
+  mixMid: "#DDC38D"
 };
 // チェスの駒(スタントン型)を100×100の座標で描いた形。base=台座、body=本体、line=飾り線
 const CHESS_SHAPES = {
@@ -2733,8 +2738,8 @@ function OpenWorldShogi() {
   }
   function draw(cv, wrap, W2) {
     const chess = W2.variant === "chess";
-    // 高解像度画面でも描く画素数を抑える(見た目はほぼ変わらず、描画がかなり軽くなる)
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // 端末の解像度どおりに描く(上限3)。上限を2にすると iPhone で盤と駒がぼやけた。
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
     const Wd = wrap.clientWidth, Hd = wrap.clientHeight;
     if (cv.width !== Wd * dpr || cv.height !== Hd * dpr) {
       cv.width = Wd * dpr;
@@ -2781,23 +2786,25 @@ function OpenWorldShogi() {
     ctx.translate(Wd / 2, Hd / 2);
     ctx.rotate(cam.rot);
     ctx.translate(-Wd / 2, -Hd / 2);
-    if (chess) {
-      // チェス盤: 市松模様と金属の筋を2×2マス分の画像に一度だけ描き、それを敷き詰める。
+    const mixed = W2.variant === "mixed";
+    if (chess || mixed) {
+      // チェス盤/将棋×チェス盤: 2×2マス分の画像に一度だけ描き、それを敷き詰める。
       // (以前はマスと筋を毎フレーム別々に塗っていて、描画の大半をここが占めていた)
-      ctx.fillStyle = S >= 4 ? C.chessLight : C.chessMid;
+      ctx.fillStyle = mixed ? (S >= 4 ? C.mixLight : C.mixMid) : (S >= 4 ? C.chessLight : C.chessMid);
       ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
       if (S >= 4) {
         const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W - 1, Math.ceil(vx1));
         const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H - 1, Math.ceil(vy1));
-        const tile = chessBoardTile(S * dpr);
+        const tile = boardTile(mixed ? "mixed" : "chess", S * dpr);
         const pat = tile.pattern(ctx);
         if (pat && pat.setTransform && typeof DOMMatrix !== "undefined") {
           const k = S / tile.bucket;
+          ctx.imageSmoothingQuality = "high";
           pat.setTransform(new DOMMatrix([k, 0, 0, k, sx(0), sy(0)]));
           ctx.fillStyle = pat;
           ctx.fillRect(sx(gx0), sy(gy0), (gx1 - gx0 + 1) * S, (gy1 - gy0 + 1) * S);
         } else {
-          ctx.fillStyle = C.chessDark;
+          ctx.fillStyle = mixed ? C.mixDark : C.chessDark;
           ctx.beginPath();
           for (let y = gy0; y <= gy1; y++) for (let x = gx0 + ((gx0 + y + 1) & 1); x <= gx1; x += 2) ctx.rect(sx(x), sy(y), S, S);
           ctx.fill();
@@ -2810,13 +2817,13 @@ function OpenWorldShogi() {
     ctx.strokeStyle = "rgba(74,52,26,0.35)";
     ctx.lineWidth = 8;
     ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
-    ctx.strokeStyle = chess ? C.chessEdge : C.boardEdge;
+    ctx.strokeStyle = chess ? C.chessEdge : C.boardEdge;  // 将棋・将棋×チェスは木の縁
     ctx.lineWidth = 3;
     ctx.strokeRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
     ctx.strokeStyle = "rgba(255,235,190,0.35)";
     ctx.lineWidth = 1;
     ctx.strokeRect(sx(0) + 4, sy(0) + 4, MAP_W * S - 8, MAP_H * S - 8);
-    if (!chess && S >= 4) {
+    if (!chess && !mixed && S >= 4) {
       // 盤の木目の粒は1回の塗りでまとめて描く(以前は1粒ずつ塗っていた)
       ctx.fillStyle = "rgba(139,111,62,0.14)";
       ctx.beginPath();
@@ -2828,7 +2835,7 @@ function OpenWorldShogi() {
       }
       ctx.fill();
     }
-    if (!chess && S >= 6) {
+    if (!chess && !mixed && S >= 6) {
       const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W, Math.ceil(vx1));
       const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H, Math.ceil(vy1));
       ctx.strokeStyle = "rgba(74,52,26,0.22)";
@@ -2904,6 +2911,8 @@ function OpenWorldShogi() {
       ctx.lineJoin = "round";
     }
     // 駒は1枚ずつ図形や文字を描くと重いので、同じ見た目の駒を一度だけ画像にして使い回す。
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     const baseTf = ctx.getTransform();
     const pxS = S * dpr;
     const drawPieceAt = (x, y, p) => {
@@ -3167,7 +3176,7 @@ function OpenWorldShogi() {
     h("span", { style: { fontFamily: SERIF, fontWeight: 800, fontSize: "clamp(14px,2vw,19px)" } }, label),
     h("span", { style: { fontSize: "clamp(9.5px,1.2vw,12px)", opacity: 0.85 } }, sub)
   );
-  return h("div", { style: { height: "100dvh", display: "flex", flexDirection: "column", background: C.field, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
+  return h("div", { style: { height: "100dvh", boxSizing: "border-box", paddingTop: "env(safe-area-inset-top, 0px)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% env(safe-area-inset-top, 0px) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
     // ===== 上部バー =====
     h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
       h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 12.5 : 13, fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋", "Open World Chess")),
@@ -3476,48 +3485,78 @@ function roundedPolyPath(ctx, pts, r) {
   }
   ctx.closePath();
 }
-// チェス盤の2×2マス分の画像(市松+金属の筋+マスの境目)。大きさごとに作って使い回す。
+// 盤の2×2マス分の画像。大きさごとに作って使い回す。
+//  chess: 灰色の市松+金属の縦筋
+//  mixed: 将棋盤の榧(かや)色を2段の濃さで市松にし、将棋盤の黒い罫線を引いたもの(将棋盤とチェス盤の組み合わせ)
 const BOARD_TILES = new Map();
-function chessBoardTile(pxS) {
-  const bucket = Math.max(4, Math.round(Math.pow(2, Math.round(Math.log2(pxS) * 4) / 4)));
-  let t = BOARD_TILES.get(bucket);
+function boardTile(kind, pxS) {
+  const bucket = Math.max(4, Math.ceil(Math.pow(2, Math.ceil(Math.log2(pxS) * 8) / 8)));
+  const key = kind + "|" + bucket;
+  let t = BOARD_TILES.get(key);
   if (t) return t;
-  if (BOARD_TILES.size > 12) BOARD_TILES.clear();
+  if (BOARD_TILES.size > 16) BOARD_TILES.clear();
   const c = document.createElement("canvas");
-  c.width = c.height = bucket * 2;
+  const n = bucket * 2;
+  c.width = c.height = n;
   const x = c.getContext("2d");
-  x.fillStyle = C.chessLight;
-  x.fillRect(0, 0, bucket * 2, bucket * 2);
-  x.fillStyle = C.chessDark;
+  const light = kind === "mixed" ? C.mixLight : C.chessLight;
+  const dark = kind === "mixed" ? C.mixDark : C.chessDark;
+  x.fillStyle = light;
+  x.fillRect(0, 0, n, n);
+  x.fillStyle = dark;
   x.fillRect(bucket, 0, bucket, bucket);
   x.fillRect(0, bucket, bucket, bucket);
   brushPattern(x); // 筋の元画像を用意
-  x.drawImage(brushTileSrc, 0, 0, bucket * 2, bucket * 2);
-  if (bucket >= 18) {
-    x.strokeStyle = "rgba(0,0,0,0.10)";
-    x.lineWidth = 1;
-    x.strokeRect(0.5, 0.5, bucket * 2, bucket * 2);
-    x.beginPath();
-    x.moveTo(bucket + 0.5, 0); x.lineTo(bucket + 0.5, bucket * 2);
-    x.moveTo(0, bucket + 0.5); x.lineTo(bucket * 2, bucket + 0.5);
-    x.stroke();
+  if (kind === "mixed") {
+    // 木目は横向きに、少し控えめに
+    x.save();
+    x.globalAlpha = 0.55;
+    x.translate(n, 0);
+    x.rotate(Math.PI / 2);
+    x.drawImage(brushTileSrc, 0, 0, n, n);
+    x.restore();
+    if (bucket >= 6) {
+      // 将棋盤のような罫線(マスの境目)
+      x.strokeStyle = "rgba(60,40,18,0.42)";
+      x.lineWidth = Math.max(1, Math.round(bucket / 28));
+      const o = x.lineWidth / 2;
+      x.beginPath();
+      x.moveTo(o, 0); x.lineTo(o, n);
+      x.moveTo(bucket + o, 0); x.lineTo(bucket + o, n);
+      x.moveTo(0, o); x.lineTo(n, o);
+      x.moveTo(0, bucket + o); x.lineTo(n, bucket + o);
+      x.stroke();
+    }
+  } else {
+    x.drawImage(brushTileSrc, 0, 0, n, n);
+    if (bucket >= 18) {
+      x.strokeStyle = "rgba(0,0,0,0.10)";
+      x.lineWidth = 1;
+      x.beginPath();
+      x.moveTo(0.5, 0); x.lineTo(0.5, n);
+      x.moveTo(bucket + 0.5, 0); x.lineTo(bucket + 0.5, n);
+      x.moveTo(0, 0.5); x.lineTo(n, 0.5);
+      x.moveTo(0, bucket + 0.5); x.lineTo(n, bucket + 0.5);
+      x.stroke();
+    }
   }
   t = { canvas: c, bucket, pat: null, patCtx: null,
     pattern(ctx) { if (this.patCtx !== ctx) { this.pat = ctx.createPattern(c, "repeat"); this.patCtx = ctx; } return this.pat; } };
-  BOARD_TILES.set(bucket, t);
+  BOARD_TILES.set(key, t);
   return t;
 }
 // ===== 駒の画像キャッシュ =====
-// 大きさは約19%刻みに丸めて作り、少し拡大縮小して貼る(ズーム中に作り直し続けないため)。
+// 大きさは約9%刻みに切り上げて作り、少し縮小して貼る(ズーム中に作り直し続けないため)。
 const SPRITE_CACHE = new Map();
-const SPRITE_MAX = 1600;
+const SPRITE_MAX = 2400;
 if (typeof document !== "undefined" && document.fonts) {
   // 駒の字のフォントが後から届いたら作り直す
   const resetSprites = () => SPRITE_CACHE.clear();
   try { document.fonts.addEventListener("loadingdone", resetSprites); document.fonts.ready.then(resetSprites); } catch (e) {}
 }
 function pieceSprite(p, army, col, chessStyle, pxS, playerId, shadowOn) {
-  const bucket = Math.max(6, Math.pow(2, Math.round(Math.log2(pxS) * 4) / 4));
+  // 大きさは約9%刻みで「必要な大きさ以上」に切り上げて作る(拡大して貼るとぼやけるため)
+  const bucket = Math.max(6, Math.ceil(Math.pow(2, Math.ceil(Math.log2(pxS) * 8) / 8)));
   const isLoot = !army.alive;
   const withText = pxS >= 11;
   const key = chessStyle
