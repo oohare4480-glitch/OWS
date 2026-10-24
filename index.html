@@ -33,9 +33,9 @@
   /* 画面上端の余白。iPhoneでは時計・電波・電池の帯とその少し下がぼかされるので、
      ホーム画面に追加して開いたとき(standalone)は、さらに下げてぼかしの外に出す。 */
   :root { --ows-top: env(safe-area-inset-top, 0px); }
-  @media (display-mode: standalone) {
-    :root { --ows-top: calc(env(safe-area-inset-top, 0px) + 34px); }
-  }
+  /* ホーム画面から開いたとき(下のスクリプトが ows-standalone を付ける)。
+     iPhoneは時計・電波の帯の下およそ35pxまでぼかすので、その分さらに下げる。 */
+  :root.ows-standalone { --ows-top: calc(env(safe-area-inset-top, 0px) + 40px); }
   #root { height: 100%; }
   #boot-error { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100000; display: none;
     background: rgba(10,5,5,0.96); color: #FFB3A0; font-family: ui-monospace, monospace; font-size: 12px;
@@ -110,6 +110,16 @@
 </style>
 </head>
 <body>
+<script>
+  // ホーム画面に追加して開いたかどうか。iPhoneでは display-mode の判定が効かないことがあるので navigator.standalone も見る。
+  (function () {
+    try {
+      var sa = window.navigator.standalone === true ||
+        (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
+      if (sa) document.documentElement.classList.add('ows-standalone');
+    } catch (e) {}
+  })();
+</script>
 <div id="boot-error"></div>
 <div id="root"></div>
 
@@ -3185,7 +3195,7 @@ function OpenWorldShogi() {
     h("span", { style: { fontFamily: SERIF, fontWeight: 800, fontSize: "clamp(14px,2vw,19px)" } }, label),
     h("span", { style: { fontSize: "clamp(9.5px,1.2vw,12px)", opacity: 0.85 } }, sub)
   );
-  return h("div", { style: { height: "100dvh", boxSizing: "border-box", paddingTop: "var(--ows-top)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% var(--ows-top) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
+  return h("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, boxSizing: "border-box", paddingTop: "var(--ows-top)", display: "flex", flexDirection: "column", background: `linear-gradient(${WOOD_BASE}, ${WOOD_BASE}) top / 100% var(--ows-top) no-repeat, ${C.field}`, color: C.text, fontFamily: SERIF, userSelect: "none", overflow: "hidden", touchAction: "none", overscrollBehavior: "none" } },
     // ===== 上部バー =====
     h("div", { style: { ...panelStyle, display: "flex", alignItems: "center", gap: 5, padding: "7px 8px 5px", flexWrap: "nowrap", minWidth: 0 } },
       h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: lang === "en" ? 12.5 : 13, fontWeight: lang === "en" ? 700 : 800, letterSpacing: 0, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "#F0D48A", textShadow: "0 1px 0 rgba(0,0,0,0.75), 0 -1px 0 rgba(255,235,180,0.25), 0 2px 3px rgba(0,0,0,0.5)" } }, tr("オープンワールド将棋", "Open World Chess")),
