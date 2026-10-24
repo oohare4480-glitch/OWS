@@ -180,6 +180,47 @@ const rotV = (dx, dy, f) => {
   return [dx, dy];
 };
 const K = (x, y) => x + "," + y;
+// 盤面(マス→駒)。どの軍の駒がどこにあるかの索引も一緒に持つので、
+// 「この軍の駒はどこ?」を調べるたびに盤面全体(数万マス)を見て回らずに済む。
+const EMPTY_SET = new Set();
+class CellMap extends Map {
+  constructor(entries) {
+    super();
+    this.byOwner = new Map();
+    if (entries) for (const [k, v] of entries) this.set(k, v);
+  }
+  set(k, v) {
+    const old = super.get(k);
+    if (old) {
+      if (old === v) return this;
+      const s0 = this.byOwner.get(old.owner);
+      if (s0) s0.delete(k);
+    }
+    let s1 = this.byOwner.get(v.owner);
+    if (!s1) this.byOwner.set(v.owner, s1 = new Set());
+    s1.add(k);
+    return super.set(k, v);
+  }
+  delete(k) {
+    const old = super.get(k);
+    if (old) {
+      const s0 = this.byOwner.get(old.owner);
+      if (s0) s0.delete(k);
+    }
+    return super.delete(k);
+  }
+  clear() { this.byOwner.clear(); super.clear(); }
+  keysOf(owner) { return this.byOwner.get(owner) || EMPTY_SET; }
+  countOf(owner) { const s = this.byOwner.get(owner); return s ? s.size : 0; }
+}
+function coordsOf(cells, owner) {
+  const out = [];
+  for (const k of cells.keysOf(owner)) {
+    const ci = k.indexOf(",");
+    out.push([+k.slice(0, ci), +k.slice(ci + 1)]);
+  }
+  return out;
+}
 
 // ===== ワールドの種類 =====
 // "shogi" = 将棋ワールド / "chess" = チェスワールド。同時に動くワールドは1つだけなので、
@@ -457,7 +498,7 @@ function placeArmyCentered(cells, armyId, center, facing, kind) {
 }
 function relocateArmy(W, a, center, facing) {
   const doomed = [];
-  for (const [k, p] of W.cells) if (p.owner === a.id) doomed.push(k);
+  for (const k of W.cells.keysOf(a.id)) doomed.push(k);
   for (const k of doomed) W.cells.delete(k);
   a.facing = facing;
   a.zf = facing;
@@ -495,15 +536,18 @@ const LOOT_GRID = 16;
 function buildLootGrid(W) {
   const gw = Math.ceil(MAP_W / LOOT_GRID);
   const buckets = new Map();
-  for (const [k, p] of W.cells) {
-    const oa = W.armies[p.owner];
+  for (const [owner, keys] of W.cells.byOwner) {
+    const oa = W.armies[owner];
     if (oa && oa.alive) continue;
+    for (const k of keys) {
+    const p = { owner };
     const ci = k.indexOf(",");
     const x = +k.slice(0, ci), y = +k.slice(ci + 1);
     const b = (y / LOOT_GRID | 0) * gw + (x / LOOT_GRID | 0);
     let list = buckets.get(b);
     if (!list) { list = []; buckets.set(b, list); }
     list.push(x, y, p.owner);
+    }
   }
   return { gw, gh: Math.ceil(MAP_H / LOOT_GRID), buckets };
 }
@@ -628,8 +672,7 @@ function findSpawnSpot(W, facing, kind) {
   return null;
 }
 function armyHasBoardPieces(W, id) {
-  for (const p of W.cells.values()) if (p.owner === id) return true;
-  return false;
+  return W.cells.countOf(id) > 0;
 }
 function pickArmyKind() {
   return owsVariant === "mixed" ? (Math.random() < 0.5 ? "shogi" : "chess") : owsVariant === "chess" ? "chess" : "shogi";
@@ -647,7 +690,7 @@ function spawnNewArmy(W, onBoardCache, forceKind) {
   let onBoard = onBoardCache;
   if (!onBoard) {
     onBoard = new Set();
-    for (const p of W.cells.values()) onBoard.add(p.owner);
+    for (const [o, keys] of W.cells.byOwner) if (keys.size) onBoard.add(o);
   }
   const reuse = W.armies.find((a2) => !a2.alive && !a2.neutral && !onBoard.has(a2.id) && !(W.myDefeated && a2.id === W.playerId));
   const id = reuse ? reuse.id : W.armies.length;
@@ -1105,9 +1148,16 @@ function hasLocalBusiness(W, army, kings) {
     if (Math.max(Math.abs(okp[0] - army.center[0]), Math.abs(okp[1] - army.center[1])) <= army.zone.r + 14) return true;
   }
   const zs = army.zone.set;
-  if (zs.size > W.cells.size) {
-    for (const [k, p] of W.cells) {
-      if (p.owner !== army.id && zs.has(k)) return true;
+  if (zs.size > 1500) {
+    // 可動域が広い軍は、可動域と重なる軍(と残骸)の駒だけを確かめる
+    for (const [owner, keys] of W.cells.byOwner) {
+      if (owner === army.id || !keys.size) continue;
+      const oa = W.armies[owner];
+      if (oa && oa.alive && oa.zone) {
+        const oz = oa.zone.set;
+        if (oz.x1 < zs.x0 - 2 || oz.x0 > zs.x1 + 2 || oz.y1 < zs.y0 - 2 || oz.y0 > zs.y1 + 2) continue;
+      }
+      for (const k of keys) if (zs.has(k)) return true;
     }
     return false;
   }
@@ -1404,7 +1454,7 @@ function newWorld(mode, playerName, netOpts, variant, playerKind) {
   // "shogi" と "chess" はそれぞれの軍だけ、"mixed" は将棋軍とチェス軍が同じ世界で戦う。
   owsVariant = variant === "chess" ? "chess" : variant === "mixed" ? "mixed" : "shogi";
   const total = CAP;
-  const cells = new Map();
+  const cells = new CellMap();
   const names = generateNames(total);
   const cols = Math.ceil(Math.sqrt(total));
   const cell = Math.floor(Math.min(MAP_W, MAP_H) / cols);
@@ -1655,7 +1705,7 @@ function applyOpenWorldState(W, s, myArmyId) {
   const t = now();
   const prevMine = myArmyId != null ? (W.armies || []).find((a) => a.id === myArmyId) : null;
   const prevCenter = prevMine ? prevMine.center : null;
-  W.cells = new Map((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
+  W.cells = new CellMap((s.cells || []).map(([k, ty, pr, o]) => [k, { t: ty, promoted: !!pr, owner: o }]));
   W.armies = (s.armies || []).map((sa) => ({
     id: sa.id, facing: sa.facing, alive: sa.alive, hand: sa.hand || {}, target: sa.target || null, marchRel: sa.marchRel || null,
     kind: "shogi", center: sa.center, kills: sa.kills || 0, flankBias: sa.flankBias || 0, human: true, name: sa.name, speedMult: sa.speedMult || 1,
@@ -1691,7 +1741,7 @@ function applyOpenWorldState(W, s, myArmyId) {
 function newOpenWorld(myArmyId) {
   owsVariant = "shogi"; // ネット対戦は将棋ワールドのみ
   return owsWorldRef = {
-    mode: "openworld", variant: "shogi", playerId: myArmyId, cells: new Map(), armies: [],
+    mode: "openworld", variant: "shogi", playerId: myArmyId, cells: new CellMap(), armies: [],
     focusId: myArmyId, banner: null, msg: "オープンワールド: 王を守れ",
     sel: null, handSel: null, dropSpots: null, promo: null,
     over: false, myDefeated: false, winner: null, winnerName: "", reason: "",
@@ -1706,6 +1756,7 @@ function OpenWorldShogi() {
   const g = useRef(null);
   if (!g.current) g.current = newWorld("play");
   const camRef = useRef({ x: MAP_W / 2, y: MAP_H / 2, s: 10, zoom: 1, rot: 0, manualMode: false });
+  if (typeof window !== "undefined") window.__owsCam = camRef; // 動作確認用
   const [, force] = useState(0);
   const bump = useCallback(() => force((n) => n + 1), []);
   const [started, setStarted] = useState(false);
@@ -2043,7 +2094,8 @@ function OpenWorldShogi() {
           console.error("updateWorld error", err);
         }
         try {
-          draw(cv, wrap, W2);
+          // タイトル画面の裏では盤を描かない(見えないのに毎フレーム描いていた)
+          if (started) draw(cv, wrap, W2);
         } catch (err) {
           console.error("draw error", err);
         }
@@ -2085,8 +2137,7 @@ function OpenWorldShogi() {
     if (W2.over) return;
     if (W2.mode !== "openworld" && W2.neutralId != null && t - W2.lastLootSpawn >= LOOT_RESPAWN_MS) {
       W2.lastLootSpawn = t;
-      let cur = 0;
-      for (const [, p] of W2.cells) if (p.owner === W2.neutralId) cur++;
+      const cur = W2.cells.countOf(W2.neutralId);
       const want = Math.min(LOOT_RESPAWN_BATCH, (W2.lootTarget || 0) - cur);
       if (want > 0) scatterLoot(W2.cells, W2.armies, W2.neutralId, want);
     }
@@ -2098,7 +2149,7 @@ function OpenWorldShogi() {
       let onBoardCache = null;
       if (toSpawn > 0) {
         onBoardCache = new Set();
-        for (const p of W2.cells.values()) onBoardCache.add(p.owner);
+        for (const [o, keys] of W2.cells.byOwner) if (keys.size) onBoardCache.add(o);
       }
       for (let i = 0; i < toSpawn; i++) {
         const a = spawnNewArmy(W2, onBoardCache);
@@ -2120,13 +2171,8 @@ function OpenWorldShogi() {
       // 等倍は16単位(15秒)、4倍速は4単位、16倍速は毎単位ごとに進軍。
       const due = W2.armies.filter((a) => a.alive && crossed(16 / (a.speedMult || 1)));
       if (due.length) {
-        const byOwner = new Map(due.map((a) => [a.id, []]));
-        for (const [k, p] of W2.cells) {
-          const list = byOwner.get(p.owner);
-          if (!list) continue;
-          const ci = k.indexOf(",");
-          list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
-        }
+        // 進軍する軍の駒の位置は索引から取り出す(盤面全体は見ない)
+        const byOwner = new Map(due.map((a) => [a.id, coordsOf(W2.cells, a.id)]));
         if (isFullTick && W2.mode !== "openworld") {
           // AIの倍速判断(15秒ごと)
           for (const a of W2.armies) {
@@ -2215,11 +2261,10 @@ function OpenWorldShogi() {
       }
       if (dueDecay) {
         const keysOf = new Map();
-        for (const [k, p] of W2.cells) {
-          if (p.t === "K" || !dueDecay.has(p.owner)) continue;
-          let list = keysOf.get(p.owner);
-          if (!list) keysOf.set(p.owner, list = []);
-          list.push(k);
+        for (const id of dueDecay) {
+          const list = [];
+          for (const k of W2.cells.keysOf(id)) if (W2.cells.get(k).t !== "K") list.push(k);
+          keysOf.set(id, list);
         }
         for (const id of dueDecay) {
           const a = W2.armies[id];
@@ -2268,17 +2313,9 @@ function OpenWorldShogi() {
           need.add(oa.id);
         }
       }
+      // AIが考えるのに要る軍の駒だけを索引から取り出す(以前は毎フレーム盤面全体を見ていた)
       piecesByOwner = new Map();
-      for (const [k, p] of W2.cells) {
-        if (!need.has(p.owner)) continue;
-        let list = piecesByOwner.get(p.owner);
-        if (!list) {
-          list = [];
-          piecesByOwner.set(p.owner, list);
-        }
-        const ci = k.indexOf(",");
-        list.push([+k.slice(0, ci), +k.slice(ci + 1)]);
-      }
+      for (const id of need) if (W2.cells.countOf(id)) piecesByOwner.set(id, coordsOf(W2.cells, id));
     }
     const frameStart = Date.now();
     const FRAME_BUDGET_MS = 8;
@@ -2582,8 +2619,14 @@ function OpenWorldShogi() {
         wheelDebugLog(e, "PINCH", cam, 0, 0, cam.x, cam.y);
         return;
       }
-      if (e.deltaMode !== 0) {
-        if (e.deltaY) adjustZoom(e.deltaY < 0 ? 1.1 : 0.9);
+      // マウスホイールは拡大縮小、タッチパッドの2本指スクロールは移動。
+      // Firefoxは行単位(deltaMode=1)で来るので判別しやすいが、Edge/Chromeはマウスでも
+      // 画素単位で来るため、以前はマウスホイールが「上下に移動」になっていた。
+      if (isMouseWheel(e)) {
+        if (e.deltaY) {
+          const notches = e.deltaMode === 1 ? e.deltaY / 3 : e.deltaMode === 2 ? e.deltaY * 3 : e.deltaY / 100;
+          adjustZoom(Math.pow(1.12, -Math.max(-4, Math.min(4, notches))));
+        }
         wheelDebugLog(e, "WHEEL-ZOOM", cam, 0, 0, cam.x, cam.y);
         return;
       }
@@ -2593,6 +2636,19 @@ function OpenWorldShogi() {
       cam.x = Math.max(-15, Math.min(MAP_W + 15, cam.x + wdx));
       cam.y = Math.max(-15, Math.min(MAP_H + 15, cam.y + wdy));
       wheelDebugLog(e, "PAN", cam, wdx, wdy, bx, by);
+    }
+    let lastTrackpadAt = 0;
+    function isMouseWheel(e) {
+      if (e.deltaMode !== 0) return true;
+      const t = performance.now();
+      if (e.deltaX !== 0) { lastTrackpadAt = t; return false; }
+      const wd = e.wheelDeltaY;
+      const mouseLike = typeof wd === "number"
+        ? wd !== 0 && Math.abs(wd) % 120 === 0
+        : Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY);
+      if (!mouseLike) { lastTrackpadAt = t; return false; }
+      // タッチパッドの連続スクロール中に偶然120の倍数が来ても拡大縮小にしない
+      return t - lastTrackpadAt > 300;
     }
     let wdBox = null, wdRows = [], wdAgg = { n: 0, both: 0, clampX: 0, clampY: 0 };
     function wheelDebugLog(e, branch, cam, wdx, wdy, bx, by) {
@@ -2677,7 +2733,8 @@ function OpenWorldShogi() {
   }
   function draw(cv, wrap, W2) {
     const chess = W2.variant === "chess";
-    const dpr = window.devicePixelRatio || 1;
+    // 高解像度画面でも描く画素数を抑える(見た目はほぼ変わらず、描画がかなり軽くなる)
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     const Wd = wrap.clientWidth, Hd = wrap.clientHeight;
     if (cv.width !== Wd * dpr || cv.height !== Hd * dpr) {
       cv.width = Wd * dpr;
@@ -2725,32 +2782,25 @@ function OpenWorldShogi() {
     ctx.rotate(cam.rot);
     ctx.translate(-Wd / 2, -Hd / 2);
     if (chess) {
-      // チェス盤: 明るい灰色と濃い灰色の市松模様に、金属のような縦の筋を重ねる。
-      // マスは見えている範囲だけ1回の塗りでまとめて描く(拡大縮小してもぼやけない)。
+      // チェス盤: 市松模様と金属の筋を2×2マス分の画像に一度だけ描き、それを敷き詰める。
+      // (以前はマスと筋を毎フレーム別々に塗っていて、描画の大半をここが占めていた)
       ctx.fillStyle = S >= 4 ? C.chessLight : C.chessMid;
       ctx.fillRect(sx(0), sy(0), MAP_W * S, MAP_H * S);
       if (S >= 4) {
         const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W - 1, Math.ceil(vx1));
         const gy0 = Math.max(0, Math.floor(vy0)), gy1 = Math.min(MAP_H - 1, Math.ceil(vy1));
-        ctx.fillStyle = C.chessDark;
-        ctx.beginPath();
-        for (let y = gy0; y <= gy1; y++) for (let x = gx0 + ((gx0 + y + 1) & 1); x <= gx1; x += 2) ctx.rect(sx(x), sy(y), S, S);
-        ctx.fill();
-        const bp = brushPattern(ctx);
-        if (bp && bp.setTransform && typeof DOMMatrix !== "undefined") {
-          const k = S / 128; // 筋の模様1枚 = 2マス分
-          bp.setTransform(new DOMMatrix([k, 0, 0, k, sx(0), sy(0)]));
-          ctx.fillStyle = bp;
+        const tile = chessBoardTile(S * dpr);
+        const pat = tile.pattern(ctx);
+        if (pat && pat.setTransform && typeof DOMMatrix !== "undefined") {
+          const k = S / tile.bucket;
+          pat.setTransform(new DOMMatrix([k, 0, 0, k, sx(0), sy(0)]));
+          ctx.fillStyle = pat;
           ctx.fillRect(sx(gx0), sy(gy0), (gx1 - gx0 + 1) * S, (gy1 - gy0 + 1) * S);
-        }
-        if (S >= 18) {
-          // マスの境目にごく細い影を入れて、1マスずつの板に見せる
-          ctx.strokeStyle = "rgba(0,0,0,0.10)";
-          ctx.lineWidth = 1;
+        } else {
+          ctx.fillStyle = C.chessDark;
           ctx.beginPath();
-          for (let x = gx0; x <= gx1 + 1; x++) { ctx.moveTo(sx(x), sy(gy0)); ctx.lineTo(sx(x), sy(gy1 + 1)); }
-          for (let y = gy0; y <= gy1 + 1; y++) { ctx.moveTo(sx(gx0), sy(y)); ctx.lineTo(sx(gx1 + 1), sy(y)); }
-          ctx.stroke();
+          for (let y = gy0; y <= gy1; y++) for (let x = gx0 + ((gx0 + y + 1) & 1); x <= gx1; x += 2) ctx.rect(sx(x), sy(y), S, S);
+          ctx.fill();
         }
       }
     } else {
@@ -2767,13 +2817,16 @@ function OpenWorldShogi() {
     ctx.lineWidth = 1;
     ctx.strokeRect(sx(0) + 4, sy(0) + 4, MAP_W * S - 8, MAP_H * S - 8);
     if (!chess && S >= 4) {
+      // 盤の木目の粒は1回の塗りでまとめて描く(以前は1粒ずつ塗っていた)
       ctx.fillStyle = "rgba(139,111,62,0.14)";
+      ctx.beginPath();
       for (const [x, y, r] of W2.speckles) {
         if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
-        ctx.beginPath();
-        ctx.arc(sx(x), sy(y), r * S * 0.08 + 0.6, 0, 7);
-        ctx.fill();
+        const px = sx(x), py = sy(y), rr = r * S * 0.08 + 0.6;
+        ctx.moveTo(px + rr, py);
+        ctx.arc(px, py, rr, 0, 6.2832);
       }
+      ctx.fill();
     }
     if (!chess && S >= 6) {
       const gx0 = Math.max(0, Math.floor(vx0)), gx1 = Math.min(MAP_W, Math.ceil(vx1));
@@ -2837,7 +2890,7 @@ function OpenWorldShogi() {
     // 縮小表示の駒は色ごとにまとめて1回で塗る
     const chipBatch = S < 5 ? new Map() : null;
     // 駒の形は同じ倍率なら全駒共通なので、1フレームに1回だけ作って使い回す
-    const komaPath = chipBatch || chess ? null : makeKomaPath(S);
+    const komaPath = chipBatch || chess ? null : makeKomaPath(S);  // 選択中の駒の縁取りに使う
     const anyChess = W2.variant !== "shogi";
     const tNow = now();
     const chessGrads = W2.variant !== "shogi" && !chipBatch ? makeChessGrads(ctx) : null;
@@ -2850,6 +2903,9 @@ function OpenWorldShogi() {
       ctx.textBaseline = "middle";
       ctx.lineJoin = "round";
     }
+    // 駒は1枚ずつ図形や文字を描くと重いので、同じ見た目の駒を一度だけ画像にして使い回す。
+    const baseTf = ctx.getTransform();
+    const pxS = S * dpr;
     const drawPieceAt = (x, y, p) => {
       const army = W2.armies[p.owner];
       const col = (W2.playerId != null && army.id === W2.playerId) ? PLAYER_COLOR : army.color;
@@ -2861,55 +2917,24 @@ function OpenWorldShogi() {
         return;
       }
       const selected = W2.sel && W2.sel.x === x && W2.sel.y === y;
-      const pr = army.facing * Math.PI / 2;
-      const canAct = tNow - army.lastAction >= MOVE_COOLDOWN;
-      if (anyChess && pieceIsChessStyle(p.t, p.owner)) {
-        // チェスの駒: 自軍は白駒、他軍は黒駒。台座の帯の色でどの軍か見分ける。残骸は半透明。
-        const isLoot = !army.alive;
-        const light = !isLoot && W2.playerId != null && army.id === W2.playerId;
-        if (selected) {
-          ctx.fillStyle = canAct ? "rgba(166,204,70,0.88)" : "rgba(232,96,76,0.6)";
-          ctx.fillRect(sx(x), sy(y), S, S);
-        }
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(pr);
-        if (shadowOn) {
-          ctx.fillStyle = "rgba(0,0,0,0.22)";
-          ctx.beginPath();
-          ctx.ellipse(S * 0.03, S * 0.44, S * 0.36, S * 0.07, 0, 0, 7);
-          ctx.fill();
-        }
-        const k = S / 100 * 1.14;
-        ctx.scale(k, k);
-        ctx.translate(-50, -50);
-        if (isLoot) ctx.globalAlpha = 0.55;
-        drawChessPiece(ctx, p.t, light, isLoot ? "#8d8d8a" : col.chip, chessGrads, S >= 9);
-        ctx.restore();
-      } else {
-        if (shadowOn) {
-          ctx.save();
-          ctx.translate(cx + shX, cy + shY);
-          ctx.rotate(pr);
-          ctx.fillStyle = "rgba(20,12,4,0.35)";
-          ctx.fill(komaPath);
-          ctx.restore();
-        }
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(pr);
-        ctx.fillStyle = col.fill;
-        ctx.fill(komaPath);
-        ctx.lineWidth = selected ? 2.8 : 1.8;
-        ctx.strokeStyle = selected ? (canAct ? "#9FD08A" : C.danger) : col.edge;
-        ctx.stroke(komaPath);
-        if (S >= 11) {
-          ctx.fillStyle = p.promoted ? col.prom : col.text;
-          ctx.fillText(kanjiOf(p, W2.playerId), 0, S * 0.06);
-        }
-        ctx.restore();
+      const canAct = selected && tNow - army.lastAction >= MOVE_COOLDOWN;
+      const chessStyle = anyChess && pieceIsChessStyle(p.t, p.owner);
+      if (selected && chessStyle) {
+        ctx.fillStyle = canAct ? "rgba(166,204,70,0.88)" : "rgba(232,96,76,0.6)";
+        ctx.fillRect(sx(x), sy(y), S, S);
       }
-      if (!(anyChess && pieceIsChessStyle(p.t, p.owner)) && !army.alive && S >= 10) {
+      const sp = pieceSprite(p, army, col, chessStyle, pxS, W2.playerId, shadowOn);
+      const f = S / sp.bucket; // 画像1画素 = 画面の何CSS画素か
+      ctx.translate(cx, cy);
+      ctx.rotate(army.facing * Math.PI / 2);
+      ctx.drawImage(sp.canvas, -sp.half * f, -sp.half * f, sp.size * f, sp.size * f);
+      if (selected && !chessStyle) {
+        ctx.lineWidth = 2.8;
+        ctx.strokeStyle = canAct ? "#9FD08A" : C.danger;
+        ctx.stroke(komaPath);
+      }
+      ctx.setTransform(baseTf);
+      if (!chessStyle && !army.alive && S >= 10) {
         ctx.strokeStyle = "rgba(0,0,0,0.6)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -2918,6 +2943,7 @@ function OpenWorldShogi() {
         ctx.stroke();
       }
     };
+
     if ((px1 - px0 + 1) * (py1 - py0 + 1) < W2.cells.size) {
       for (let y = py0; y <= py1; y++) for (let x = px0; x <= px1; x++) {
         const p = W2.cells.get(K(x, y));
@@ -2956,12 +2982,13 @@ function OpenWorldShogi() {
       ctx.rect(rx, ry, rw, rh);
       ctx.fillStyle = mine ? "rgba(10,8,4,0.12)" : "rgba(10,8,4,0.07)";
       ctx.fill("evenodd");
-      ctx.shadowColor = "rgba(255,206,96,0.45)";
-      ctx.shadowBlur = 5;
+      // ぼかし影(重い)の代わりに、太く薄い線+細い線で柔らかい光に見せる
+      ctx.strokeStyle = "rgba(255,206,96,0.16)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(rx, ry, rw, rh);
       ctx.strokeStyle = "rgba(255,211,106,0.7)";
       ctx.lineWidth = 1.8;
       ctx.strokeRect(rx, ry, rw, rh);
-      ctx.shadowBlur = 0;
       const cl = Math.max(6, Math.min(rw, rh) * 0.09);
       ctx.lineWidth = 3;
       ctx.lineCap = "square";
@@ -3025,7 +3052,7 @@ function OpenWorldShogi() {
   const remaining = W.armies.filter((a) => a.alive && a.id !== W.playerId).length;
   const hand = player ? player.hand || {} : {};
   let myPieceCount = 0;
-  if (isPlay) for (const p of W.cells.values()) if (p.owner === W.playerId && p.t !== "K") myPieceCount++;
+  if (isPlay) myPieceCount = Math.max(0, W.cells.countOf(W.playerId) - 1);
   let marchStatus = null, marching = false;
   if (isPlay && player && player.alive) {
     if (player.marchRel && lastRelRef.current) {
@@ -3243,7 +3270,7 @@ function OpenWorldShogi() {
           if (cur === 1 && !player.marchRel) return; // 停止中は倍速できない
           if (cur === 1) {
             let n = 0;
-            for (const p of g.current.cells.values()) if (p.owner === player.id && p.t !== "K") n++;
+            n = Math.max(0, g.current.cells.countOf(player.id) - 1);
             if (n <= 0) { g.current.msg = tr("配置駒がないので倍速できない。", "No board pieces, so you can't speed up."); bump(); return; }
           }
           const next = cur === 1 ? 4 : cur === 4 ? 16 : 1;
@@ -3449,6 +3476,100 @@ function roundedPolyPath(ctx, pts, r) {
   }
   ctx.closePath();
 }
+// チェス盤の2×2マス分の画像(市松+金属の筋+マスの境目)。大きさごとに作って使い回す。
+const BOARD_TILES = new Map();
+function chessBoardTile(pxS) {
+  const bucket = Math.max(4, Math.round(Math.pow(2, Math.round(Math.log2(pxS) * 4) / 4)));
+  let t = BOARD_TILES.get(bucket);
+  if (t) return t;
+  if (BOARD_TILES.size > 12) BOARD_TILES.clear();
+  const c = document.createElement("canvas");
+  c.width = c.height = bucket * 2;
+  const x = c.getContext("2d");
+  x.fillStyle = C.chessLight;
+  x.fillRect(0, 0, bucket * 2, bucket * 2);
+  x.fillStyle = C.chessDark;
+  x.fillRect(bucket, 0, bucket, bucket);
+  x.fillRect(0, bucket, bucket, bucket);
+  brushPattern(x); // 筋の元画像を用意
+  x.drawImage(brushTileSrc, 0, 0, bucket * 2, bucket * 2);
+  if (bucket >= 18) {
+    x.strokeStyle = "rgba(0,0,0,0.10)";
+    x.lineWidth = 1;
+    x.strokeRect(0.5, 0.5, bucket * 2, bucket * 2);
+    x.beginPath();
+    x.moveTo(bucket + 0.5, 0); x.lineTo(bucket + 0.5, bucket * 2);
+    x.moveTo(0, bucket + 0.5); x.lineTo(bucket * 2, bucket + 0.5);
+    x.stroke();
+  }
+  t = { canvas: c, bucket, pat: null, patCtx: null,
+    pattern(ctx) { if (this.patCtx !== ctx) { this.pat = ctx.createPattern(c, "repeat"); this.patCtx = ctx; } return this.pat; } };
+  BOARD_TILES.set(bucket, t);
+  return t;
+}
+// ===== 駒の画像キャッシュ =====
+// 大きさは約19%刻みに丸めて作り、少し拡大縮小して貼る(ズーム中に作り直し続けないため)。
+const SPRITE_CACHE = new Map();
+const SPRITE_MAX = 1600;
+if (typeof document !== "undefined" && document.fonts) {
+  // 駒の字のフォントが後から届いたら作り直す
+  const resetSprites = () => SPRITE_CACHE.clear();
+  try { document.fonts.addEventListener("loadingdone", resetSprites); document.fonts.ready.then(resetSprites); } catch (e) {}
+}
+function pieceSprite(p, army, col, chessStyle, pxS, playerId, shadowOn) {
+  const bucket = Math.max(6, Math.pow(2, Math.round(Math.log2(pxS) * 4) / 4));
+  const isLoot = !army.alive;
+  const withText = pxS >= 11;
+  const key = chessStyle
+    ? `c|${p.t}|${!isLoot && army.id === playerId ? 1 : 0}|${isLoot ? "#8d8d8a" : col.chip}|${isLoot ? 1 : 0}|${bucket}|${shadowOn ? 1 : 0}`
+    : `s|${kanjiOf(p, playerId)}|${p.promoted ? 1 : 0}|${col.fill}|${col.edge}|${p.promoted ? col.prom : col.text}|${bucket}|${withText ? 1 : 0}|${shadowOn ? 1 : 0}`;
+  let sp = SPRITE_CACHE.get(key);
+  if (sp) return sp;
+  if (SPRITE_CACHE.size >= SPRITE_MAX) SPRITE_CACHE.clear();
+  const size = Math.ceil(bucket * 1.3) + 2;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const x = c.getContext("2d");
+  const half = size / 2;
+  x.translate(half, half);
+  if (chessStyle) {
+    if (shadowOn) {
+      x.fillStyle = "rgba(0,0,0,0.22)";
+      x.beginPath();
+      x.ellipse(bucket * 0.03, bucket * 0.44, bucket * 0.36, bucket * 0.07, 0, 0, 7);
+      x.fill();
+    }
+    const k = bucket / 100 * 1.14;
+    x.scale(k, k);
+    x.translate(-50, -50);
+    if (isLoot) x.globalAlpha = 0.55;
+    drawChessPiece(x, p.t, !isLoot && army.id === playerId, isLoot ? "#8d8d8a" : col.chip, makeChessGrads(x), bucket >= 9);
+  } else {
+    const path = makeKomaPath(bucket);
+    if (shadowOn) {
+      x.save();
+      x.translate(0, Math.max(1, bucket * 0.05));
+      x.fillStyle = "rgba(20,12,4,0.35)";
+      x.fill(path);
+      x.restore();
+    }
+    x.fillStyle = col.fill;
+    x.fill(path);
+    x.lineWidth = Math.max(1, bucket * 0.07);
+    x.strokeStyle = col.edge;
+    x.stroke(path);
+    if (withText) {
+      x.font = `${Math.floor(bucket * 0.62)}px ${KOMAFONT}`;
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.fillStyle = p.promoted ? col.prom : col.text;
+      x.fillText(kanjiOf(p, playerId), 0, bucket * 0.06);
+    }
+  }
+  sp = { canvas: c, size, half, bucket };
+  SPRITE_CACHE.set(key, sp);
+  return sp;
+}
 // 駒の形(角を丸めた五角形)。倍率Sが同じなら全駒共通なので、描画のたびに作り直さず使い回す。
 function makeKomaPath(S) {
   const w = S * 0.86, h = S * 0.92, r = Math.max(1, S * 0.05);
@@ -3509,7 +3630,6 @@ function dpadBtnStyle(stop) {
     background: stop ? "rgba(74,45,31,0.62)" : "rgba(58,42,22,0.55)",
     color: stop ? "#F0B8A2" : "#EAE0C4",
     border: `1px solid ${stop ? "rgba(168,88,61,0.7)" : "rgba(139,111,62,0.7)"}`,
-    backdropFilter: "blur(2px)",
     boxShadow: "0 2px 6px rgba(0,0,0,0.3)"
   };
 }
