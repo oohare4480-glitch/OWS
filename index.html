@@ -2961,7 +2961,28 @@ function OpenWorldShogi() {
       : tr("駒が動けるのは王を中心とした9×9。敵王を討つたび縦横+2マス拡大(11×11、13×13…)。", "Your pieces can move inside a 9×9 zone around your king. Each enemy king you take grows it by 2 squares each way (11×11, 13×13…).")],
   ];
   if (tc) {
+    introRows.push([tr("駒の動き", "Pieces"), [
+      tr("♚\uFE0E キング: 周りに1マス", "♚\uFE0E King: 1 square in any direction"),
+      tr("♛\uFE0E クイーン: 縦・横・斜めにどこまでも", "♛\uFE0E Queen: any distance straight or diagonal"),
+      tr("♜\uFE0E ルーク: 縦・横にどこまでも", "♜\uFE0E Rook: any distance straight"),
+      tr("♝\uFE0E ビショップ: 斜めにどこまでも", "♝\uFE0E Bishop: any distance diagonal"),
+      tr("♞\uFE0E ナイト: L字に跳ぶ(間の駒を飛び越えられる)", "♞\uFE0E Knight: jumps in an L shape, over other pieces"),
+      tr("♟\uFE0E ポーン: 前に1マス。駒を取るときだけ斜め前", "♟\uFE0E Pawn: 1 square forward, captures only diagonally forward")
+    ], tr("ポーンは敵の可動域に入るとクイーンに昇格する。", "A pawn becomes a queen when it enters an enemy's zone.")]);
     introRows.push([tr("持ち駒", "Hand"), tr("取った駒は持ち駒になり、自軍の可動域の空きマスに打てる(将棋と同じ)。", "Captured pieces go to your hand. You can drop them on any empty square in your zone, like in shogi.")]);
+  }
+  if (!tc) {
+    introRows.push([tr("駒の動き", "Pieces"), [
+      tr("玉・王: 周りに1マス", "King (玉/王): 1 square in any direction"),
+      tr("飛: 縦・横にどこまでも", "Rook (飛): any distance straight"),
+      tr("角: 斜めにどこまでも", "Bishop (角): any distance diagonal"),
+      tr("金: 斜め後ろ以外の6方向に1マス", "Gold (金): 1 square any way except diagonally back"),
+      tr("銀: 前の3方向と斜め後ろに1マス", "Silver (銀): 1 square forward or diagonally"),
+      tr("桂: 2マス前の左右へ跳ぶ(間の駒を飛び越えられる)", "Knight (桂): jumps two ahead and one to the side, over pieces"),
+      tr("香: 前にどこまでも", "Lance (香): any distance forward"),
+      tr("歩: 前に1マス", "Pawn (歩): 1 square forward")
+    ], tr("駒を取るか敵の可動域に出入りすると成る。飛は竜(+斜め1マス)、角は馬(+縦横1マス)、銀・桂・香・歩は金の動きになる。",
+      "A piece promotes when it captures or moves into or out of an enemy zone. Rook becomes Dragon (+1 diagonal), Bishop becomes Horse (+1 straight), and Silver, Knight, Lance and Pawn move like Gold.")]);
   }
   introRows.push(
     [tr("進軍", "March"), tr("十字ボタンで方向を指定。全軍が15秒ごとに一斉前進し、止まった敵駒は踏み潰して捕獲。", "Pick a direction with the pad. Every army advances together every 15 seconds, trampling and capturing enemy pieces in the way."),
@@ -3128,7 +3149,7 @@ function OpenWorldShogi() {
     // ===== タイトル画面 =====
     !started && netPhase === null && h(Overlay, null,
       langSwitch,
-      h("div", { style: { background: WOOD_GRAIN, border: "1px solid #B08C4F", boxShadow: "inset 0 0 0 1px rgba(255,222,150,0.12), inset 0 2px 10px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.35)", borderRadius: 8, padding: "clamp(8px,1.4vw,20px) clamp(10px,1.8vw,26px) clamp(6px,1vw,16px)", marginBottom: "clamp(7px,1.4vw,18px)" } },
+      h("div", { style: { padding: "clamp(6px,1.2vw,16px) 0 clamp(4px,0.8vw,10px)", marginBottom: "clamp(7px,1.4vw,18px)" } },
         h("div", { style: { fontFamily: SERIF, fontSize: "clamp(17px, 4.9vw, 38px)", fontWeight: 800, letterSpacing: 1, whiteSpace: "nowrap", marginBottom: 2, color: "#F0D48A", textShadow: "0 2px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,235,180,0.3), 0 3px 6px rgba(0,0,0,0.6)" } },
           ...(lang === "en"
             ? [h("span", { key: "en", style: { fontFamily: ENFONT, fontWeight: 700, letterSpacing: 0.5 } }, "Open World Shogi & Chess")]
@@ -3142,11 +3163,16 @@ function OpenWorldShogi() {
         variantBtn("shogi", tr("将棋", "Shogi"), tr("9×9から広がる", "Starts at 9×9")),
         variantBtn("chess", tr("チェス", "Chess"), tr("8×8から広がる", "Starts at 8×8"))
       ),
-      h("div", { style: { textAlign: "left", margin: "0 0 9px", borderTop: `1px solid ${C.panelEdge}` } },
-        introRows.map(([label, body, warn]) => h("div", { key: label, style: { display: "flex", gap: 8, padding: "clamp(4px,0.9vw,10px) 2px", borderBottom: `1px solid ${C.panelEdge}` } },
-          h("span", { style: { fontFamily: SERIF, fontSize: "clamp(11.5px,1.6vw,17px)", fontWeight: 700, color: C.gold, width: lang === "en" ? "clamp(58px,8vw,92px)" : "clamp(56px,8vw,92px)", flexShrink: 0, letterSpacing: 0, whiteSpace: "nowrap" } }, label),
-          h("span", { style: { fontSize: "clamp(11px,1.5vw,16px)", lineHeight: 1.55, color: C.text } }, body, warn && h(React.Fragment, null, h("br", null), h("span", { style: { color: C.danger } }, warn)))
-        ))
+      // 説明文: この枠の中だけでスクロールする(文章を増やしてもタイトル画面は大きくならない)
+      h("div", { style: { marginBottom: "clamp(10px,1.6vw,18px)" } },
+  h("div", { className: "ows-scroll", style: { maxHeight: "min(34vh, 330px)", overflowY: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehavior: "contain", textAlign: "left", borderTop: `1px solid ${C.panelEdge}`, borderBottom: `1px solid ${C.panelEdge}`, padding: "0 2px" } },
+          introRows.map(([label, body, warn], idx) => h("div", { key: label, style: { display: "flex", gap: 10, padding: "clamp(7px,1vw,11px) 0", borderTop: idx ? `1px solid ${C.panelEdge}` : "none" } },
+            h("span", { style: { fontFamily: lang === "en" ? ENFONT : SERIF, fontSize: "clamp(11.5px,1.6vw,16px)", fontWeight: 700, color: C.gold, width: "clamp(60px,8vw,92px)", flexShrink: 0, whiteSpace: "nowrap" } }, label),
+            h("span", { style: { fontSize: "clamp(11px,1.5vw,15px)", lineHeight: 1.65, color: C.text } },
+              Array.isArray(body) ? body.map((line, k) => h("span", { key: k, style: { display: "block" } }, line)) : body,
+              warn && h("span", { style: { display: "block", color: C.danger, marginTop: 2 } }, warn))
+          ))
+        )
       ),
       h("div", { style: { display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" } },
         h("button", { onClick: () => setShowNamePrompt(true), style: { ...btnStyle(), fontSize: "clamp(13px,1.8vw,18px)", padding: "clamp(8px,1.4vw,15px) clamp(15px,2.6vw,28px)", background: C.gold, color: "#1a1408", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 } }, h(Icon, { name: "piece", size: 16 }), tc ? tr("チェスでAI対戦", "Play chess vs AI") : tr("将棋でAI対戦", "Play shogi vs AI")),
