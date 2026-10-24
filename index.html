@@ -2554,7 +2554,7 @@ function OpenWorldShogi() {
       }
     }, { type: "rotate", dir });
   }
-  const REL_LABEL_EN = { front: "Forward", back: "Back", left: "Left", right: "Right", frontLeft: "Fwd-left", frontRight: "Fwd-right", backLeft: "Back-left", backRight: "Back-right" };
+  const REL_LABEL_EN = { front: "Fwd", back: "Back", left: "Left", right: "Right", frontLeft: "Fwd-L", frontRight: "Fwd-R", backLeft: "Back-L", backRight: "Back-R" };
   const relLabel = (k) => owsLang === "en" ? REL_LABEL_EN[k] : REL_LABEL[k];
   const REL_LABEL = { front: "前", back: "後", left: "左", right: "右", frontLeft: "斜め左前", frontRight: "斜め右前", backLeft: "斜め左後", backRight: "斜め右後" };
   function setMarchDirection(rel) {
@@ -3371,16 +3371,21 @@ function OpenWorldShogi() {
         title: tr(`進軍倍率(4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍。${kingWord()}は減らない。配置駒がない時や進軍を止めている時は使えない)`, "March speed (×4: every 10 s, ×16: every 1 s, your board pieces drop to 0.9×. The king is never lost. Unavailable with no board pieces or while stopped.)"),
         style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: player.speedMult > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: player.speedMult > 1 ? "#9FD08A" : C.sub, border: `1px solid ${player.speedMult > 1 ? "#9FD08A66" : C.panelEdge}`, opacity: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1 ? 0.45 : 1 }
       }, "×", player.speedMult || 1),
-      started && h("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 0, whiteSpace: "nowrap" } },
+      started && h("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 1, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" } },
         h("span", { style: { fontSize: 10, color: C.sub } }, tr("一手: ", "Move: "), h("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")),
         h("span", { style: { fontSize: 10, color: C.sub } }, tr("進軍: ", "March: "), h("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))
       ),
       h("span", { style: { flex: 1, minWidth: 0 } }),
       isPlay && started && h("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? tr("十字キーを右へ", "Move pad to the right") : tr("十字キーを左へ", "Move pad to the left"), style: { width: 32, height: 30, padding: 0, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", color: C.sub, border: `1px solid ${C.panelEdge}` } }, h(Icon, { name: "swap", size: 15 })),
-      started && marchStatus && h("span", { style: { fontSize: 11, fontWeight: 700, padding: "5px 8px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)", color: marching ? "#9FD08A" : C.sub, border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}` } },
+      started && marchStatus && h("span", {
+      // 進軍の向きは文字ではなく矢印で表す(言語や画面幅に関係なく収まる)。向きは自軍から見た方向。
+      title: marching ? marchStatus : tr("停止", "Stopped"),
+      "aria-label": marching ? marchStatus : tr("停止", "Stopped"),
+      style: { width: 40, height: 30, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box",
+        background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)", color: marching ? "#9FD08A" : C.sub, border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}` } },
         marching
-          ? h(React.Fragment, null, h(Icon, { name: "play", size: 10, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), marchStatus)
-          : h(React.Fragment, null, h(Icon, { name: "stop", size: 9, style: { display: "inline-block", verticalAlign: "-1px", marginRight: 3 } }), tr("停止", "Stopped")))
+          ? h(Icon, { name: "arrow", size: 15, rotate: ({ front: 0, frontRight: 45, right: 90, backRight: 135, back: 180, backLeft: 225, left: 270, frontLeft: 315 })[lastRelRef.current] || 0 })
+          : h(Icon, { name: "stop", size: 12 }))
     ),
     // ===== タイトル画面 =====
     !started && netPhase === null && h("div", { className: "ows-title ows-scroll ows-noscroll ows-fill", style: { background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, color: "#EAE4D0" } },
