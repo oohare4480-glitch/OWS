@@ -2568,6 +2568,20 @@ function OpenWorldShogi() {
     if (isNetGuest()) netSend({ type: "targetRel", rel });
     bump();
   }
+  // 進軍倍率を直接えらぶ(×1/×4/×16)。倍速は進軍中で、王以外の配置駒があるときだけ。
+  function setSpeed(m) {
+    const W2 = g.current;
+    if (W2.playerId === null || pausedRef.current) return;
+    const pl = W2.armies[W2.playerId];
+    if (!pl || !pl.alive) return;
+    if (m > 1) {
+      if (!pl.marchRel) { W2.msg = tr("停止中は倍速できない。", "You can't speed up while stopped."); bump(); return; }
+      if (W2.cells.countOf(pl.id) - 1 <= 0) { W2.msg = tr("配置駒がないので倍速できない。", "No board pieces, so you can't speed up."); bump(); return; }
+    }
+    pl.speedMult = m;
+    if (isNetGuest()) netSend({ type: "speed", mult: m });
+    bump();
+  }
   function stopMarch() {
     const W2 = g.current;
     if (W2.playerId === null) return;
@@ -3329,20 +3343,36 @@ function OpenWorldShogi() {
     h("div", { ref: wrapRef, style: { flex: 1, position: "relative", minHeight: 0 } },
       h("canvas", { ref: canvasRef, style: { display: "block", touchAction: "none" } }),
       isPlay && h("div", { style: { position: "absolute", bottom: 14, zIndex: 20, ...(dpadLeft ? { left: 14 } : { right: 14 }), display: "flex", flexDirection: "column", alignItems: "center", gap: 6 } },
+        // 進軍倍率: ×1 / ×4 / ×16 を1回で選べる(十字キーと同じ幅に3等分)
+        h("div", { role: "group", "aria-label": tr("進軍倍率", "March speed"), title: tr(`4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍(${kingWord()}は減らない)。停止中や配置駒がない時は使えない`, "×4: every 10 s, ×16: every 1 s, your board pieces drop to 0.9× (the king is never lost). Unavailable while stopped or with no board pieces."), style: { display: "flex", gap: 4, width: 146 } },
+          [1, 4, 16].map((m) => {
+            const cur = player.speedMult || 1;
+            const on = cur === m;
+            const usable = m === 1 || (player.marchRel && myPieceCount > 0);
+            return h("button", {
+              key: m, onClick: () => setSpeed(m), disabled: !player.alive || (!usable && !on), "aria-pressed": on,
+              style: { ...dpadBtnStyle(false, on), width: "auto", flex: "1 1 0", height: 32, gap: 1, opacity: usable || on ? 1 : 0.45,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", system-ui, sans-serif', fontVariantNumeric: "tabular-nums", lineHeight: 1 }
+            },
+              // 「×」は小さく細めに、数字をはっきり大きく(セリフ体の×と小さく沈む数字がちぐはぐに見えていた)
+              h("span", { style: { fontSize: 11, fontWeight: 500, opacity: 0.75, transform: "translateY(-0.5px)" } }, "×"),
+              h("span", { style: { fontSize: 15, fontWeight: 700, letterSpacing: 0.2 } }, String(m)));
+          })
+        ),
         h("div", { style: { display: "flex", gap: 4 } },
           h("button", { onClick: () => rotate(-1), title: tr("自軍を左回転", "Rotate army left"), style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, h(Icon, { name: "rotateCCW", size: 14 }), h("span", { style: { fontSize: 11 } }, tr("左", "Left"))),
           h("button", { onClick: () => rotate(1), title: tr("自軍を右回転", "Rotate army right"), style: { ...dpadBtnStyle(), width: 71, height: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 } }, h("span", { style: { fontSize: 11 } }, tr("右", "Right")), h(Icon, { name: "rotateCW", size: 14 }))
         ),
         h("div", { style: { display: "grid", gridTemplateColumns: "46px 46px 46px", gridTemplateRows: "46px 46px 46px", gap: 4 } },
-          h("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: -45 })),
-          h("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 0 })),
-          h("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 45 })),
-          h("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: -90 })),
+          h("button", { onClick: () => setMarchDirection("frontLeft"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "frontLeft", style: dpadBtnStyle(false, marching && lastRelRef.current === "frontLeft") }, h(Icon, { name: "arrow", rotate: -45 })),
+          h("button", { onClick: () => setMarchDirection("front"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "front", style: dpadBtnStyle(false, marching && lastRelRef.current === "front") }, h(Icon, { name: "arrow", rotate: 0 })),
+          h("button", { onClick: () => setMarchDirection("frontRight"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "frontRight", style: dpadBtnStyle(false, marching && lastRelRef.current === "frontRight") }, h(Icon, { name: "arrow", rotate: 45 })),
+          h("button", { onClick: () => setMarchDirection("left"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "left", style: dpadBtnStyle(false, marching && lastRelRef.current === "left") }, h(Icon, { name: "arrow", rotate: -90 })),
           h("button", { onClick: stopMarch, disabled: !player.alive, style: dpadBtnStyle(true) }, h(Icon, { name: "stop" })),
-          h("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 90 })),
-          h("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 225 })),
-          h("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 180 })),
-          h("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, style: dpadBtnStyle() }, h(Icon, { name: "arrow", rotate: 135 }))
+          h("button", { onClick: () => setMarchDirection("right"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "right", style: dpadBtnStyle(false, marching && lastRelRef.current === "right") }, h(Icon, { name: "arrow", rotate: 90 })),
+          h("button", { onClick: () => setMarchDirection("backLeft"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "backLeft", style: dpadBtnStyle(false, marching && lastRelRef.current === "backLeft") }, h(Icon, { name: "arrow", rotate: 225 })),
+          h("button", { onClick: () => setMarchDirection("back"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "back", style: dpadBtnStyle(false, marching && lastRelRef.current === "back") }, h(Icon, { name: "arrow", rotate: 180 })),
+          h("button", { onClick: () => setMarchDirection("backRight"), disabled: !player.alive, "aria-pressed": marching && lastRelRef.current === "backRight", style: dpadBtnStyle(false, marching && lastRelRef.current === "backRight") }, h(Icon, { name: "arrow", rotate: 135 }))
         )
       )
     ),
@@ -3352,40 +3382,12 @@ function OpenWorldShogi() {
       isPlay && h("button", { onClick: orientCameraToFront, title: tr("自軍の正面を上に", "Put my front up"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "arrow", size: 14 })),
       h("button", { onClick: () => rotateCameraStep(1), title: tr("視点を右回転", "Rotate view right"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "rotateCW", size: 14 })),
       h("button", { onClick: recenterCamera, title: isPlay ? tr("自軍に戻る", "Back to my army") : tr("注目軍へ戻る", "Back to focused army"), style: { ...dpadBtnStyle(), width: 34, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, h(Icon, { name: "target", size: 15 })),
-      isPlay && player && player.alive && h("button", {
-        onClick: () => {
-          const cur = player.speedMult || 1;
-          if (cur === 1 && !player.marchRel) return; // 停止中は倍速できない
-          if (cur === 1) {
-            let n = 0;
-            n = Math.max(0, g.current.cells.countOf(player.id) - 1);
-            if (n <= 0) { g.current.msg = tr("配置駒がないので倍速できない。", "No board pieces, so you can't speed up."); bump(); return; }
-          }
-          const next = cur === 1 ? 4 : cur === 4 ? 16 : 1;
-          player.speedMult = next;
-          // ネット対戦ではサーバーが進行を持っているので、倍率もサーバーに伝える
-          if (isNetGuest()) netSend({ type: "speed", mult: next });
-          bump();
-        },
-        disabled: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1,
-        title: tr(`進軍倍率(4倍:10秒ごと、16倍:1秒ごとに配置駒が0.9倍。${kingWord()}は減らない。配置駒がない時や進軍を止めている時は使えない)`, "March speed (×4: every 10 s, ×16: every 1 s, your board pieces drop to 0.9×. The king is never lost. Unavailable with no board pieces or while stopped.)"),
-        style: { fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 4, background: player.speedMult > 1 ? "rgba(159,208,138,0.16)" : "rgba(255,255,255,0.06)", color: player.speedMult > 1 ? "#9FD08A" : C.sub, border: `1px solid ${player.speedMult > 1 ? "#9FD08A66" : C.panelEdge}`, opacity: (myPieceCount <= 0 || !player.marchRel) && (player.speedMult || 1) === 1 ? 0.45 : 1 }
-      }, "×", player.speedMult || 1),
       started && h("span", { style: { display: "flex", flexDirection: "column", lineHeight: 1.25, marginLeft: 4, flexShrink: 1, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" } },
         h("span", { style: { fontSize: 10, color: C.sub } }, tr("一手: ", "Move: "), h("span", { ref: cdRef, style: { color: cdRemain > 0 ? C.danger : "#8fce7a" } }, cdRemain > 0 ? `${cdRemain.toFixed(1)}s` : "OK")),
         h("span", { style: { fontSize: 10, color: C.sub } }, tr("進軍: ", "March: "), h("span", { ref: marchRef }, `${marchRemain.toFixed(1)}s`))
       ),
       h("span", { style: { flex: 1, minWidth: 0 } }),
-      isPlay && started && h("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? tr("十字キーを右へ", "Move pad to the right") : tr("十字キーを左へ", "Move pad to the left"), style: { width: 32, height: 30, padding: 0, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", color: C.sub, border: `1px solid ${C.panelEdge}` } }, h(Icon, { name: "swap", size: 15 })),
-      started && marchStatus && h("span", {
-      // 進軍の向きは文字ではなく矢印で表す(言語や画面幅に関係なく収まる)。向きは自軍から見た方向。
-      title: marching ? marchStatus : tr("停止", "Stopped"),
-      "aria-label": marching ? marchStatus : tr("停止", "Stopped"),
-      style: { width: 40, height: 30, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box",
-        background: marching ? "rgba(159,208,138,0.14)" : "rgba(255,255,255,0.06)", color: marching ? "#9FD08A" : C.sub, border: `1px solid ${marching ? "#9FD08A66" : C.panelEdge}` } },
-        marching
-          ? h(Icon, { name: "arrow", size: 15, rotate: ({ front: 0, frontRight: 45, right: 90, backRight: 135, back: 180, backLeft: 225, left: 270, frontLeft: 315 })[lastRelRef.current] || 0 })
-          : h(Icon, { name: "stop", size: 12 }))
+      isPlay && started && h("button", { onClick: () => setDpadLeft((v) => !v), title: dpadLeft ? tr("十字キーを右へ", "Move pad to the right") : tr("十字キーを左へ", "Move pad to the left"), style: { width: 32, height: 30, padding: 0, borderRadius: 9, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.06)", color: C.sub, border: `1px solid ${C.panelEdge}` } }, h(Icon, { name: "swap", size: 15 }))
     ),
     // ===== タイトル画面 =====
     !started && netPhase === null && h("div", { className: "ows-title ows-scroll ows-noscroll ows-fill", style: { background: `radial-gradient(ellipse 120% 90% at 50% 28%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), ${WOOD_GRAIN}`, backgroundColor: WOOD_BASE, color: "#EAE4D0" } },
@@ -3751,7 +3753,13 @@ function ghostBtn(lang) {
 function btnStyle(danger) {
   return { fontSize: 13, padding: "8px 12px", borderRadius: 8, background: danger ? "#3d2416" : "#3a2a15", color: danger ? "#F0B8A2" : "#EAE0C4", border: "1px solid #8B6F3E", whiteSpace: "nowrap", flexShrink: 0 };
 }
-function dpadBtnStyle(stop) {
+// active: いま進軍している向きのボタン(緑に光らせる)
+function dpadBtnStyle(stop, active) {
+  if (active) return {
+    width: 46, height: 46, borderRadius: 10, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+    background: "rgba(120,190,100,0.55)", color: "#E9FFE0", border: "1px solid #A8E096",
+    boxShadow: "0 0 0 1px rgba(168,224,150,0.35), 0 0 14px rgba(140,220,120,0.55), 0 2px 6px rgba(0,0,0,0.3)"
+  };
   return {
     width: 46,
     height: 46,
