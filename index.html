@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#1a0906">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>オープンワールド将棋【Open World Chess】</title>
 <meta name="description" content="オープンワールド将棋 — 480×480マスの広大な盤面で最大200軍が同時に戦う、新感覚のバトルロワイヤル。将棋ワールドとチェスワールドを選んで、ブラウザですぐ遊べる無料オンラインゲーム。 | Open World Chess — A battle-royale game where up to 200 armies fight simultaneously on a massive 480x480 board. Choose a shogi world or a chess world. Free to play in your browser.">
 <meta property="og:title" content="オープンワールド将棋 | Open World Chess">
@@ -36,9 +35,7 @@
   /* ホーム画面から開いたとき(下のスクリプトが ows-standalone を付ける)。
      iPhoneは時計・電波の帯の下およそ35pxまでぼかすので、その分さらに下げる。 */
   :root.ows-standalone { --ows-top: calc(env(safe-area-inset-top, 0px) + 22px); }
-  /* ホーム画面から開いたiPhoneでは、画面の高さが実際より短く報告されて下に隙間ができるので、
-     全画面の要素は実際の画面の高さ(--ows-h、下のスクリプトで計算)にする。 */
-  :root.ows-standalone .ows-fill { bottom: auto !important; height: var(--ows-h, 100%) !important; }
+
   #root { height: 100%; }
   #boot-error { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100000; display: none;
     background: rgba(10,5,5,0.96); color: #FFB3A0; font-family: ui-monospace, monospace; font-size: 12px;
@@ -119,18 +116,7 @@
     try {
       var sa = window.navigator.standalone === true ||
         (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
-      if (sa) {
-        document.documentElement.classList.add('ows-standalone');
-        var setH = function () {
-          var portrait = window.innerWidth <= window.innerHeight;
-          var full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-          var h = Math.max(window.innerHeight, full || 0);
-          document.documentElement.style.setProperty('--ows-h', h + 'px');
-        };
-        setH();
-        window.addEventListener('resize', setH);
-        window.addEventListener('orientationchange', function () { setTimeout(setH, 250); });
-      }
+      if (sa) document.documentElement.classList.add('ows-standalone');
     } catch (e) {}
   })();
 </script>
