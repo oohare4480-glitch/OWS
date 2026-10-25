@@ -389,11 +389,14 @@ function isPromotable(t, owner) {
   if (kindOfOwner(owner) === "chess") return false;
   return !!PROMOTABLE[t];
 }
-// 成れるかどうか。将棋: 駒を取る/敵の可動域に入る・出る。チェス: ポーンが敵の可動域に入るとクイーンに昇格。
+// 成れるかどうか。
+//  将棋の駒: 本物の将棋の「敵陣」と同じ考え方で、敵の可動域に入る・可動域の中で動く・可動域から出るときに成る。
+//           (動く前か動いた先のどちらかが敵の可動域の中なら成る。駒を取っただけでは成らない)
+//  チェスのポーン: 敵の可動域に入るとクイーンに昇格。
 function promoCheck(mover, victim, fx, fy, tx, ty, armyId, zones) {
   if (!mover || !isPromotable(mover.t, mover.owner) || mover.promoted) return false;
   if (mover.t === "CP") return isInHostileZone(tx, ty, armyId, zones);
-  return !!victim || isInHostileZone(tx, ty, armyId, zones) || isInHostileZone(fx, fy, armyId, zones);
+  return isInHostileZone(tx, ty, armyId, zones) || isInHostileZone(fx, fy, armyId, zones);
 }
 const NAME_POOLS = [
   { cjk: true, pre: ["レッド", "ブルー", "ゴールデン", "シルバー", "ブラック", "クリムゾン", "アズール", "シャドウ", "サンダー", "オーロラ"], suf: ["ウィング", "ファング", "ブレード", "クロー", "ホーク", "ウルフ", "ライオン", "タイガー", "ガード", "フリート"] },
@@ -3197,8 +3200,8 @@ function OpenWorldShogi() {
     tr("歩: 前に1マス", "Pawn (歩): 1 square forward")
   ];
   const chessPromo = tr("ポーンは敵の可動域に入るとクイーンに昇格する。", "A pawn becomes a queen when it enters an enemy's zone.");
-  const shogiPromo = tr("駒を取るか敵の可動域に出入りすると成る。飛は竜(+斜め1マス)、角は馬(+縦横1マス)、銀・桂・香・歩は金の動きになる。",
-    "A piece promotes when it captures or moves into or out of an enemy zone. Rook becomes Dragon (+1 diagonal), Bishop becomes Horse (+1 straight), and Silver, Knight, Lance and Pawn move like Gold.");
+  const shogiPromo = tr("敵の可動域に入る・その中で動く・そこから出ると成る(本物の将棋の敵陣と同じ)。飛は竜(+斜め1マス)、角は馬(+縦横1マス)、銀・桂・香・歩は金の動きになる。",
+    "A piece promotes when it moves into, inside, or out of an enemy zone, like the enemy camp in real shogi. Rook becomes Dragon (+1 diagonal), Bishop becomes Horse (+1 straight), and Silver, Knight, Lance and Pawn move like Gold.");
   const introRows = [];
   if (tm) {
     introRows.push(
